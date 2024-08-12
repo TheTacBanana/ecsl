@@ -3,6 +3,7 @@ use crate::pos::{BytePos, LineNumber};
 #[derive(Debug, Clone)]
 pub struct LineNumbers {
     offsets: Vec<BytePos>,
+    max_byte: BytePos,
 }
 
 impl From<&str> for LineNumbers {
@@ -14,21 +15,27 @@ impl From<&str> for LineNumbers {
             line_start += line.len() + "\n".len();
         }
 
-        LineNumbers { offsets }
+
+        LineNumbers {
+            offsets,
+            max_byte: BytePos(line_start as u32 - 1),
+        }
     }
 }
 
 impl LineNumbers {
-    fn line_number(&self, byte: BytePos) -> LineNumber {
-        let pos = byte.0 as u32;
+    pub fn line_number(&self, pos: BytePos) -> LineNumber {
+        if pos < BytePos::ZERO || pos > self.max_byte {
+            panic!("{pos:?} is outside the range {:?}", 0..self.max_byte.0)
+        }
+
         let mut min = 0;
         let mut max = self.offsets.len();
         loop {
             let index = min + (max - min) / 2;
 
-            // If contained within current line, output line number
-            if byte >= self.offsets[index] {
-                if index == self.offsets.len() - 1 || byte < self.offsets[index + 1] {
+            if pos >= self.offsets[index] {
+                if index == self.offsets.len() - 1 || pos < self.offsets[index + 1] {
                     return LineNumber(index as u32);
                 } else {
                     min = index;
