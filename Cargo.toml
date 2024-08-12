@@ -1,0 +1,7 @@
+[workspace]
+members = [
+    "bundle",
+    "ecsl_error",
+    "ecsl_source",
+]
+resolver = "1"
