@@ -1,7 +1,6 @@
 [package]
-name = "ecsl_error"
+name = "ecsl_span"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-ecsl_span = { path = "../ecsl_span" }

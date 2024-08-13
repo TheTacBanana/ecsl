@@ -1,7 +1,8 @@
 [workspace]
 members = [
-    "bundle",
+    "bundle", "ecsl_context",
     "ecsl_error",
     "ecsl_source",
+    "ecsl_span"
 ]
 resolver = "1"

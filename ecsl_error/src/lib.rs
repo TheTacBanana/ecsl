@@ -1,19 +1,26 @@
-use ecsl_source::span::Span;
+use std::fmt::Debug;
 
+use ecsl_span::Span;
+
+pub mod snippet;
+
+pub type EcslResult<T> = Result<T, EcslError>;
+
+#[derive()]
 pub struct EcslError {
     pub span: Option<Span>,
     pub kind: Box<dyn ErrorTrait>
 }
 
 impl EcslError {
-    pub fn new<E: ErrorTrait + 'static>(kind: E) -> Self {
+    pub fn new<E: ErrorTrait>(kind: E) -> Self {
         EcslError {
             span: None,
             kind: Box::new(kind)
         }
     }
 
-    pub fn spanned<E: ErrorTrait + 'static>(span: Span, kind: E) -> Self {
+    pub fn spanned<E: ErrorTrait>(span: Span, kind: E) -> Self {
         EcslError {
             span: Some(span),
             kind: Box::new(kind)
@@ -21,6 +28,6 @@ impl EcslError {
     }
 }
 
-pub trait ErrorTrait {
-    fn fmt_err(&self) -> std::fmt::Result;
+pub trait ErrorTrait : 'static{
+    // fn fmt_err(&self) -> std::fmt::Result;
 }
