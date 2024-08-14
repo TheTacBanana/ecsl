@@ -1,0 +1,11 @@
+[package]
+name = "ecsl_context"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ecsl_error = { path = "../ecsl_error" }
+ecsl_span = { path = "../ecsl_span" }
+ecsl_config = { path = "../ecsl_config"}
+ecsl_source = { path = "../ecsl_source"}
+glob = "0.3.1"

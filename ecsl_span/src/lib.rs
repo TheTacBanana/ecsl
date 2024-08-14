@@ -71,6 +71,7 @@ impl Deref for BytePos {
 }
 
 /// Range is inclusive [start..end]
+#[derive(Debug)]
 pub struct Span {
     file: SourceFileID,
     start: BytePos,
