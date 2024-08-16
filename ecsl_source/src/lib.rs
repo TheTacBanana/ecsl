@@ -1,6 +1,7 @@
 use std::{fs::File, io::Read, path::PathBuf};
 
-use ecsl_span::{BytePos, LineNumber, SourceFileID};
+use ecsl_error::snippet::Snippet;
+use ecsl_span::{BytePos, LineData, LineNumber, SourceFileID, Span};
 use lines::LineNumbers;
 
 pub mod lines;
@@ -34,5 +35,48 @@ impl SourceFile {
 
     pub fn line_number(&self, pos: BytePos) -> LineNumber {
         self.lines.line_number(pos)
+    }
+
+    pub fn get_line_slice(&self, line: LineNumber) -> Option<&str> {
+        let byte_slice = self.lines.byte_slice(line)?;
+        Some(&self.contents[*byte_slice.start as usize..*byte_slice.end as usize])
+    }
+
+    pub fn get_snippet(&self, error_span: Span) -> Snippet {
+        let mut snippet_lines = Vec::new();
+
+        let full_span = Span::new(
+            error_span.file(),
+            self.lines.line_start(error_span.start()),
+            self.lines.line_end(error_span.end()),
+        );
+
+        let (start, end) = self.lines.get_lines_from_span(error_span);
+        for line in *start..=*end {
+            let number = LineNumber::new(line);
+            let contents = String::from(self.get_line_slice(number).unwrap());
+            let data = LineData::new(number, contents.len());
+            snippet_lines.push((data, contents))
+        }
+
+        Snippet::from_source_span(self.path.clone(), full_span, error_span, snippet_lines)
+    }
+}
+
+#[cfg(test)]
+pub mod test {
+    use ecsl_span::{BytePos, SourceFileID, Span};
+
+    use crate::SourceFile;
+
+    #[test]
+    pub fn snippet() {
+        let source = SourceFile::from_path("../example/src/main.ecsl".into(), SourceFileID::new(0));
+        let span = Span::new(SourceFileID::new(0), BytePos::new(3), BytePos::new(30));
+
+        let snippet = source.get_snippet(span);
+        println!("{}", snippet);
+
+        panic!()
     }
 }
