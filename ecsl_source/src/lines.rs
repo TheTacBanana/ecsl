@@ -1,6 +1,4 @@
-use std::ops::{Range, RangeInclusive};
-
-use ecsl_error::snippet::Snippet;
+use std::ops::Range;
 use ecsl_span::{BytePos, LineNumber, Span};
 
 #[derive(Debug, Clone)]
@@ -24,13 +22,13 @@ impl From<&str> for LineNumbers {
 }
 
 impl LineNumbers {
-    pub fn max(&self) -> BytePos {
-        BytePos::new(**self.offsets.last().unwrap() - 1)
+    pub fn max_byte(&self) -> BytePos {
+        BytePos::new(**self.offsets.last().unwrap())
     }
 
     pub fn line_number(&self, pos: BytePos) -> LineNumber {
-        if pos < BytePos::ZERO || pos > self.max() {
-            panic!("{pos:?} is outside the range {:?}", 0..*self.max())
+        if pos > self.max_byte() {
+            panic!("{pos:?} is outside the range {:?}", 0..*self.max_byte())
         }
 
         let mut min = 0;
@@ -57,9 +55,9 @@ impl LineNumbers {
     pub fn line_end(&self, pos: BytePos) -> BytePos {
         let ln = (*self.line_number(pos) + 1) as usize;
         if ln  >= self.offsets.len() {
-            return self.max()
+            return self.max_byte()
         }
-        BytePos::new(*self.offsets[ln] - 1)
+        BytePos::new(*self.offsets[ln])
     }
 
     /// Returns an inclusive range [s..=e]
@@ -78,7 +76,7 @@ impl LineNumbers {
         }
 
         if *line as usize == len - 1 {
-            Some(self.offsets[len - 1]..self.max())
+            Some(self.offsets[len - 1]..self.max_byte())
         } else {
             Some(self.offsets[*line as usize]..self.offsets[*line as usize + 1])
         }
@@ -91,6 +89,15 @@ pub mod test {
     use ecsl_span::{BytePos, LineNumber};
 
     use super::LineNumbers;
+
+    #[test]
+    pub fn empty_file() {
+        let string = "";
+
+        let line_numbers = LineNumbers::from(string);
+
+        line_numbers.max_byte();
+    }
 
     #[test]
     pub fn line_numbers() {

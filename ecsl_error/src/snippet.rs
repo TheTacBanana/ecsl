@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
-use ansi_term::Colour::Blue;
-use ecsl_span::{LineData, LineNumber, Span};
+use ansi_term::Colour::{Blue, Red};
+use ecsl_span::{BytePos, LineData, LineNumber, Span};
 
 #[derive(Debug)]
 pub struct Snippet {
@@ -29,6 +29,7 @@ impl Snippet {
 
 impl std::fmt::Display for Snippet {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+
         let max_ln = &self
             .lines
             .iter()
@@ -38,11 +39,28 @@ impl std::fmt::Display for Snippet {
             .to_string()
             .len();
 
+        let pipe_colour = Blue;
+        let pipe_spacing = format!(" {: >1$}", " ", max_ln);
+        let pipe = pipe_colour.paint("|");
+        let underline_colour = Red;
+
+        let mut underline = String::new();
+        let mut underline = {
+            let padding = *(self.error_span.start() - self.full_span.start()) as usize;
+            let diff = *(self.error_span.end() - self.error_span.start());
+
+            underline.push_str(&(0..padding).map(|_| " ").collect::<String>());
+            underline.push_str(&(0..=diff).map(|_| "^").collect::<String>());
+
+            println!("{:?}", underline);
+            underline.drain(..)
+        };
+
         writeln!(
             f,
-            " {}{} {}",
-            format!("{: >1$}", " ", max_ln),
-            Blue.paint("-->"),
+            "{}{} {}",
+            pipe_spacing,
+            pipe_colour.paint("-->"),
             self.file_path.to_str().unwrap()
         )?;
 
@@ -50,14 +68,16 @@ impl std::fmt::Display for Snippet {
             writeln!(
                 f,
                 " {} {}",
-                Blue.paint(format!("{: >1$} |", ln.number(), max_ln)),
+                pipe_colour.paint(format!("{: >1$} |", ln.number(), max_ln)),
                 string.trim_end()
             )?;
-            writeln!(
-                f,
-                " {} {}",
-                format!("{: >1$}", " ", max_ln),
-                Blue.paint("|")
+
+            let underline = underline.by_ref().take(ln.length());
+
+            writeln!(f, "{} {} {}",
+                pipe_spacing,
+                pipe,
+                underline_colour.paint(underline.collect::<String>())
             )?;
         }
 

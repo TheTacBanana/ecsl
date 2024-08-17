@@ -1,4 +1,4 @@
-use std::{ops::Deref};
+use std::ops::{Add, Deref, Sub};
 
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub struct CrateID(pub u32);
@@ -96,6 +96,22 @@ impl Deref for BytePos {
 
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+impl Add<BytePos> for BytePos {
+    type Output = BytePos;
+
+    fn add(self, rhs: BytePos) -> Self::Output {
+        BytePos::new(self.0 + rhs.0)
+    }
+}
+
+impl Sub<BytePos> for BytePos {
+    type Output = BytePos;
+
+    fn sub(self, rhs: BytePos) -> Self::Output {
+        BytePos::new(self.0 - rhs.0)
     }
 }
 

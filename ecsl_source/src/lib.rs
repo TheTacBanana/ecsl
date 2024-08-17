@@ -72,7 +72,7 @@ pub mod test {
     #[test]
     pub fn snippet() {
         let source = SourceFile::from_path("../example/src/main.ecsl".into(), SourceFileID::new(0));
-        let span = Span::new(SourceFileID::new(0), BytePos::new(3), BytePos::new(30));
+        let span = Span::new(SourceFileID::new(0), BytePos::new(0), BytePos::new(30));
 
         let snippet = source.get_snippet(span);
         println!("{}", snippet);
