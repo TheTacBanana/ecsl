@@ -1,4 +1,7 @@
-use std::ops::{Add, Deref, Sub};
+use std::{
+    ops::{Add, Deref, Sub},
+    path::PathBuf,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub struct CrateID(pub u32);
@@ -65,10 +68,7 @@ pub struct LineData {
 
 impl LineData {
     pub fn new(number: LineNumber, length: usize) -> Self {
-        Self {
-            number,
-            length,
-        }
+        Self { number, length }
     }
 
     pub fn number(&self) -> LineNumber {
@@ -85,6 +85,7 @@ pub struct BytePos(u32);
 
 impl BytePos {
     pub const ZERO: BytePos = BytePos(0);
+    pub const ONE: BytePos = BytePos(1);
 
     pub fn new(id: u32) -> Self {
         BytePos(id)
@@ -149,6 +150,31 @@ impl Span {
 
     pub fn overlaps(&self, other: &Self) -> bool {
         self.file == other.file && (self.start <= other.end || self.end >= other.start)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SnippetLocation {
+    path: PathBuf,
+    line: LineNumber,
+    column: usize,
+}
+
+impl SnippetLocation {
+    pub fn new(path: PathBuf, line: LineNumber, column: usize) -> Self {
+        SnippetLocation { path, line, column }
+    }
+}
+
+impl std::fmt::Display for SnippetLocation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}:{}:{}",
+            self.path.to_str().unwrap(),
+            self.line,
+            self.column
+        )
     }
 }
 

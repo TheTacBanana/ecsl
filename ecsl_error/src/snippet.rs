@@ -1,11 +1,9 @@
-use std::path::PathBuf;
-
 use ansi_term::Colour::{Blue, Red};
-use ecsl_span::{BytePos, LineData, LineNumber, Span};
+use ecsl_span::{LineData, SnippetLocation, Span};
 
 #[derive(Debug)]
 pub struct Snippet {
-    file_path: PathBuf,
+    location: SnippetLocation,
     full_span: Span,
     error_span: Span,
     lines: Vec<(LineData, String)>,
@@ -13,13 +11,13 @@ pub struct Snippet {
 
 impl Snippet {
     pub fn from_source_span(
-        path: PathBuf,
+        location: SnippetLocation,
         full_span: Span,
         error_span: Span,
         lines: Vec<(LineData, String)>,
     ) -> Self {
         Self {
-            file_path: path,
+            location,
             full_span,
             error_span,
             lines,
@@ -29,13 +27,13 @@ impl Snippet {
 
 impl std::fmt::Display for Snippet {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-
         let max_ln = &self
             .lines
             .iter()
             .max_by_key(|l| l.0.number().to_string())
             .unwrap()
-            .1
+            .0
+            .number()
             .to_string()
             .len();
 
@@ -61,7 +59,7 @@ impl std::fmt::Display for Snippet {
             "{}{} {}",
             pipe_spacing,
             pipe_colour.paint("-->"),
-            self.file_path.to_str().unwrap()
+            self.location
         )?;
 
         for (ln, string) in &self.lines {
@@ -74,7 +72,9 @@ impl std::fmt::Display for Snippet {
 
             let underline = underline.by_ref().take(ln.length());
 
-            writeln!(f, "{} {} {}",
+            writeln!(
+                f,
+                "{} {} {}",
                 pipe_spacing,
                 pipe,
                 underline_colour.paint(underline.collect::<String>())

@@ -1,4 +1,4 @@
-use std::{collections::{btree_map, BTreeMap, HashMap}, path::PathBuf};
+use std::{collections::{BTreeMap, HashMap}, path::PathBuf};
 
 use ecsl_config::{EcslRootConfig, PackageInfo};
 use ecsl_error::EcslResult;
@@ -75,6 +75,7 @@ pub struct SourceCollection {
     pub file_map: HashMap<PathBuf, SourceFileID>
 }
 
+#[cfg(test)]
 pub mod test {
     use crate::Context;
 

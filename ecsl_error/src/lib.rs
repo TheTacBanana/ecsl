@@ -1,6 +1,6 @@
 
 
-use std::fmt::{Debug, Display};
+use std::fmt::Debug;
 
 use ecsl_span::Span;
 

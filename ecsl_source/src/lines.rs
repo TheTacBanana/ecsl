@@ -1,4 +1,3 @@
-use std::ops::Range;
 use ecsl_span::{BytePos, LineNumber, Span};
 
 #[derive(Debug, Clone)]
@@ -48,6 +47,17 @@ impl LineNumbers {
         }
     }
 
+    pub fn column_number(&self, pos: BytePos) -> usize {
+        let start = self.line_start(pos);
+        *(pos - start) as usize
+    }
+
+    pub fn line_column_number(&self, pos: BytePos) -> (LineNumber, usize) {
+        let line = self.line_number(pos);
+        let start = self.offsets[*self.line_number(pos) as usize];
+        (line, *(pos - start) as usize)
+    }
+
     pub fn line_start(&self, pos: BytePos) -> BytePos {
         self.offsets[*self.line_number(pos) as usize]
     }
@@ -68,17 +78,17 @@ impl LineNumbers {
         (first_line, last_line)
     }
 
-    /// Returns an exclusive range [s..e)
-    pub fn byte_slice(&self, line: LineNumber) -> Option<Range<BytePos>> {
+    /// Returns an inclusive range [s..=e]
+    pub fn byte_slice(&self, line: LineNumber) -> Option<(BytePos, BytePos)> {
         let len = self.offsets.len();
         if *line as usize >= len {
             return None;
         }
 
         if *line as usize == len - 1 {
-            Some(self.offsets[len - 1]..self.max_byte())
+            Some((self.offsets[len - 1], self.max_byte()))
         } else {
-            Some(self.offsets[*line as usize]..self.offsets[*line as usize + 1])
+            Some((self.offsets[*line as usize], self.offsets[*line as usize + 1] - BytePos::ONE))
         }
     }
 }
@@ -137,17 +147,17 @@ pub mod test {
         let three = line_numbers.byte_slice(LineNumber::new(2)).unwrap();
 
         assert_eq!(
-            string.to_owned()[*one.start as usize..*one.end as usize],
+            string.to_owned()[*one.0 as usize..=*one.1 as usize],
             "hi\n".to_owned()
         );
 
         assert_eq!(
-            string.to_owned()[*two.start as usize..*two.end as usize],
+            string.to_owned()[*two.0 as usize..=*two.1 as usize],
             "how\n".to_owned()
         );
 
         assert_eq!(
-            string.to_owned()[*three.start as usize..*three.end as usize],
+            string.to_owned()[*three.0 as usize..=*three.1 as usize],
             "do".to_owned()
         );
     }
