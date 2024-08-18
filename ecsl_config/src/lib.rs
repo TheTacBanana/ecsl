@@ -5,7 +5,7 @@ use std::{
     path::PathBuf,
 };
 
-use ecsl_error::{EcslError, EcslResult, ErrorTrait};
+use ecsl_error::{EcslError, EcslResult};
 use serde::{de::value::Error, Deserialize};
 
 #[derive(Debug, Clone)]
@@ -127,7 +127,6 @@ impl std::fmt::Display for ConfigError {
     }
 }
 
-impl ErrorTrait for ConfigError {}
 
 // #[cfg(test)]
 // pub mod test {

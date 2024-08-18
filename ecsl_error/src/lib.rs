@@ -1,55 +1,96 @@
+use std::{fmt::Debug, path::PathBuf};
 
-
-use std::fmt::Debug;
-
+use ansi_term::Colour::{Red, Yellow, White, Blue};
 use ecsl_span::Span;
+use snippet::Snippet;
 
 pub mod snippet;
 
 pub type EcslResult<T> = Result<T, EcslError>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct EcslError {
+    pub level: ErrorLevel,
+    pub message: String,
     pub span: Option<Span>,
-    pub kind: Box<dyn ErrorTrait>
 }
 
 impl EcslError {
-    pub fn new<E: ErrorTrait>(kind: E) -> Self {
+    pub fn new(level: ErrorLevel, kind: impl Into<String>) -> Self {
         EcslError {
+            level,
+            message: kind.into(),
             span: None,
-            kind: Box::new(kind)
         }
     }
 
-    pub fn spanned<E: ErrorTrait>(span: Span, kind: E) -> Self {
+    pub fn spanned(level: ErrorLevel, kind: impl Into<String>, span: Span) -> Self {
         EcslError {
+            level,
             span: Some(span),
-            kind: Box::new(kind)
+            message: kind.into(),
         }
     }
 }
 
-pub trait ErrorTrait : 'static + Debug{
-    fn fmt_err(&self) -> String {
-        format!("{:?}", self)
+impl std::fmt::Display for EcslError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}: {}", self.level, self.message)
     }
 }
 
-impl<E : ErrorTrait> From<E> for EcslError {
-    fn from(value: E) -> Self {
-        EcslError::new(value)
+#[derive(Debug, Clone, Copy)]
+pub enum ErrorLevel {
+    Error,
+    Warning,
+    Note,
+}
+
+impl std::fmt::Display for ErrorLevel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            ErrorLevel::Error => Red.paint("Error"),
+            ErrorLevel::Warning => Yellow.paint("Warning"),
+            ErrorLevel::Note => White.paint("Note"),
+        };
+        write!(f, "{}", s)
     }
 }
 
-impl ErrorTrait for std::io::Error {
-    fn fmt_err(&self) -> String {
-        format!("{self}")
+#[derive(Debug, Clone)]
+pub struct ErrorWithPath {
+    error: EcslError,
+    path: PathBuf,
+}
+
+impl ErrorWithPath {
+    pub fn new(error: EcslError, path: PathBuf) -> Self {
+        ErrorWithPath { error, path }
     }
 }
 
-impl ErrorTrait for String {
-    fn fmt_err(&self) -> String {
-        self.clone()
+impl std::fmt::Display for ErrorWithPath {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "{}", self.error)?;
+        writeln!(f, " {} {}", Blue.paint("-->"), self.path.to_str().unwrap())
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ErrorWithSnippet {
+    error: EcslError,
+    snippet: Snippet,
+}
+
+impl ErrorWithSnippet {
+    pub fn new(error: EcslError, snippet: Snippet) -> Self {
+        ErrorWithSnippet { error, snippet }
+    }
+}
+
+impl std::fmt::Display for ErrorWithSnippet {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "{}", self.error)?;
+        writeln!(f, "{}", self.snippet)
     }
 }

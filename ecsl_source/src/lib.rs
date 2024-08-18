@@ -68,6 +68,7 @@ impl SourceFile {
 
 #[cfg(test)]
 pub mod test {
+    use ecsl_error::{EcslError, ErrorLevel, ErrorWithPath, ErrorWithSnippet};
     use ecsl_span::{BytePos, SourceFileID, Span};
 
     use crate::SourceFile;
@@ -77,7 +78,11 @@ pub mod test {
         let source = SourceFile::from_path("../example/src/main.ecsl".into(), SourceFileID::new(0));
         let span = Span::new(SourceFileID::new(0), BytePos::new(4), BytePos::new(16));
 
+        let error = EcslError::spanned(ErrorLevel::Error, "With snippet", span);
         let snippet = source.get_snippet(span);
-        println!("{}", snippet);
+        println!("{}", ErrorWithSnippet::new(error, snippet));
+
+        let error = EcslError::new(ErrorLevel::Error, "With no snippet");
+        println!("{}", ErrorWithPath::new(error, source.path.clone()));
     }
 }

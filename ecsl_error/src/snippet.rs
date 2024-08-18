@@ -1,7 +1,7 @@
 use ansi_term::Colour::{Blue, Red};
 use ecsl_span::{LineData, SnippetLocation, Span};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Snippet {
     location: SnippetLocation,
     full_span: Span,

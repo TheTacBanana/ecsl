@@ -172,7 +172,7 @@ impl std::fmt::Display for SnippetLocation {
             f,
             "{}:{}:{}",
             self.path.to_str().unwrap(),
-            self.line,
+            *self.line + 1,
             self.column
         )
     }
