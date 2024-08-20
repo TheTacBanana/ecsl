@@ -5,10 +5,13 @@ use std::{
     path::PathBuf,
 };
 
-use ecsl_error::{EcslError, EcslResult};
+use ecsl_error::{EcslError, EcslResult, ErrorLevel};
+use package::{BundleToml, PackageInfo};
 use serde::{de::value::Error, Deserialize};
 
-#[derive(Debug, Clone)]
+pub mod package;
+
+#[derive(Debug)]
 pub struct EcslRootConfig {
     /// Root Package
     pub root: PackageInfo,
@@ -18,98 +21,56 @@ pub struct EcslRootConfig {
     pub unresolved_deps: Vec<(PackageInfo, ConfigError)>,
 }
 
-#[derive(Debug, Clone)]
-pub struct PackageInfo {
-    pub path: PathBuf,
-    pub name: String,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum PackageType {
-    Bin,
-    Lib,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct PackageDependency {
-    pub required_by: String,
-    pub package_path: String,
-}
-
 impl EcslRootConfig {
     pub const CONFIG_FILE: &'static str = "Bundle.toml";
 
     pub fn new_root_config(path: &PathBuf) -> EcslResult<EcslRootConfig> {
+        let root_bundle_toml = Self::load_package_info(path)
+            .map_err(|e| EcslError::new(ErrorLevel::Error, e.to_string()))?;
+
+        println!("{:?}", root_bundle_toml);
+
+        let mut new_dependencies = root_bundle_toml.dependencies();
+
+        let package_names = HashSet::<String>::new();
+        let deps = Vec::new();
+        let unresolved_deps = Vec::new();
+
+        while let Some(dep) = new_dependencies.pop_front() {
+
+        }
+
         Ok(EcslRootConfig {
-            root: PackageInfo {
-                path: path.clone(),
-                name: "".to_owned()
-            },
+            root: root_bundle_toml.package,
             deps: Vec::new(),
             unresolved_deps: Vec::new(),
         })
-
-        // todo!()
-        // let transitive_deps = Vec::new();
-        // let (info, dependencies) = match EcslRootConfig::load_config(path) {
-        //     Ok((info, dependencies)) => (info, dependencies),
-        //     Err(e) => return Err(EcslError::new(e)),
-        // };
-
-        // let package_names = HashSet::<String>::new();
-
-        // let deps = Vec::new();
-        // let unresolved_deps = Vec::new();
-
-        // for (name, path) in dependencies.iter() {
-        //     if package_names.contains(name) {
-
-        //     }
-
-        //     match Self::load_config(path.into()) {
-        //         Ok(_) => todo!(),
-        //         Err(_) => todo!(),
-        //     }
-
-        // }
-
-        // Ok(EcslRootConfig {
-        //     root: info,
-        //     deps,
-        //     unresolved_deps,
-        // })
     }
 
-    fn load_config(mut path: PathBuf) -> Result<(PackageInfo, Vec<(String, String)>), ConfigError> {
-        todo!();
+    fn load_package_info(path: &PathBuf) -> Result<BundleToml, ConfigError> {
+        let mut bundle_toml_path = path.clone();
+        bundle_toml_path.push(Self::CONFIG_FILE);
 
-        // path.push(EcslRootConfig::CONFIG_FILE);
-        // let mut file =
-        //     File::open(&path).map_err(|_| ConfigError::MissingBundleToml(path.clone()))?;
+        let mut file = File::open(&bundle_toml_path)
+            .map_err(|_| ConfigError::MissingBundleToml(bundle_toml_path.clone()))?;
 
-        // let mut config_file = String::new();
-        // file.read_to_string(&mut config_file)
-        //     .map_err(|_| ConfigError::FileReadError)?;
+        let mut config_file = String::new();
+        file.read_to_string(&mut config_file)
+            .map_err(|e| ConfigError::FileReadError(e))?;
 
-        // let config: EcslConfigDeserialize =
-        //     toml::from_str(&config_file).map_err(|_| ConfigError::MalformedFormat)?;
+        let mut config: BundleToml =
+            toml::from_str(&config_file).map_err(|e| ConfigError::MalformedFormat(e))?;
+        config.package.path = path.clone();
 
-        // let package = config.package.with_path(path);
-        // let deps = config
-        //     .dependencies
-        //     .unwrap_or_default()
-        //     .drain()
-        //     .collect::<Vec<(String, String)>>();
-
-        // Ok((package, deps))
+        Ok(config)
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum ConfigError {
     MissingBundleToml(PathBuf),
-    FileReadError,
-    MalformedFormat,
+    FileReadError(std::io::Error),
+    MalformedFormat(toml::de::Error),
     MissingPackageDeclaration(PathBuf),
 }
 
@@ -120,24 +81,23 @@ impl std::fmt::Display for ConfigError {
             ConfigError::MissingPackageDeclaration(p) => {
                 &format!("Failed to read Package Declaration in {:?}", p)
             }
-            ConfigError::FileReadError => todo!(),
-            ConfigError::MalformedFormat => todo!(),
+            ConfigError::FileReadError(e) => todo!(),
+            ConfigError::MalformedFormat(e) => todo!(),
         };
         write!(f, "{}", temp)
     }
 }
 
+#[cfg(test)]
+pub mod test {
+    use std::path::PathBuf;
 
-// #[cfg(test)]
-// pub mod test {
-//     use std::path::PathBuf;
+    use toml::Value;
 
-//     use toml::Value;
+    use crate::EcslRootConfig;
 
-//     use crate::{EcslConfigDeserialize, EcslRootConfig};
-
-//     #[test]
-//     fn load_config() {
-//         EcslRootConfig::new_root_config("./".into()).unwrap();
-//     }
-// }
+    #[test]
+    fn load_config() {
+        EcslRootConfig::new_root_config(&"../example/".into()).unwrap();
+    }
+}

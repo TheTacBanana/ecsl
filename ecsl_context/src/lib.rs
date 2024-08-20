@@ -1,6 +1,6 @@
 use std::{collections::{BTreeMap, HashMap}, path::PathBuf};
 
-use ecsl_config::{EcslRootConfig, PackageInfo};
+use ecsl_config::{package::PackageInfo, EcslRootConfig};
 use ecsl_error::EcslResult;
 use ecsl_source::SourceFile;
 use ecsl_span::{CrateID, SourceFileID};
