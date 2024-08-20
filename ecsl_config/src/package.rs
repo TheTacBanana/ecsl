@@ -57,7 +57,7 @@ impl PackageType {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PackageDependency {
     pub required_by: String,
     pub package_name: String,

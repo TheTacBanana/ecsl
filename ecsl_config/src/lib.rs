@@ -1,13 +1,14 @@
 use std::{
     collections::{HashMap, HashSet},
+    error::Error,
     fs::File,
     io::Read,
     path::PathBuf,
 };
 
-use ecsl_error::{EcslError, EcslResult, ErrorLevel};
-use package::{BundleToml, PackageInfo};
-use serde::{de::value::Error, Deserialize};
+use ecsl_error::{EcslError, EcslResult, ErrorExt, ErrorLevel};
+use package::{BundleToml, PackageDependency, PackageInfo};
+use serde::Deserialize;
 
 pub mod package;
 
@@ -18,32 +19,53 @@ pub struct EcslRootConfig {
     /// Transitive Dependencies
     pub deps: Vec<PackageInfo>,
     /// Dependencies which could not be resolved
-    pub unresolved_deps: Vec<(PackageInfo, ConfigError)>,
+    pub unresolved_deps: Vec<(PackageDependency, ConfigError)>,
 }
 
 impl EcslRootConfig {
     pub const CONFIG_FILE: &'static str = "Bundle.toml";
 
     pub fn new_root_config(path: &PathBuf) -> EcslResult<EcslRootConfig> {
-        let root_bundle_toml = Self::load_package_info(path)
-            .map_err(|e| EcslError::new(ErrorLevel::Error, e.to_string()))?;
+        let root_bundle_toml = Self::load_package_info(path).ecsl_error(ErrorLevel::Error)?;
 
-        println!("{:?}", root_bundle_toml);
-
+        // List of root dependencies
         let mut new_dependencies = root_bundle_toml.dependencies();
 
-        let package_names = HashSet::<String>::new();
-        let deps = Vec::new();
-        let unresolved_deps = Vec::new();
+        // Seen package names
+        let mut package_names = HashSet::<String>::new();
+        package_names.insert(root_bundle_toml.package.name.clone());
+
+        // Resolved and Failed to resolve dependencies
+        let mut deps = Vec::new();
+        let mut unresolved_deps = Vec::new();
 
         while let Some(dep) = new_dependencies.pop_front() {
+            assert!(package_names.contains(&dep.required_by));
 
+            if package_names.contains(&dep.package_name) {
+                unresolved_deps.push((dep.clone(), ConfigError::CyclicDependency()))
+            }
+
+            let bundle_toml =
+                Self::load_package_info(&dep.package_path.clone().into());
+
+            match bundle_toml {
+                Ok(bundle_toml) => {
+                    new_dependencies.extend(bundle_toml.dependencies());
+
+                    package_names.insert(bundle_toml.package.name.clone());
+                    deps.push(bundle_toml.package);
+                },
+                Err(err) => {
+                    unresolved_deps.push((dep, err))
+                },
+            }
         }
 
         Ok(EcslRootConfig {
             root: root_bundle_toml.package,
-            deps: Vec::new(),
-            unresolved_deps: Vec::new(),
+            deps,
+            unresolved_deps,
         })
     }
 
@@ -71,33 +93,19 @@ pub enum ConfigError {
     MissingBundleToml(PathBuf),
     FileReadError(std::io::Error),
     MalformedFormat(toml::de::Error),
-    MissingPackageDeclaration(PathBuf),
+    CyclicDependency(),
 }
 
 impl std::fmt::Display for ConfigError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let temp: &str = match self {
             ConfigError::MissingBundleToml(p) => &format!("Could not open {:?}", p),
-            ConfigError::MissingPackageDeclaration(p) => {
-                &format!("Failed to read Package Declaration in {:?}", p)
-            }
-            ConfigError::FileReadError(e) => todo!(),
-            ConfigError::MalformedFormat(e) => todo!(),
+            ConfigError::FileReadError(e) => &format!("{e}"),
+            ConfigError::MalformedFormat(e) => &format!("{e}"),
+            ConfigError::CyclicDependency() => &format!("Cyclic Depencency"),
         };
         write!(f, "{}", temp)
     }
 }
 
-#[cfg(test)]
-pub mod test {
-    use std::path::PathBuf;
-
-    use toml::Value;
-
-    use crate::EcslRootConfig;
-
-    #[test]
-    fn load_config() {
-        EcslRootConfig::new_root_config(&"../example/".into()).unwrap();
-    }
-}
+impl Error for ConfigError {}
