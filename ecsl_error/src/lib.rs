@@ -1,6 +1,6 @@
-use std::{fmt::Debug, path::PathBuf};
+use std::{error::Error, fmt::Debug, path::PathBuf};
 
-use ansi_term::Colour::{Red, Yellow, White, Blue};
+use ansi_term::Colour::{Blue, Red, White, Yellow};
 use ecsl_span::Span;
 use snippet::Snippet;
 
@@ -54,6 +54,27 @@ impl std::fmt::Display for ErrorLevel {
             ErrorLevel::Note => White.paint("Note"),
         };
         write!(f, "{}", s)
+    }
+}
+
+pub trait ErrorExt<T> {
+    fn ecsl_error(self, level: ErrorLevel) -> EcslResult<T>;
+    fn ecsl_error_spanned(self, level: ErrorLevel, span: Span) -> EcslResult<T>;
+}
+
+impl<T, E: Error> ErrorExt<T> for Result<T, E> {
+    fn ecsl_error(self, level: ErrorLevel) -> EcslResult<T> {
+        match self {
+            Err(e) => Err(EcslError::new(level, e.to_string())),
+            Ok(ok) => Ok(ok),
+        }
+    }
+
+    fn ecsl_error_spanned(self, level: ErrorLevel, span: Span) -> EcslResult<T> {
+        match self {
+            Err(e) => Err(EcslError::spanned(level, e.to_string(), span)),
+            Ok(ok) => Ok(ok),
+        }
     }
 }
 
