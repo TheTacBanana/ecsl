@@ -4,7 +4,8 @@ use std::{
 };
 
 use ecsl_config::{package::PackageInfo, EcslRootConfig};
-use ecsl_error::{EcslError, EcslResult, ErrorLevel};
+use ecsl_diagnostic::Diagnostics;
+use ecsl_error::{EcslError, EcslResult, ErrorLevel, ErrorWithPath};
 use ecsl_source::SourceFile;
 use ecsl_span::{CrateID, SourceFileID};
 
@@ -18,19 +19,35 @@ pub struct Context {
 }
 
 impl Context {
-    pub fn new(path: PathBuf) -> EcslResult<Self> {
+    pub fn new(path: PathBuf, diagnostics: &mut Diagnostics) -> EcslResult<Self> {
         let config = EcslRootConfig::new_root_config(&path)?;
 
         if let Some(cycle_causer) = config.cycle {
-            return Err(EcslError::new(
-                ErrorLevel::Error,
-                format!("Cycle caused by {:?} ", config.get_crate(cycle_causer).unwrap().to_string())
+            let package_info = config.get_crate(cycle_causer).unwrap();
+            diagnostics.push_error(ErrorWithPath::new(
+                EcslError::new(
+                    ErrorLevel::Error,
+                    format!("Dependency cycle caused by crate {}", package_info.name),
+                ),
+                package_info.path.clone(),
             ));
         }
 
         if config.failed_packages.len() > 0 {
-            println!("{:?}", config);
-            todo!()
+            for (dependency, error) in &config.failed_packages {
+                let required_by = config.get_crate(dependency.required_by).unwrap();
+
+                diagnostics.push_error(ErrorWithPath::new(
+                    EcslError::new(
+                        ErrorLevel::Error,
+                        format!(
+                            "Dependency '{}' required by '{}' could not be resolved. {}",
+                            dependency.name, required_by.name, error
+                        ),
+                    ),
+                    path.clone(),
+                ))
+            }
         }
 
         let mut context = Context {
@@ -40,8 +57,6 @@ impl Context {
         };
 
         context.read_src_dir(&context.config.root().clone())?;
-
-        println!("{:#?}", context);
 
         Ok(context)
     }
@@ -80,6 +95,10 @@ impl Context {
         self.sources.push(source);
         SourceFileID::new(next_id as u32)
     }
+
+    pub fn get_source(&self, id: SourceFileID) -> Option<&SourceFile> {
+        self.sources.get(*id as usize)
+    }
 }
 
 #[derive(Debug)]
@@ -91,10 +110,31 @@ pub struct SourceCollection {
 
 #[cfg(test)]
 pub mod test {
+    use ecsl_diagnostic::Diagnostics;
+    use ecsl_error::{EcslError, ErrorLevel, ErrorWithSnippet};
+    use ecsl_span::{BytePos, SourceFileID, Span};
+
     use crate::Context;
 
     #[test]
     pub fn context() {
-        Context::new("../example/".into()).unwrap();
+        let mut diag = Diagnostics::new();
+
+        let ctx = Context::new("../example/".into(), &mut diag).unwrap();
+
+        let span = Span::new(SourceFileID::new(0), BytePos::new(4), BytePos::new(16));
+        let error = EcslError::spanned(ErrorLevel::Error, "Invalid identifier", span);
+        let snippet = ctx
+            .get_source(SourceFileID::new(0))
+            .unwrap()
+            .get_snippet(span);
+
+        diag.push_error(ErrorWithSnippet::new(error, snippet));
+
+        if diag.finish_stage().is_err() {
+            diag.ok().unwrap();
+        }
+
+        panic!()
     }
 }

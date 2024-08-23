@@ -2,7 +2,7 @@
 members = [
     "bundle",
     "ecsl_config",
-    "ecsl_context",
+    "ecsl_context", "ecsl_diagnostic",
     "ecsl_error",
     "ecsl_source",
     "ecsl_span"

@@ -136,10 +136,19 @@ name = "ecsl_context"
 version = "0.1.0"
 dependencies = [
  "ecsl_config",
+ "ecsl_diagnostic",
  "ecsl_error",
  "ecsl_source",
  "ecsl_span",
  "glob",
+]
+
+[[package]]
+name = "ecsl_diagnostic"
+version = "0.1.0"
+dependencies = [
+ "ansi_term",
+ "ecsl_error",
 ]
 
 [[package]]

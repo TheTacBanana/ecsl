@@ -39,7 +39,7 @@ impl std::fmt::Display for EcslError {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ErrorLevel {
     Error,
     Warning,
@@ -78,6 +78,30 @@ impl<T, E: Error> ErrorExt<T> for Result<T, E> {
     }
 }
 
+#[derive(Debug)]
+pub enum CompleteError {
+    ErrorWithPath(ErrorWithPath),
+    ErrorWithSnippet(ErrorWithSnippet),
+}
+
+impl CompleteError {
+    pub fn level(&self) -> ErrorLevel {
+        match self {
+            CompleteError::ErrorWithPath(e) => e.error.level,
+            CompleteError::ErrorWithSnippet(e) => e.error.level,
+        }
+    }
+}
+
+impl std::fmt::Display for CompleteError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CompleteError::ErrorWithPath(e) => write!(f, "{}", e),
+            CompleteError::ErrorWithSnippet(e) => write!(f, "{}", e),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct ErrorWithPath {
     error: EcslError,
@@ -97,6 +121,12 @@ impl std::fmt::Display for ErrorWithPath {
     }
 }
 
+impl Into<CompleteError> for ErrorWithPath {
+    fn into(self) -> CompleteError {
+        CompleteError::ErrorWithPath(self)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct ErrorWithSnippet {
     error: EcslError,
@@ -113,5 +143,11 @@ impl std::fmt::Display for ErrorWithSnippet {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "{}", self.error)?;
         writeln!(f, "{}", self.snippet)
+    }
+}
+
+impl Into<CompleteError> for ErrorWithSnippet {
+    fn into(self) -> CompleteError {
+        CompleteError::ErrorWithSnippet(self)
     }
 }

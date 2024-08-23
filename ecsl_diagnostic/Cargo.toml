@@ -1,0 +1,8 @@
+[package]
+name = "ecsl_diagnostic"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ecsl_error = { path = "../ecsl_error" }
+ansi_term = "0.12.1"
