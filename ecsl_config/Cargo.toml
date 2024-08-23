@@ -5,5 +5,7 @@ edition = "2021"
 
 [dependencies]
 ecsl_error = { path = "../ecsl_error" }
+ecsl_span = { path = "../ecsl_span" }
+petgraph = "0.6.5"
 serde = { version = "1.0.207", features = ["derive"] }
 toml = "0.8.19"

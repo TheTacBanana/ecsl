@@ -1,5 +1,6 @@
-use std::{collections::{HashMap, VecDeque}, path::PathBuf};
+use std::{collections::HashMap, path::PathBuf};
 
+use ecsl_span::CrateID;
 use serde::Deserialize;
 
 #[derive(Debug, Clone, Deserialize)]
@@ -9,13 +10,13 @@ pub struct BundleToml {
 }
 
 impl BundleToml {
-    pub fn dependencies(&self) -> VecDeque<PackageDependency> {
-        let mut dependencies = VecDeque::new();
+    pub fn get_dependencies(&self, from: CrateID) -> Vec<PackageDependency> {
+        let mut dependencies = Vec::new();
         for (name, path) in self.dependencies.iter() {
-            dependencies.push_back(PackageDependency {
-                required_by: self.package.name.clone(),
-                package_name: name.clone(),
-                package_path: path.clone(),
+            dependencies.push(PackageDependency {
+                required_by: from,
+                name: name.clone(),
+                path: path.clone(),
             })
         }
         dependencies
@@ -59,7 +60,7 @@ impl PackageType {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PackageDependency {
-    pub required_by: String,
-    pub package_name: String,
-    pub package_path: String,
+    pub required_by: CrateID,
+    pub name: String,
+    pub path: String,
 }
