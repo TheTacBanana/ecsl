@@ -23,7 +23,7 @@ impl BundleToml {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Default)]
 pub struct PackageInfo {
     #[serde(skip)]
     pub path: PathBuf,

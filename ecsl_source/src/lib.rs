@@ -1,6 +1,7 @@
 use std::{fs::File, io::Read, path::PathBuf};
 
-use ecsl_error::snippet::Snippet;
+use ecsl_diagnostic::Diagnostics;
+use ecsl_error::{snippet::Snippet, EcslError, ErrorLevel, ErrorWithSnippet};
 use ecsl_span::{BytePos, LineData, LineNumber, SnippetLocation, SourceFileID, Span};
 use lines::LineNumbers;
 
@@ -17,20 +18,41 @@ pub struct SourceFile {
 
 impl SourceFile {
     /// Path should be valid file
-    pub fn from_path(path: PathBuf, id: SourceFileID) -> Self {
+    pub fn from_path(diag: &mut Diagnostics, path: PathBuf, id: SourceFileID) -> Self {
         let mut file = File::open(&path).unwrap();
         let mut contents = String::new();
 
         let size = file.read_to_string(&mut contents).unwrap();
+
+        let non_ascii = contents
+            .chars()
+            .enumerate()
+            .filter_map(|(i, c)| (!c.is_ascii()).then(|| BytePos::new(i as u32)))
+            .collect::<Vec<_>>();
+
         let lines = LineNumbers::from(contents.as_str());
 
-        SourceFile {
+        let source = SourceFile {
             path,
             source_id: id,
             contents: contents,
             file_size: size,
             lines,
+        };
+
+        for pos in non_ascii {
+            let span = Span::new(id, pos, pos);
+            diag.push_error(ErrorWithSnippet::new(
+                EcslError::spanned(
+                    ErrorLevel::Warning,
+                    "Non-ASCII character used, may result in undefined parsing behaviour",
+                    span,
+                ),
+                source.get_snippet(span, ErrorLevel::Warning),
+            ))
         }
+
+        source
     }
 
     pub fn line_number(&self, pos: BytePos) -> LineNumber {
@@ -42,7 +64,7 @@ impl SourceFile {
         Some(&self.contents[*byte_slice.0 as usize..=*byte_slice.1 as usize])
     }
 
-    pub fn get_snippet(&self, error_span: Span) -> Snippet {
+    pub fn get_snippet(&self, error_span: Span, level: ErrorLevel) -> Snippet {
         let mut snippet_lines = Vec::new();
 
         let (line, columnn) = self.lines.line_column_number(error_span.start());
@@ -62,27 +84,6 @@ impl SourceFile {
             snippet_lines.push((data, contents))
         }
 
-        Snippet::from_source_span(location, full_span, error_span, snippet_lines)
-    }
-}
-
-#[cfg(test)]
-pub mod test {
-    use ecsl_error::{EcslError, ErrorLevel, ErrorWithPath, ErrorWithSnippet};
-    use ecsl_span::{BytePos, SourceFileID, Span};
-
-    use crate::SourceFile;
-
-    #[test]
-    pub fn snippet() {
-        let source = SourceFile::from_path("../example/src/main.ecsl".into(), SourceFileID::new(0));
-        let span = Span::new(SourceFileID::new(0), BytePos::new(4), BytePos::new(16));
-
-        let error = EcslError::spanned(ErrorLevel::Error, "With snippet", span);
-        let snippet = source.get_snippet(span);
-        println!("{}", ErrorWithSnippet::new(error, snippet));
-
-        let error = EcslError::new(ErrorLevel::Error, "With no snippet");
-        println!("{}", ErrorWithPath::new(error, source.path.clone()));
+        Snippet::from_source_span(level, location, full_span, error_span, snippet_lines)
     }
 }

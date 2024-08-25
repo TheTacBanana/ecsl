@@ -1,9 +1,15 @@
-use std::{collections::{HashMap, HashSet}, error::Error, fs::File, io::Read, path::PathBuf};
+use std::{
+    collections::HashMap,
+    error::Error,
+    fs::File,
+    io::Read,
+    path::PathBuf,
+};
 
 use ecsl_error::{EcslResult, ErrorExt, ErrorLevel};
 use ecsl_span::CrateID;
 use package::{BundleToml, PackageDependency, PackageInfo};
-use petgraph::{algo, prelude::GraphMap, Directed, Direction, Graph};
+use petgraph::{algo, prelude::GraphMap, Directed};
 
 pub mod package;
 
@@ -13,9 +19,6 @@ pub struct EcslRootConfig {
     pub packages: Vec<PackageInfo>,
     /// Dependencies which could not be resolved
     pub failed_packages: Vec<(PackageDependency, ConfigError)>,
-
-    /// Build Order or None if Cyclic
-    pub build_order: Option<Vec<CrateID>>,
     /// Crate which causes Cycle
     pub cycle: Option<CrateID>,
 }
@@ -72,30 +75,27 @@ impl EcslRootConfig {
             };
 
             graph.add_edge(from_id, to_id, ());
-
         }
 
         match algo::toposort(&graph, None) {
-            Ok(build_order) => {
-                Ok(EcslRootConfig {
-                    packages,
-                    build_order: Some(build_order),
-                    failed_packages,
-                    cycle: None,
-                })
-            },
             // Topological sort failed because the dependencies are cyclic
             Err(cycle) => {
                 let id = cycle.node_id();
                 Ok(EcslRootConfig {
                     packages,
                     failed_packages,
-                    build_order: None,
                     cycle: Some(id),
                 })
             }
+            // If no cycles then sort the packages as per the toposort
+            Ok(_) => {
+                Ok(EcslRootConfig {
+                    packages,
+                    failed_packages,
+                    cycle: None,
+                })
+            }
         }
-
     }
 
     fn load_package_info(path: &PathBuf) -> Result<BundleToml, ConfigError> {
@@ -103,11 +103,11 @@ impl EcslRootConfig {
         bundle_toml_path.push(Self::CONFIG_FILE);
 
         let mut file = File::open(&bundle_toml_path)
-        .map_err(|_| ConfigError::MissingBundleToml(bundle_toml_path.clone()))?;
+            .map_err(|_| ConfigError::MissingBundleToml(bundle_toml_path.clone()))?;
 
-    let mut config_file = String::new();
-    file.read_to_string(&mut config_file)
-    .map_err(|e| ConfigError::FileReadError(e))?;
+        let mut config_file = String::new();
+        file.read_to_string(&mut config_file)
+            .map_err(|e| ConfigError::FileReadError(e))?;
 
         let mut config: BundleToml =
             toml::from_str(&config_file).map_err(|e| ConfigError::MalformedFormat(e))?;

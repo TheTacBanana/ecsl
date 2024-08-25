@@ -19,12 +19,12 @@ pub struct Context {
 }
 
 impl Context {
-    pub fn new(path: PathBuf, diagnostics: &mut Diagnostics) -> EcslResult<Self> {
+    pub fn new(path: PathBuf, diag: &mut Diagnostics) -> EcslResult<Self> {
         let config = EcslRootConfig::new_root_config(&path)?;
 
         if let Some(cycle_causer) = config.cycle {
             let package_info = config.get_crate(cycle_causer).unwrap();
-            diagnostics.push_error(ErrorWithPath::new(
+            diag.push_error(ErrorWithPath::new(
                 EcslError::new(
                     ErrorLevel::Error,
                     format!("Dependency cycle caused by crate {}", package_info.name),
@@ -37,7 +37,7 @@ impl Context {
             for (dependency, error) in &config.failed_packages {
                 let required_by = config.get_crate(dependency.required_by).unwrap();
 
-                diagnostics.push_error(ErrorWithPath::new(
+                diag.push_error(ErrorWithPath::new(
                     EcslError::new(
                         ErrorLevel::Error,
                         format!(
@@ -56,12 +56,20 @@ impl Context {
             crate_map: BTreeMap::new(),
         };
 
-        context.read_src_dir(&context.config.root().clone())?;
+        {
+            let packages = std::mem::replace(&mut context.config.packages, Vec::new());
+
+            for (i, conf) in packages.iter().enumerate() {
+                context.read_src_dir(conf, CrateID::new(i as u32), diag);
+            }
+
+            context.config.packages = packages;
+        }
 
         Ok(context)
     }
 
-    fn read_src_dir(&mut self, package_info: &PackageInfo) -> EcslResult<()> {
+    fn read_src_dir(&mut self, package_info: &PackageInfo, id: CrateID, diag: &mut Diagnostics) {
         let mut root = package_info.path.clone();
         root.push("src/**/*.ecsl");
 
@@ -71,27 +79,29 @@ impl Context {
                 let relative_path =
                     PathBuf::from(full_path.strip_prefix(&package_info.path).unwrap());
 
-                let file_id = self.create_source_file(full_path);
+                let file_id = self.create_source_file(full_path, diag);
 
                 file_map.insert(relative_path, file_id);
             }
         }
 
-        let crate_id = CrateID::new(self.crate_map.len() as u32);
         let source_collection = SourceCollection {
-            crate_id,
+            crate_id: id,
             root: package_info.path.clone(),
             file_map,
         };
 
-        self.crate_map.insert(crate_id, source_collection);
-
-        Ok(())
+        self.crate_map.insert(id, source_collection);
     }
 
-    fn create_source_file(&mut self, full_path: PathBuf) -> SourceFileID {
+    fn create_source_file(
+        &mut self,
+        full_path: PathBuf,
+        diagnostics: &mut Diagnostics,
+    ) -> SourceFileID {
         let next_id = self.sources.len();
-        let source = SourceFile::from_path(full_path, SourceFileID::new(next_id as u32));
+        let source =
+            SourceFile::from_path(diagnostics, full_path, SourceFileID::new(next_id as u32));
         self.sources.push(source);
         SourceFileID::new(next_id as u32)
     }
@@ -110,31 +120,30 @@ pub struct SourceCollection {
 
 #[cfg(test)]
 pub mod test {
-    use ecsl_diagnostic::Diagnostics;
-    use ecsl_error::{EcslError, ErrorLevel, ErrorWithSnippet};
-    use ecsl_span::{BytePos, SourceFileID, Span};
+    use std::path::PathBuf;
 
     use crate::Context;
+    use ecsl_diagnostic::Diagnostics;
+    use ecsl_error::ErrorWithPath;
 
     #[test]
-    pub fn context() {
+    pub fn context_creation() -> Result<(), ()>{
         let mut diag = Diagnostics::new();
 
-        let ctx = Context::new("../example/".into(), &mut diag).unwrap();
+        let path: PathBuf = "../example/".into();
+        let ctx = Context::new(path.clone(), &mut diag);
 
-        let span = Span::new(SourceFileID::new(0), BytePos::new(4), BytePos::new(16));
-        let error = EcslError::spanned(ErrorLevel::Error, "Invalid identifier", span);
-        let snippet = ctx
-            .get_source(SourceFileID::new(0))
-            .unwrap()
-            .get_snippet(span);
+        let _ = match ctx {
+            Ok(ctx) => ctx,
+            Err(e) => {
+                diag.push_error(ErrorWithPath::new(e, path));
+                diag.finish_stage()?;
+                return Ok(());
+            }
+        };
 
-        diag.push_error(ErrorWithSnippet::new(error, snippet));
+        diag.finish_stage()?;
 
-        if diag.finish_stage().is_err() {
-            diag.ok().unwrap();
-        }
-
-        panic!()
+        Ok(())
     }
 }
