@@ -1,8 +1,11 @@
 use ansi_term::Colour::{Blue, Red};
 use ecsl_span::{LineData, SnippetLocation, Span};
 
+use crate::ErrorLevel;
+
 #[derive(Debug, Clone)]
 pub struct Snippet {
+    level: ErrorLevel,
     location: SnippetLocation,
     full_span: Span,
     error_span: Span,
@@ -11,12 +14,14 @@ pub struct Snippet {
 
 impl Snippet {
     pub fn from_source_span(
+        level: ErrorLevel,
         location: SnippetLocation,
         full_span: Span,
         error_span: Span,
         lines: Vec<(LineData, String)>,
     ) -> Self {
         Self {
+            level,
             location,
             full_span,
             error_span,
@@ -40,7 +45,7 @@ impl std::fmt::Display for Snippet {
         let pipe_colour = Blue;
         let pipe_spacing = format!(" {: >1$}", " ", max_ln);
         let pipe = pipe_colour.paint("|");
-        let underline_colour = Red;
+        let underline_colour = self.level.colour();
 
         let mut underline = String::new();
         let mut underline = {

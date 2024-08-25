@@ -1,6 +1,6 @@
 use std::{error::Error, fmt::Debug, path::PathBuf};
 
-use ansi_term::Colour::{Blue, Red, White, Yellow};
+use ansi_term::{Colour, Colour::{Blue, Red, White, Yellow}};
 use ecsl_span::Span;
 use snippet::Snippet;
 
@@ -44,6 +44,16 @@ pub enum ErrorLevel {
     Error,
     Warning,
     Note,
+}
+
+impl ErrorLevel {
+    pub fn colour(&self) -> Colour {
+        match self {
+            ErrorLevel::Error => Red,
+            ErrorLevel::Warning => Yellow,
+            ErrorLevel::Note => White,
+        }
+    }
 }
 
 impl std::fmt::Display for ErrorLevel {
