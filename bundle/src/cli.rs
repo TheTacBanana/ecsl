@@ -1,7 +1,7 @@
 use clap::{Args, Parser, Subcommand};
 use anyhow::Result;
 
-use crate::new::New;
+use crate::{compile::Compile, new::New};
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -14,8 +14,7 @@ pub struct Cli {
 #[derive(Debug, Subcommand)]
 pub enum Commands {
     New(New),
-    Build,
-    Run,
+    Compile(Compile),
 }
 
 pub trait CommandTrait {
@@ -26,8 +25,7 @@ impl CommandTrait for Commands {
     fn execute(&mut self) -> Result<()> {
         match self {
             Commands::New(n) => n.execute(),
-            Commands::Build => todo!(),
-            Commands::Run => todo!(),
+            Commands::Compile(b) => b.execute(),
         }
     }
 }
