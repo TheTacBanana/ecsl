@@ -72,6 +72,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
+ "ecsl_driver",
 ]
 
 [[package]]
@@ -124,7 +125,7 @@ checksum = "d3fd119d74b830634cea2a0f58bbd0d54540518a14397557951e79340abc28c0"
 name = "ecsl_config"
 version = "0.1.0"
 dependencies = [
- "ecsl_diagnostic",
+ "ecsl_diagnostics",
  "ecsl_error",
  "ecsl_span",
  "petgraph",
@@ -137,7 +138,7 @@ name = "ecsl_context"
 version = "0.1.0"
 dependencies = [
  "ecsl_config",
- "ecsl_diagnostic",
+ "ecsl_diagnostics",
  "ecsl_error",
  "ecsl_source",
  "ecsl_span",
@@ -145,10 +146,20 @@ dependencies = [
 ]
 
 [[package]]
-name = "ecsl_diagnostic"
+name = "ecsl_diagnostics"
 version = "0.1.0"
 dependencies = [
  "ansi_term",
+ "ecsl_error",
+]
+
+[[package]]
+name = "ecsl_driver"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "ecsl_context",
+ "ecsl_diagnostics",
  "ecsl_error",
 ]
 
@@ -164,7 +175,7 @@ dependencies = [
 name = "ecsl_source"
 version = "0.1.0"
 dependencies = [
- "ecsl_diagnostic",
+ "ecsl_diagnostics",
  "ecsl_error",
  "ecsl_span",
 ]

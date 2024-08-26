@@ -8,5 +8,5 @@ ecsl_error = { path = "../ecsl_error" }
 ecsl_span = { path = "../ecsl_span" }
 ecsl_config = { path = "../ecsl_config"}
 ecsl_source = { path = "../ecsl_source"}
-ecsl_diagnostic = { path = "../ecsl_diagnostic"}
+ecsl_diagnostics = { path = "../ecsl_diagnostics"}
 glob = "0.3.1"

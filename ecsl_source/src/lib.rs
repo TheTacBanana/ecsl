@@ -1,6 +1,6 @@
 use std::{fs::File, io::Read, path::PathBuf};
 
-use ecsl_diagnostic::Diagnostics;
+use ecsl_diagnostics::Diagnostics;
 use ecsl_error::{snippet::Snippet, EcslError, ErrorLevel, ErrorWithSnippet};
 use ecsl_span::{BytePos, LineData, LineNumber, SnippetLocation, SourceFileID, Span};
 use lines::LineNumbers;

@@ -2,8 +2,8 @@ use std::vec;
 
 use std::io::Write;
 
-use ecsl_error::{CompleteError, ErrorLevel};
 use ansi_term::Colour::Red;
+use ecsl_error::{CompleteError, ErrorLevel};
 
 pub struct Diagnostics {
     stages: Vec<Vec<CompleteError>>,
@@ -16,7 +16,7 @@ impl Diagnostics {
         }
     }
 
-    pub fn finish_stage(&mut self) -> Result<(), ()> {
+    pub fn finish_stage(mut self) -> Result<Self, ()> {
         let fatal = self
             .stages
             .last()
@@ -24,16 +24,20 @@ impl Diagnostics {
             .iter()
             .any(|e| e.level() == ErrorLevel::Error);
 
-        self.stages.push(Vec::new());
-
-        (!fatal).then(|| ()).ok_or(())
+        if fatal {
+            self.ok().unwrap();
+            Err(())
+        } else {
+            self.stages.push(Vec::new());
+            Ok(self)
+        }
     }
 
-    pub fn push_error(&mut self, error: impl Into<CompleteError> ) {
+    pub fn push_error(&mut self, error: impl Into<CompleteError>) {
         self.stages.last_mut().unwrap().push(error.into());
     }
 
-    pub fn ok(self) -> std::io::Result<()>{
+    fn ok(self) -> std::io::Result<()> {
         let stdout = std::io::stdout();
         let mut f = stdout.lock();
 
@@ -46,7 +50,12 @@ impl Diagnostics {
                 writeln!(f, "{}", err)?;
             }
         }
-        writeln!(f, "{}: Failed to compile due to {} errors", Red.paint("Error"), total_fatal)?;
+        writeln!(
+            f,
+            "{}: Failed to compile due to {} errors",
+            Red.paint("Error"),
+            total_fatal
+        )?;
 
         Ok(())
     }

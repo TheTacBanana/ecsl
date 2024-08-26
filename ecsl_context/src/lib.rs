@@ -4,7 +4,7 @@ use std::{
 };
 
 use ecsl_config::{package::PackageInfo, EcslRootConfig};
-use ecsl_diagnostic::Diagnostics;
+use ecsl_diagnostics::Diagnostics;
 use ecsl_error::{EcslError, EcslResult, ErrorLevel, ErrorWithPath};
 use ecsl_source::SourceFile;
 use ecsl_span::{CrateID, SourceFileID};
@@ -123,7 +123,7 @@ pub mod test {
     use std::path::PathBuf;
 
     use crate::Context;
-    use ecsl_diagnostic::Diagnostics;
+    use ecsl_diagnostics::Diagnostics;
     use ecsl_error::ErrorWithPath;
 
     #[test]
