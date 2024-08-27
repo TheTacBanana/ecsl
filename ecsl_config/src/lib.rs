@@ -1,12 +1,6 @@
-use std::{
-    collections::HashMap,
-    error::Error,
-    fs::File,
-    io::Read,
-    path::PathBuf,
-};
+use std::{collections::HashMap, path::PathBuf};
 
-use ecsl_error::{EcslResult, ErrorExt, ErrorLevel};
+use ecsl_error::{ext::EcslErrorExt, EcslError, EcslResult, ErrorLevel};
 use ecsl_span::CrateID;
 use package::{BundleToml, PackageDependency, PackageInfo};
 use petgraph::{algo, prelude::GraphMap, Directed};
@@ -18,7 +12,7 @@ pub struct EcslRootConfig {
     /// Packages
     pub packages: Vec<PackageInfo>,
     /// Dependencies which could not be resolved
-    pub failed_packages: Vec<(PackageDependency, ConfigError)>,
+    pub failed_packages: Vec<(PackageDependency, EcslError)>,
     /// Crate which causes Cycle
     pub cycle: Option<CrateID>,
 }
@@ -27,7 +21,7 @@ impl EcslRootConfig {
     pub const CONFIG_FILE: &'static str = "Bundle.toml";
 
     pub fn new_root_config(path: &PathBuf) -> EcslResult<EcslRootConfig> {
-        let root_bundle_toml = Self::load_package_info(path).ecsl_error(ErrorLevel::Error)?;
+        let root_bundle_toml = Self::load_package_info(path)?;
 
         // Package Collection
         let mut packages = Vec::new();
@@ -88,32 +82,21 @@ impl EcslRootConfig {
                 })
             }
             // If no cycles then sort the packages as per the toposort
-            Ok(_) => {
-                Ok(EcslRootConfig {
-                    packages,
-                    failed_packages,
-                    cycle: None,
-                })
-            }
+            Ok(_) => Ok(EcslRootConfig {
+                packages,
+                failed_packages,
+                cycle: None,
+            }),
         }
     }
 
-    fn load_package_info(path: &PathBuf) -> Result<BundleToml, ConfigError> {
+    fn load_package_info(path: &PathBuf) -> EcslResult<BundleToml> {
         let mut bundle_toml_path = path.clone();
         bundle_toml_path.push(Self::CONFIG_FILE);
 
-        let mut file = File::open(&bundle_toml_path)
-            .map_err(|_| ConfigError::MissingBundleToml(bundle_toml_path.clone()))?;
-
-        let mut config_file = String::new();
-        file.read_to_string(&mut config_file)
-            .map_err(|e| ConfigError::FileReadError(e))?;
-
-        let mut config: BundleToml =
-            toml::from_str(&config_file).map_err(|e| ConfigError::MalformedFormat(e))?;
-        config.package.path = path.clone();
-
-        Ok(config)
+        BundleToml::deserialize(&bundle_toml_path)
+            .map_err(|e| EcslError::new(ErrorLevel::Error, e.to_string()))
+            .with_path(|_| bundle_toml_path.clone())
     }
 
     pub fn root(&self) -> &PackageInfo {
@@ -124,25 +107,3 @@ impl EcslRootConfig {
         self.packages.get(*id as usize)
     }
 }
-
-#[derive(Debug)]
-pub enum ConfigError {
-    MissingBundleToml(PathBuf),
-    FileReadError(std::io::Error),
-    MalformedFormat(toml::de::Error),
-    CyclicDependency(),
-}
-
-impl std::fmt::Display for ConfigError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let temp: &str = match self {
-            ConfigError::MissingBundleToml(p) => &format!("Could not open {:?}", p),
-            ConfigError::FileReadError(e) => &format!("{e}"),
-            ConfigError::MalformedFormat(e) => &format!("{e}"),
-            ConfigError::CyclicDependency() => &format!("Cyclic Depencency"),
-        };
-        write!(f, "{}", temp)
-    }
-}
-
-impl Error for ConfigError {}

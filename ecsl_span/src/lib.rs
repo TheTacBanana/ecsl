@@ -60,26 +60,6 @@ impl std::fmt::Display for LineNumber {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct LineData {
-    number: LineNumber,
-    length: usize,
-}
-
-impl LineData {
-    pub fn new(number: LineNumber, length: usize) -> Self {
-        Self { number, length }
-    }
-
-    pub fn number(&self) -> LineNumber {
-        self.number
-    }
-
-    pub fn length(&self) -> usize {
-        self.length
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub struct BytePos(u32);
 

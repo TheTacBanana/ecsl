@@ -1,84 +1,54 @@
-use ansi_term::Colour::{Blue, Red};
-use ecsl_span::{LineData, SnippetLocation, Span};
+use std::fmt::Write;
+use ansi_term::{Colour, Colour::Blue};
+use ecsl_span::{LineNumber, Span};
 
 use crate::ErrorLevel;
 
 #[derive(Debug, Clone)]
 pub struct Snippet {
-    level: ErrorLevel,
-    location: SnippetLocation,
-    full_span: Span,
-    error_span: Span,
-    lines: Vec<(LineData, String)>,
+    number_padding: u32,
+    formatted_string: String
 }
 
 impl Snippet {
+    const PIPE_COLOUR : Colour = Blue;
+    const UNDERLINE_CHAR: &'static str = "^";
+
     pub fn from_source_span(
         level: ErrorLevel,
-        location: SnippetLocation,
         full_span: Span,
         error_span: Span,
-        lines: Vec<(LineData, String)>,
-    ) -> Self {
-        Self {
-            level,
-            location,
-            full_span,
-            error_span,
-            lines,
-        }
-    }
-}
+        lines: Vec<(LineNumber, String)>,
+    ) -> Result<Self, std::fmt::Error> {
+        let number_padding = Self::get_number_padding(&lines);
+        let mut formatted_string = String::new();
 
-impl std::fmt::Display for Snippet {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let max_ln = &self
-            .lines
-            .iter()
-            .max_by_key(|l| l.0.number().to_string())
-            .unwrap()
-            .0
-            .number()
-            .to_string()
-            .len();
-
-        let pipe_colour = Blue;
-        let pipe_spacing = format!(" {: >1$}", " ", max_ln);
-        let pipe = pipe_colour.paint("|");
-        let underline_colour = self.level.colour();
+        let pipe_spacing = format!(" {: >1$}", " ", number_padding);
+        let pipe = Self::PIPE_COLOUR.paint("|");
+        let underline_colour = level.colour();
 
         let mut underline = String::new();
         let mut underline = {
-            let padding = *(self.error_span.start() - self.full_span.start()) as usize;
-            let diff = *(self.error_span.end() - self.error_span.start());
+            let padding = *(error_span.start() - full_span.start()) as usize;
+            let diff = *(error_span.end() - error_span.start());
 
             underline.push_str(&(0..padding).map(|_| " ").collect::<String>());
-            underline.push_str(&(0..=diff).map(|_| "^").collect::<String>());
-
-            println!("{:?}", underline);
+            underline.push_str(&(0..=diff).map(|_| Snippet::UNDERLINE_CHAR).collect::<String>());
             underline.drain(..)
         };
 
-        writeln!(
-            f,
-            "{}{} {}",
-            pipe_spacing,
-            pipe_colour.paint("-->"),
-            self.location
-        )?;
-
-        for (ln, string) in &self.lines {
+        for (ln, string) in lines {
             writeln!(
-                f,
+                &mut formatted_string,
                 " {} {}",
-                pipe_colour.paint(format!("{: >1$} |", ln.number(), max_ln)),
+                Self::PIPE_COLOUR.paint(format!("{: >1$} |", ln, number_padding)),
                 string.trim_end()
             )?;
 
-            let underline = underline.by_ref().take(ln.length());
+            let underline = underline.by_ref().take(string.len());
 
             writeln!(
-                f,
+                &mut formatted_string,
                 "{} {} {}",
                 pipe_spacing,
                 pipe,
@@ -86,6 +56,30 @@ impl std::fmt::Display for Snippet {
             )?;
         }
 
+        Ok(Self {
+            number_padding: number_padding as u32,
+            formatted_string,
+        })
+    }
+
+    fn get_number_padding(lines: &Vec<(LineNumber, String)>) -> usize {
+        lines
+            .iter()
+            .max_by_key(|l| l.0.to_string())
+            .unwrap()
+            .0
+            .to_string()
+            .len()
+    }
+
+    pub fn number_padding(&self) -> u32 {
+        self.number_padding
+    }
+}
+
+impl std::fmt::Display for Snippet {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.formatted_string)?;
         Ok(())
     }
 }

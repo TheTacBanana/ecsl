@@ -3,10 +3,10 @@ use std::vec;
 use std::io::Write;
 
 use ansi_term::Colour::Red;
-use ecsl_error::{CompleteError, ErrorLevel};
+use ecsl_error::{EcslError, ErrorLevel};
 
 pub struct Diagnostics {
-    stages: Vec<Vec<CompleteError>>,
+    stages: Vec<Vec<EcslError>>,
 }
 
 impl Diagnostics {
@@ -33,7 +33,7 @@ impl Diagnostics {
         }
     }
 
-    pub fn push_error(&mut self, error: impl Into<CompleteError>) {
+    pub fn push_error(&mut self, error: EcslError) {
         self.stages.last_mut().unwrap().push(error.into());
     }
 

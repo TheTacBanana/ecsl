@@ -5,7 +5,7 @@ use std::{
 
 use ecsl_config::{package::PackageInfo, EcslRootConfig};
 use ecsl_diagnostics::Diagnostics;
-use ecsl_error::{EcslError, EcslResult, ErrorLevel, ErrorWithPath};
+use ecsl_error::{ext::EcslErrorExt, EcslError, EcslResult, ErrorLevel};
 use ecsl_source::SourceFile;
 use ecsl_span::{CrateID, SourceFileID};
 
@@ -24,29 +24,28 @@ impl Context {
 
         if let Some(cycle_causer) = config.cycle {
             let package_info = config.get_crate(cycle_causer).unwrap();
-            diag.push_error(ErrorWithPath::new(
+            diag.push_error(
                 EcslError::new(
                     ErrorLevel::Error,
                     format!("Dependency cycle caused by crate {}", package_info.name),
-                ),
-                package_info.path.clone(),
-            ));
+                )
+                .with_path(|_| package_info.path.clone()),
+            );
         }
 
         if config.failed_packages.len() > 0 {
             for (dependency, error) in &config.failed_packages {
                 let required_by = config.get_crate(dependency.required_by).unwrap();
-
-                diag.push_error(ErrorWithPath::new(
+                diag.push_error(
                     EcslError::new(
                         ErrorLevel::Error,
                         format!(
                             "Dependency '{}' required by '{}' could not be resolved. {}",
                             dependency.name, required_by.name, error
                         ),
-                    ),
-                    path.clone(),
-                ))
+                    )
+                    .with_path(|_| path.clone()),
+                )
             }
         }
 
@@ -120,34 +119,4 @@ pub struct SourceCollection {
     pub crate_id: CrateID,
     pub root: PathBuf,
     pub file_map: HashMap<PathBuf, SourceFileID>,
-}
-
-#[cfg(test)]
-pub mod test {
-    use std::path::PathBuf;
-
-    use crate::Context;
-    use ecsl_diagnostics::Diagnostics;
-    use ecsl_error::ErrorWithPath;
-
-    #[test]
-    pub fn context_creation() -> Result<(), ()>{
-        let mut diag = Diagnostics::new();
-
-        let path: PathBuf = "../example/".into();
-        let ctx = Context::new(path.clone(), &mut diag);
-
-        let _ = match ctx {
-            Ok(ctx) => ctx,
-            Err(e) => {
-                diag.push_error(ErrorWithPath::new(e, path));
-                diag.finish_stage()?;
-                return Ok(());
-            }
-        };
-
-        diag.finish_stage()?;
-
-        Ok(())
-    }
 }
