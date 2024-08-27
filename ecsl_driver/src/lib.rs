@@ -1,6 +1,8 @@
 use anyhow::Result;
+use ecsl_lexer::SourceReader;
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use ecsl_context::Context;
 use ecsl_diagnostics::Diagnostics;
@@ -9,22 +11,29 @@ use ecsl_error::ErrorWithPath;
 pub struct Driver;
 
 impl Driver {
-    pub fn run() {
+    pub fn run() -> Result<(), ()> {
         let mut diag = Diagnostics::new();
 
+        // Create the context and load all dependencies of the target program
         let path = PathBuf::new();
         let ctx = Context::new(path.clone(), &mut diag);
         let ctx = match ctx {
             Ok(ctx) => ctx,
             Err(e) => {
                 diag.push_error(ErrorWithPath::new(e, path));
-                let _ = diag.finish_stage();
-                return;
+                diag.finish_stage()?;
+                return Ok(());
             }
         };
+        let diag = diag.finish_stage()?;
 
-        let Ok(diag) = diag.finish_stage() else {
-            return;
-        };
+        // Lex all source files into TokenStreams
+        let token_streams = ctx
+            .source_files()
+            .par_iter()
+            .map(|source| SourceReader::new(&source).lex())
+            .collect::<Vec<_>>();
+
+        Ok(())
     }
 }

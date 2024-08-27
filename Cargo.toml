@@ -6,6 +6,7 @@ members = [
     "ecsl_diagnostics",
     "ecsl_driver",
     "ecsl_error",
+    "ecsl_lexer",
     "ecsl_source",
     "ecsl_span"
 ]

@@ -109,6 +109,10 @@ impl Context {
     pub fn get_source(&self, id: SourceFileID) -> Option<&SourceFile> {
         self.sources.get(*id as usize)
     }
+
+    pub fn source_files(&self) -> &Vec<SourceFile> {
+        &self.sources
+    }
 }
 
 #[derive(Debug)]

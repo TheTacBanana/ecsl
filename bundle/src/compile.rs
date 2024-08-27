@@ -10,7 +10,7 @@ pub struct Compile;
 
 impl CommandTrait for Compile {
     fn execute(&mut self) -> Result<()> {
-        Driver::run();
+        let _ = Driver::run();
         Ok(())
     }
 }
