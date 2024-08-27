@@ -1,6 +1,6 @@
 use std::fmt::Write;
 use ansi_term::{Colour, Colour::Blue};
-use ecsl_span::{LineNumber, Span};
+use ecsl_span::{index::LineNumber, Span};
 
 use crate::ErrorLevel;
 
@@ -29,8 +29,8 @@ impl Snippet {
 
         let mut underline = String::new();
         let mut underline = {
-            let padding = *(error_span.start() - full_span.start()) as usize;
-            let diff = *(error_span.end() - error_span.start());
+            let padding = (error_span.start() - full_span.start()).inner();
+            let diff = (error_span.end() - error_span.start()).inner();
 
             underline.push_str(&(0..padding).map(|_| " ").collect::<String>());
             underline.push_str(&(0..=diff).map(|_| Snippet::UNDERLINE_CHAR).collect::<String>());

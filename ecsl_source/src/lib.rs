@@ -2,7 +2,10 @@ use std::{fs::File, io::Read, path::PathBuf};
 
 use ecsl_diagnostics::Diagnostics;
 use ecsl_error::{ext::EcslErrorExt, snippet::Snippet, EcslError, ErrorLevel};
-use ecsl_span::{BytePos, LineNumber, SnippetLocation, SourceFileID, Span};
+use ecsl_span::{
+    index::{BytePos, LineNumber, SourceFileID},
+    Span,
+};
 use lines::LineNumbers;
 
 pub mod lines;
@@ -35,7 +38,7 @@ impl SourceFile {
         let non_ascii = contents
             .chars()
             .enumerate()
-            .filter_map(|(i, c)| (!c.is_ascii()).then(|| BytePos::new(i as u32)))
+            .filter_map(|(i, c)| (!c.is_ascii()).then(|| BytePos::new(i)))
             .collect::<Vec<_>>();
 
         let source = SourceFile {
@@ -68,7 +71,7 @@ impl SourceFile {
 
     pub fn get_line_slice(&self, line: LineNumber) -> Option<&str> {
         let byte_slice = self.lines.byte_slice(line)?;
-        Some(&self.contents[*byte_slice.0 as usize..=*byte_slice.1 as usize])
+        Some(&self.contents[byte_slice.0.inner()..=byte_slice.1.inner()])
     }
 
     pub fn get_snippet(&self, error_span: Span, level: ErrorLevel) -> Snippet {
@@ -83,7 +86,7 @@ impl SourceFile {
         );
 
         let (start, end) = self.lines.get_lines_from_span(error_span);
-        for line in *start..=*end {
+        for line in start.inner()..=end.inner() {
             let number = LineNumber::new(line);
             let contents = String::from(self.get_line_slice(number).unwrap());
             snippet_lines.push((number, contents))

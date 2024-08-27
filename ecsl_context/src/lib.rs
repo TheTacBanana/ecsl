@@ -7,7 +7,7 @@ use ecsl_config::{package::PackageInfo, EcslRootConfig};
 use ecsl_diagnostics::Diagnostics;
 use ecsl_error::{ext::EcslErrorExt, EcslError, EcslResult, ErrorLevel};
 use ecsl_source::SourceFile;
-use ecsl_span::{CrateID, SourceFileID};
+use ecsl_span::index::{CrateID, SourceFileID};
 
 use glob::glob;
 
@@ -59,7 +59,7 @@ impl Context {
             let packages = std::mem::replace(&mut context.config.packages, Vec::new());
 
             for (i, conf) in packages.iter().enumerate() {
-                context.read_src_dir(conf, CrateID::new(i as u32), diag);
+                context.read_src_dir(conf, CrateID::new(i), diag);
             }
 
             context.config.packages = packages;
@@ -100,13 +100,13 @@ impl Context {
     ) -> SourceFileID {
         let next_id = self.sources.len();
         let source =
-            SourceFile::from_path(diagnostics, full_path, SourceFileID::new(next_id as u32));
+            SourceFile::from_path(diagnostics, full_path, SourceFileID::new(next_id));
         self.sources.push(source);
-        SourceFileID::new(next_id as u32)
+        SourceFileID::new(next_id )
     }
 
     pub fn get_source(&self, id: SourceFileID) -> Option<&SourceFile> {
-        self.sources.get(*id as usize)
+        self.sources.get(id.inner())
     }
 
     pub fn source_files(&self) -> &Vec<SourceFile> {

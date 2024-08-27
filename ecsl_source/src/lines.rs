@@ -1,4 +1,4 @@
-use ecsl_span::{BytePos, LineNumber, Span};
+use ecsl_span::{index::{BytePos, LineNumber}, Span};
 
 #[derive(Debug, Clone)]
 pub struct LineNumbers {
@@ -10,11 +10,11 @@ impl From<&str> for LineNumbers {
         let mut line_start = 0;
         let mut offsets = Vec::new();
         for line in value.split("\n") {
-            offsets.push(BytePos::new(line_start as u32));
+            offsets.push(BytePos::new(line_start));
             line_start += line.len() + "\n".len();
         }
 
-        offsets.push(BytePos::new(value.len() as u32));
+        offsets.push(BytePos::new(value.len()));
 
         LineNumbers { offsets }
     }
@@ -22,12 +22,12 @@ impl From<&str> for LineNumbers {
 
 impl LineNumbers {
     pub fn max_byte(&self) -> BytePos {
-        BytePos::new(**self.offsets.last().unwrap())
+        BytePos::new(self.offsets.last().unwrap().inner())
     }
 
     pub fn line_number(&self, pos: BytePos) -> LineNumber {
         if pos > self.max_byte() {
-            panic!("{pos:?} is outside the range {:?}", 0..*self.max_byte())
+            panic!("{pos:?} is outside the range {:?}", 0..self.max_byte().inner())
         }
 
         let mut min = 0;
@@ -37,7 +37,7 @@ impl LineNumbers {
 
             if pos >= self.offsets[index] {
                 if index == self.offsets.len() - 1 || pos < self.offsets[index + 1] {
-                    return LineNumber::new(index as u32);
+                    return LineNumber::new(index);
                 } else {
                     min = index;
                 }
@@ -49,25 +49,25 @@ impl LineNumbers {
 
     pub fn column_number(&self, pos: BytePos) -> usize {
         let start = self.line_start(pos);
-        *(pos - start) as usize
+        (pos - start).inner()
     }
 
     pub fn line_column_number(&self, pos: BytePos) -> (LineNumber, usize) {
         let line = self.line_number(pos);
-        let start = self.offsets[*self.line_number(pos) as usize];
-        (line, *(pos - start) as usize)
+        let start = self.offsets[self.line_number(pos).inner()];
+        (line, (pos - start).inner())
     }
 
     pub fn line_start(&self, pos: BytePos) -> BytePos {
-        self.offsets[*self.line_number(pos) as usize]
+        self.offsets[self.line_number(pos).inner()]
     }
 
     pub fn line_end(&self, pos: BytePos) -> BytePos {
-        let ln = (*self.line_number(pos) + 1) as usize;
+        let ln = self.line_number(pos).inner() + 1;
         if ln  >= self.offsets.len() {
             return self.max_byte()
         }
-        BytePos::new(*self.offsets[ln])
+        BytePos::new(self.offsets[ln].inner())
     }
 
     /// Returns an inclusive range [s..=e]
@@ -81,14 +81,14 @@ impl LineNumbers {
     /// Returns an inclusive range [s..=e]
     pub fn byte_slice(&self, line: LineNumber) -> Option<(BytePos, BytePos)> {
         let len = self.offsets.len();
-        if *line as usize >= len {
+        if line.inner() >= len {
             return None;
         }
 
-        if *line as usize == len - 1 {
+        if line.inner() == len - 1 {
             Some((self.offsets[len - 1], self.max_byte()))
         } else {
-            Some((self.offsets[*line as usize], self.offsets[*line as usize + 1] - BytePos::ONE))
+            Some((self.offsets[line.inner()], self.offsets[line.inner() + 1] - BytePos::ONE))
         }
     }
 }
@@ -96,7 +96,7 @@ impl LineNumbers {
 #[cfg(test)]
 pub mod test {
 
-    use ecsl_span::{BytePos, LineNumber};
+    use ecsl_span::index::{BytePos, LineNumber};
 
     use super::LineNumbers;
 
@@ -106,7 +106,7 @@ pub mod test {
 
         let line_numbers = LineNumbers::from(string);
 
-        line_numbers.max_byte();
+        assert_eq!(line_numbers.max_byte(), BytePos::ZERO);
     }
 
     #[test]
@@ -147,17 +147,17 @@ pub mod test {
         let three = line_numbers.byte_slice(LineNumber::new(2)).unwrap();
 
         assert_eq!(
-            string.to_owned()[*one.0 as usize..=*one.1 as usize],
+            string.to_owned()[one.0.inner()..=one.1.inner()],
             "hi\n".to_owned()
         );
 
         assert_eq!(
-            string.to_owned()[*two.0 as usize..=*two.1 as usize],
+            string.to_owned()[two.0.inner()..=two.1.inner()],
             "how\n".to_owned()
         );
 
         assert_eq!(
-            string.to_owned()[*three.0 as usize..=*three.1 as usize],
+            string.to_owned()[three.0.inner()..=three.1.inner()],
             "do".to_owned()
         );
     }

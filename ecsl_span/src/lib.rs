@@ -1,100 +1,6 @@
-use std::{
-    ops::{Add, Deref, Sub},
-    path::PathBuf,
-};
+use index::{BytePos, SourceFileID};
 
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash)]
-pub struct CrateID(pub u32);
-
-impl CrateID {
-    pub fn new(id: u32) -> Self {
-        CrateID(id)
-    }
-}
-
-impl Deref for CrateID {
-    type Target = u32;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash)]
-pub struct SourceFileID(u32);
-
-impl SourceFileID {
-    pub fn new(id: u32) -> Self {
-        SourceFileID(id)
-    }
-}
-
-impl Deref for SourceFileID {
-    type Target = u32;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash)]
-pub struct LineNumber(u32);
-
-impl LineNumber {
-    pub fn new(id: u32) -> Self {
-        LineNumber(id)
-    }
-}
-
-impl Deref for LineNumber {
-    type Target = u32;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl std::fmt::Display for LineNumber {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash)]
-pub struct BytePos(u32);
-
-impl BytePos {
-    pub const ZERO: BytePos = BytePos(0);
-    pub const ONE: BytePos = BytePos(1);
-
-    pub fn new(id: u32) -> Self {
-        BytePos(id)
-    }
-}
-
-impl Deref for BytePos {
-    type Target = u32;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl Add<BytePos> for BytePos {
-    type Output = BytePos;
-
-    fn add(self, rhs: BytePos) -> Self::Output {
-        BytePos::new(self.0 + rhs.0)
-    }
-}
-
-impl Sub<BytePos> for BytePos {
-    type Output = BytePos;
-
-    fn sub(self, rhs: BytePos) -> Self::Output {
-        BytePos::new(self.0 - rhs.0)
-    }
-}
+pub mod index;
 
 /// Range is inclusive [start..end]
 #[derive(Debug, Clone, Copy)]
@@ -133,30 +39,6 @@ impl Span {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SnippetLocation {
-    path: PathBuf,
-    line: LineNumber,
-    column: usize,
-}
-
-impl SnippetLocation {
-    pub fn new(path: PathBuf, line: LineNumber, column: usize) -> Self {
-        SnippetLocation { path, line, column }
-    }
-}
-
-impl std::fmt::Display for SnippetLocation {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}:{}:{}",
-            self.path.to_str().unwrap(),
-            *self.line + 1,
-            self.column
-        )
-    }
-}
 
 #[cfg(test)]
 pub mod test {

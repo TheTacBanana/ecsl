@@ -1,6 +1,6 @@
 use std::{collections::HashMap, error::Error, fs::File, io::Read, path::PathBuf};
 
-use ecsl_span::CrateID;
+use ecsl_span::index::CrateID;
 use serde::Deserialize;
 
 #[derive(Debug, Clone, Deserialize)]

@@ -1,7 +1,7 @@
 use std::{collections::HashMap, path::PathBuf};
 
 use ecsl_error::{ext::EcslErrorExt, EcslError, EcslResult, ErrorLevel};
-use ecsl_span::CrateID;
+use ecsl_span::index::CrateID;
 use package::{BundleToml, PackageDependency, PackageInfo};
 use petgraph::{algo, prelude::GraphMap, Directed};
 
@@ -44,7 +44,7 @@ impl EcslRootConfig {
             let to_id = if package_names.contains_key(&dep.name) {
                 *package_names.get(&dep.name).unwrap()
             } else {
-                let new_id = CrateID::new(packages.len() as u32);
+                let new_id = CrateID::new(packages.len());
 
                 // Load Bundle.toml file
                 let bundle_toml = Self::load_package_info(&dep.path.clone().into());
@@ -104,6 +104,6 @@ impl EcslRootConfig {
     }
 
     pub fn get_crate(&self, id: CrateID) -> Option<&PackageInfo> {
-        self.packages.get(*id as usize)
+        self.packages.get(id.inner())
     }
 }
