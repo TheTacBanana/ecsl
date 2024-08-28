@@ -36,7 +36,7 @@ macro_rules! generate_index_type {
             type Output = $struct_name;
 
             fn sub(self, rhs: $struct_name) -> Self::Output {
-                $struct_name(self.0 + rhs.0)
+                $struct_name(self.0 - rhs.0)
             }
         }
     };
@@ -46,3 +46,13 @@ generate_index_type!(CrateID);
 generate_index_type!(SourceFileID);
 generate_index_type!(LineNumber);
 generate_index_type!(BytePos);
+
+#[cfg(test)]
+pub mod test {
+    use super::CrateID;
+
+    #[test]
+    pub fn add() {
+        assert_eq!(CrateID::new(1) + CrateID::new(2), CrateID::new(3))
+    }
+}
