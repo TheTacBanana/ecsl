@@ -1,4 +1,7 @@
-use std::{fmt::{Debug, Display}, path::PathBuf};
+use std::{
+    fmt::{Debug, Display},
+    path::PathBuf,
+};
 
 use ansi_term::{
     Colour,
@@ -7,8 +10,8 @@ use ansi_term::{
 use ecsl_span::Span;
 use snippet::Snippet;
 
-pub mod snippet;
 pub mod ext;
+pub mod snippet;
 
 pub type EcslResult<T> = Result<T, EcslError>;
 
@@ -63,14 +66,23 @@ impl std::fmt::Display for EcslError {
         // Write Message
         writeln!(f, "{}: {}", self.level(), self.message())?;
 
-        // Write the path the error occured at
-        if let Some(path) = self.get_path() {
-            writeln!(
+        // Output the path to the error
+        match (self.get_path(), self.get_snippet()) {
+            (Some(path), None) => writeln!(
                 f,
                 " {} {}",
                 HIGHLIGHT_COLOUR.paint("-->"),
                 path.to_str().unwrap()
-            )?
+            )?,
+            (Some(path), Some(snippet)) => writeln!(
+                f,
+                " {}{} {}:{}",
+                format!(" {: >1$}", " ", snippet.number_padding() as usize),
+                HIGHLIGHT_COLOUR.paint("-->"),
+                path.to_str().unwrap(),
+                snippet.lnc()
+            )?,
+            _ => (),
         }
 
         // Write the snippet associated with the error

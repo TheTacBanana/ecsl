@@ -77,7 +77,7 @@ impl SourceFile {
     pub fn get_snippet(&self, error_span: Span, level: ErrorLevel) -> Snippet {
         let mut snippet_lines = Vec::new();
 
-        // let (line, columnn) = self.lines.line_column_number(error_span.start());
+        let lnc = self.lines.line_number_column(error_span.start());
 
         let full_span = Span::new(
             error_span.file(),
@@ -92,6 +92,6 @@ impl SourceFile {
             snippet_lines.push((number, contents))
         }
 
-        Snippet::from_source_span(level, full_span, error_span, snippet_lines).unwrap()
+        Snippet::from_source_span(level, full_span, error_span, snippet_lines, lnc).unwrap()
     }
 }

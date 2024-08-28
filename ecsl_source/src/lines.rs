@@ -1,4 +1,4 @@
-use ecsl_span::{index::{BytePos, LineNumber}, Span};
+use ecsl_span::{index::{BytePos, LineNumber}, LineNumberColumn, Span};
 
 #[derive(Debug, Clone)]
 pub struct LineNumbers {
@@ -52,10 +52,10 @@ impl LineNumbers {
         (pos - start).inner()
     }
 
-    pub fn line_column_number(&self, pos: BytePos) -> (LineNumber, usize) {
+    pub fn line_number_column(&self, pos: BytePos) -> LineNumberColumn {
         let line = self.line_number(pos);
         let start = self.offsets[self.line_number(pos).inner()];
-        (line, (pos - start).inner())
+        LineNumberColumn::new(line, (pos - start).inner())
     }
 
     pub fn line_start(&self, pos: BytePos) -> BytePos {

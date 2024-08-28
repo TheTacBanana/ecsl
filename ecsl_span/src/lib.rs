@@ -1,4 +1,4 @@
-use index::{BytePos, SourceFileID};
+use index::{BytePos, LineNumber, SourceFileID};
 
 pub mod index;
 
@@ -39,6 +39,31 @@ impl Span {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct LineNumberColumn {
+    ln: LineNumber,
+    col: usize,
+}
+
+impl LineNumberColumn {
+    pub fn new(ln: LineNumber, col: usize) -> Self {
+        Self { ln, col }
+    }
+
+    pub fn ln(&self) -> LineNumber {
+        self.ln
+    }
+
+    pub fn col(&self) -> usize {
+        self.col
+    }
+}
+
+impl std::fmt::Display for LineNumberColumn {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "{}:{}", self.ln.inner() + 1, self.col + 1)
+    }
+}
 
 #[cfg(test)]
 pub mod test {

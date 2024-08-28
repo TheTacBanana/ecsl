@@ -1,13 +1,14 @@
 use std::fmt::Write;
 use ansi_term::{Colour, Colour::Blue};
-use ecsl_span::{index::LineNumber, Span};
+use ecsl_span::{index::LineNumber, LineNumberColumn, Span};
 
 use crate::ErrorLevel;
 
 #[derive(Debug, Clone)]
 pub struct Snippet {
     number_padding: u32,
-    formatted_string: String
+    formatted_string: String,
+    lnc: LineNumberColumn,
 }
 
 impl Snippet {
@@ -19,6 +20,7 @@ impl Snippet {
         full_span: Span,
         error_span: Span,
         lines: Vec<(LineNumber, String)>,
+        lnc: LineNumberColumn,
     ) -> Result<Self, std::fmt::Error> {
         let number_padding = Self::get_number_padding(&lines);
         let mut formatted_string = String::new();
@@ -59,6 +61,7 @@ impl Snippet {
         Ok(Self {
             number_padding: number_padding as u32,
             formatted_string,
+            lnc,
         })
     }
 
@@ -74,6 +77,10 @@ impl Snippet {
 
     pub fn number_padding(&self) -> u32 {
         self.number_padding
+    }
+
+    pub fn lnc(&self) -> LineNumberColumn {
+        self.lnc
     }
 }
 
