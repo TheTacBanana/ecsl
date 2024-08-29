@@ -1,12 +1,20 @@
 #[derive(Debug, Clone, Copy)]
 pub struct Token {
-    length: u32,
+    len: u32,
     kind: TokenKind,
 }
 
 impl Token {
     pub fn new(kind: TokenKind, length: u32) -> Self {
-        Self { length, kind }
+        Self { len: length, kind }
+    }
+
+    pub fn len(&self) -> usize {
+        self.len as usize
+    }
+
+    pub fn kind(&self) -> TokenKind {
+        self.kind
     }
 }
 
