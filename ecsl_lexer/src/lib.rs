@@ -93,13 +93,20 @@ impl SourceReader<'_> {
         let kind = match c {
             // Match Comments
             '/' => match self.first() {
-                Some('/') => self.comment(),
+                // Eat a single line comment
+                Some('/') => {
+                    self.eat_comment();
+                    Comment
+                },
                 // Case for Slash Symbol
                 _ => Slash,
             },
 
             // Match Whitespace
-            c if c.is_whitespace() => self.whitespace(),
+            c if c.is_whitespace() => {
+                self.eat_whitespace();
+                Whitespace
+            },
 
             // Match Identifers
             c if c.ident_start() => {
@@ -109,17 +116,27 @@ impl SourceReader<'_> {
 
             // Match Numeric Literals
             c if c.is_numeric() => {
-                let kind = self.numeric_literal();
+                let kind = self.eat_numeric_literal();
                 let suffix = self.current_token_length() as u32;
                 self.eat_identifier();
                 TokenKind::Literal { kind, suffix }
             }
 
             // Match String Literals
-            '"' => self.string_literal(),
+            '"' => {
+                let kind = self.eat_string_literal();
+                let suffix = self.current_token_length() as u32;
+                self.eat_identifier();
+                TokenKind::Literal { kind, suffix }
+            },
 
             // Match Char Literals
-            '\'' => self.char_literal(),
+            '\'' => {
+                let kind = self.eat_char_literal();
+                let suffix = self.current_token_length() as u32;
+                self.eat_identifier();
+                TokenKind::Literal { kind, suffix }
+            },
 
             // Symbols
             ';' => Semi,
@@ -151,14 +168,12 @@ impl SourceReader<'_> {
         token
     }
 
-    fn comment(&mut self) -> TokenKind {
+    fn eat_comment(&mut self) {
         self.bump_while(|c| c != '\n');
-        TokenKind::Comment
     }
 
-    fn whitespace(&mut self) -> TokenKind {
+    fn eat_whitespace(&mut self) {
         self.bump_while(|c| c.is_whitespace());
-        TokenKind::Whitespace
     }
 
     fn eat_identifier(&mut self) {
@@ -170,7 +185,7 @@ impl SourceReader<'_> {
         self.bump_while(|c| c.ident_continue());
     }
 
-    fn numeric_literal(&mut self) -> LiteralKind {
+    fn eat_numeric_literal(&mut self) -> LiteralKind {
         self.bump_while(|c| c.is_numeric());
 
         match self.first() {
@@ -183,6 +198,36 @@ impl SourceReader<'_> {
         }
     }
 
+    fn eat_string_literal(&mut self) -> LiteralKind {
+        loop {
+            let Some(c) = self.bump() else {
+                // String literal terminated at and of file
+                return LiteralKind::String { terminated: false }
+            };
+
+            match c {
+                // Escaped next character and not end of line
+                '\\' if self.first() != Some('\n') => {
+                    self.bump();
+                }
+                // Break on New Line, Multiline String Literals not allowed
+                '\n' => {
+                    return LiteralKind::String { terminated: false }
+                }
+                // Correctly terminated on the same line
+                '"' => {
+                    self.bump();
+                    return LiteralKind::String { terminated: true }
+                }
+                // Eat any character
+                _ => ()
+            };
+        }
+    }
+
+    fn eat_char_literal(&mut self) -> LiteralKind {
+        todo!()
+    }
 }
 
 pub trait TokenRulesExt {
@@ -290,9 +335,10 @@ pub mod test {
     test_single_token!(whitespace, "    \n  \t \r   ", TokenKind::Whitespace);
     test_single_token!(identifer, "identifier", TokenKind::Identifier);
     test_single_token!(integer, "1235", TokenKind::Literal{ kind: LiteralKind::Int, suffix: 4 });
+    test_single_token!(integer_suffixed, "1235int", TokenKind::Literal{ kind: LiteralKind::Int, suffix: 4 });
     test_single_token!(float, "3.1415", TokenKind::Literal{ kind: LiteralKind::Float, suffix: 6 });
-    test_single_token!(string, "\"string literal\"", TokenKind::Literal{ kind: LiteralKind::String { terminated: true }, suffix: 17 });
-    test_single_token!(unterminated_string, "\"unterminated", TokenKind::Literal { kind: LiteralKind::String { terminated: false }, suffix: 9 });
+    test_single_token!(string_literal, "\"string literal\"", TokenKind::Literal{ kind: LiteralKind::String { terminated: true }, suffix: 16 });
+    test_single_token!(unterminated_string_literal, "\"unterminated", TokenKind::Literal { kind: LiteralKind::String { terminated: false }, suffix: 13 });
     test_single_token!(char_literal, "'c'", TokenKind::Literal { kind: LiteralKind::Char { terminated: true }, suffix: 3 });
     test_single_token!(unterminated_char_literal, "'c", TokenKind::Literal { kind: LiteralKind::Char { terminated: false }, suffix: 2 });
     test_single_token!(symbol, ";", TokenKind::Semi);
