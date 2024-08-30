@@ -20,7 +20,10 @@ impl BundleToml {
 
         let mut config: BundleToml =
             toml::from_str(&config_file).map_err(|e| ConfigError::MalformedFormat(e))?;
-        config.package.path = path.clone();
+
+        let mut root_path = path.clone();
+        root_path.pop();
+        config.package.path = root_path;
 
         Ok(config)
     }
