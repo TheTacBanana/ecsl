@@ -1,12 +1,12 @@
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Token {
     len: u32,
     kind: TokenKind,
 }
 
 impl Token {
-    pub fn new(kind: TokenKind, length: u32) -> Self {
-        Self { len: length, kind }
+    pub fn new(kind: TokenKind, length: usize) -> Self {
+        Self { len: length as u32, kind }
     }
 
     pub fn len(&self) -> usize {
@@ -30,7 +30,10 @@ pub enum TokenKind {
     Identifier,
 
     /// Literals
-    Literal(LiteralKind),
+    Literal {
+        kind: LiteralKind,
+        suffix: u32,
+    },
 
     // Single Character Tokens
     /// ";"
@@ -85,16 +88,8 @@ pub enum TokenKind {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LiteralKind {
-    Int { base: Base },
+    Int,
     Float,
     String { terminated: bool },
     Char { terminated: bool },
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Base {
-    Binary = 2,
-    Octal = 8,
-    Decimal = 10,
-    Hexadecimal = 16,
 }

@@ -1,6 +1,4 @@
 use std::str::Chars;
-
-use ecsl_source::SourceFile;
 use stream::TokenStream;
 use token::{LiteralKind, Token, TokenKind};
 
@@ -22,10 +20,6 @@ impl<'a> SourceReader<'a> {
             chars: s.chars(),
             prev: Self::EOF,
         }
-    }
-
-    pub fn lex(self) -> TokenStream {
-        TokenStream::default()
     }
 
     pub fn prev(&self) -> char {
@@ -157,6 +151,40 @@ impl SourceReader<'_> {
         token
     }
 
+    fn comment(&mut self) -> TokenKind {
+        self.bump_while(|c| c != '\n');
+        TokenKind::Comment
+    }
+
+    fn whitespace(&mut self) -> TokenKind {
+        self.bump_while(|c| c.is_whitespace());
+        TokenKind::Whitespace
+    }
+
+    fn eat_identifier(&mut self) {
+        if !self.first().is_some_and(|c| c.ident_start()) {
+            return;
+        }
+        self.bump();
+
+        self.bump_while(|c| c.ident_continue());
+    }
+
+    fn numeric_literal(&mut self) -> LiteralKind {
+        self.bump_while(|c| c.is_numeric());
+
+        match self.first() {
+            Some(c) if c == '.' => {
+                self.bump();
+                self.bump_while(|c| c.is_numeric());
+                LiteralKind::Float
+            }
+            _ => LiteralKind::Int,
+        }
+    }
+
+}
+
 pub trait TokenRulesExt {
     fn ident_start(&self) -> bool;
     fn ident_continue(&self) -> bool;
@@ -170,7 +198,7 @@ impl TokenRulesExt for char {
     fn ident_continue(&self) -> bool {
         self.ident_start() || self.is_numeric()
     }
-    }
+}
 
 #[rustfmt::skip::macros(test_single_token)]
 #[cfg(test)]
