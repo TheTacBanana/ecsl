@@ -199,10 +199,20 @@ impl SourceReader<'_> {
     }
 
     fn eat_string_literal(&mut self) -> LiteralKind {
+        let terminated = self.eat_string_contents('"');
+        LiteralKind::String { terminated }
+    }
+
+    fn eat_char_literal(&mut self) -> LiteralKind {
+        let terminated = self.eat_string_contents('\'');
+        LiteralKind::Char { terminated }
+    }
+
+    fn eat_string_contents(&mut self, terminator: char) -> bool {
         loop {
             let Some(c) = self.bump() else {
-                // String literal terminated at and of file
-                return LiteralKind::String { terminated: false }
+                // Terminated at and of file
+                return false;
             };
 
             match c {
@@ -210,23 +220,18 @@ impl SourceReader<'_> {
                 '\\' if self.first() != Some('\n') => {
                     self.bump();
                 }
-                // Break on New Line, Multiline String Literals not allowed
+                // Break on New Line, Multiline Literals not allowed
                 '\n' => {
-                    return LiteralKind::String { terminated: false }
+                    return false;
                 }
                 // Correctly terminated on the same line
-                '"' => {
-                    self.bump();
-                    return LiteralKind::String { terminated: true }
+                c if c == terminator => {
+                    return true;
                 }
                 // Eat any character
                 _ => ()
             };
         }
-    }
-
-    fn eat_char_literal(&mut self) -> LiteralKind {
-        todo!()
     }
 }
 
@@ -338,6 +343,7 @@ pub mod test {
     test_single_token!(integer_suffixed, "1235int", TokenKind::Literal{ kind: LiteralKind::Int, suffix: 4 });
     test_single_token!(float, "3.1415", TokenKind::Literal{ kind: LiteralKind::Float, suffix: 6 });
     test_single_token!(string_literal, "\"string literal\"", TokenKind::Literal{ kind: LiteralKind::String { terminated: true }, suffix: 16 });
+    test_single_token!(string_literal_suffixed, "\"string literal\"suffixed", TokenKind::Literal{ kind: LiteralKind::String { terminated: true }, suffix: 16 });
     test_single_token!(unterminated_string_literal, "\"unterminated", TokenKind::Literal { kind: LiteralKind::String { terminated: false }, suffix: 13 });
     test_single_token!(char_literal, "'c'", TokenKind::Literal { kind: LiteralKind::Char { terminated: true }, suffix: 3 });
     test_single_token!(unterminated_char_literal, "'c", TokenKind::Literal { kind: LiteralKind::Char { terminated: false }, suffix: 2 });
