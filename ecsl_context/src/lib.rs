@@ -11,6 +11,8 @@ use ecsl_span::index::{CrateID, SourceFileID};
 
 use glob::glob;
 
+pub mod source_tree;
+
 #[derive(Debug)]
 pub struct Context {
     config: EcslRootConfig,

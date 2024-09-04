@@ -1,5 +1,4 @@
-use std::ops::{Add, Sub};
-
+#[macro_export]
 macro_rules! generate_index_type {
     ($struct_name:ident) => {
         #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash)]
@@ -24,7 +23,7 @@ macro_rules! generate_index_type {
             }
         }
 
-        impl Add<$struct_name> for $struct_name {
+        impl std::ops::Add<$struct_name> for $struct_name {
             type Output = $struct_name;
 
             fn add(self, rhs: $struct_name) -> Self::Output {
@@ -32,7 +31,7 @@ macro_rules! generate_index_type {
             }
         }
 
-        impl Sub<$struct_name> for $struct_name {
+        impl std::ops::Sub<$struct_name> for $struct_name {
             type Output = $struct_name;
 
             fn sub(self, rhs: $struct_name) -> Self::Output {
