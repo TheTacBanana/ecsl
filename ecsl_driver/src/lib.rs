@@ -31,7 +31,7 @@ impl Driver {
         let token_streams = ctx
             .source_files()
             .par_iter()
-            .map(|source| SourceReader::new(&source).lex())
+            .map(|source| SourceReader::new(&source.contents).lex())
             .collect::<Vec<_>>();
 
         Ok(())
