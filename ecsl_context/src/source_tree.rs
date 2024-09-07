@@ -36,9 +36,7 @@ impl<T: Debug> SourceTree<T> {
         Self {
             files: Vec::new(),
             assoc_data: Vec::new(),
-            mappings: vec![
-                HashMap::new()
-            ],
+            mappings: vec![HashMap::new()],
         }
     }
 
@@ -115,21 +113,48 @@ impl<T: Debug> SourceTree<T> {
         source_id
     }
 
-    pub fn get_source_by_id(&self, id: SourceFileID) -> &SourceFile {
-        todo!()
+    pub fn get_pair_by_id(&self, id: SourceFileID) -> Option<(&SourceFile, &T)> {
+        self.files
+            .get(id.inner())
+            .map(|s| (s, self.assoc_data.get(id.inner()).unwrap()))
     }
 
-    pub fn get_source_by_path(&self, path: &PathBuf) -> &SourceFile {
-        todo!()
+    fn traverse_from_root(&self, path: &PathBuf) -> Option<NodeOrData> {
+        self.traverse_from(NodeID::ZERO, path)
+    }
+
+    fn traverse_from(&self, start: NodeID, path: &PathBuf) -> Option<NodeOrData> {
+        let mut path = path.clone();
+        path.set_extension("");
+        let mut path_segements = path
+            .iter()
+            .map(|osstr| osstr.to_str().unwrap().to_owned())
+            .collect::<Vec<_>>();
+        let drain = path_segements.drain(..);
+
+        let mut last_data = None;
+        let mut cur_node = start;
+        for segment in drain {
+            let node = self.mappings.get(cur_node.inner())?;
+
+            if let Some(next) = node.get(&segment) {
+                last_data = Some(*next);
+
+                match next {
+                    NodeOrData::Node(node) => cur_node = *node,
+                    NodeOrData::Source(_) => return Some(*next),
+                    NodeOrData::NodeAndSource(node, _) => cur_node = *node,
+                }
+            } else {
+                return None
+            }
+        }
+
+        last_data
     }
 
     fn next_node(&self) -> NodeID {
         NodeID::new(self.mappings.len())
-    }
-
-    fn create_edge(&mut self, from: NodeID, edge: String) -> NodeID {
-        // self.
-        todo!()
     }
 }
 
