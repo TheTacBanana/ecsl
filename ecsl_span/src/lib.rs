@@ -2,6 +2,26 @@ use index::{BytePos, LineNumber, SourceFileID};
 
 pub mod index;
 
+#[derive(Debug)]
+pub struct Spanned<T> {
+    item: T,
+    span: Span,
+}
+
+impl<T> Spanned<T> {
+    pub fn new(item: T, span: Span) -> Spanned<T> {
+        Spanned { item, span }
+    }
+
+    pub fn item(&self) -> &T {
+        &self.item
+    }
+
+    pub fn span(&self) -> Span {
+        self.span
+    }
+}
+
 /// Range is inclusive [start..end]
 #[derive(Debug, Clone, Copy)]
 pub struct Span {
