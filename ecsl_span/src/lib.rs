@@ -2,7 +2,7 @@ use index::{BytePos, LineNumber, SourceFileID};
 
 pub mod index;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Spanned<T> {
     item: T,
     span: Span,
