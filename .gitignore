@@ -15,3 +15,6 @@ compile_commands.json
 CTestTestfile.cmake
 _deps
 CMakeUserPresets.json
+
+# Vm Executable
+ecslvm
