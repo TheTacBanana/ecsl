@@ -49,6 +49,6 @@ struct Header
     struct SectionHeader section_header;
 };
 
-struct Header* read_header(FILE *file);
+void read_program_header(FILE *file, long byte_length, struct ProgramHeader* header);
 
 #endif

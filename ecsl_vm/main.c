@@ -31,14 +31,20 @@ int main(int argc, char *argv[])
     char *file_name = argv[1];
 
     FILE *file;
-    long numbytes;
-    open_file(file_name, &file, &numbytes);
+    long byte_length;
+    open_file(file_name, &file, &byte_length);
 
-    struct Header* header = read_header(file);
+    struct ProgramHeader *header = (struct ProgramHeader *)malloc(sizeof(struct ProgramHeader));
+    read_program_header(file, byte_length, header);
     if (header == NULL)
         throw_error("Could not get header data");
 
-
+    printf("%s\n", header->magic_bytes);
+    printf("%d\n", header->major_version);
+    printf("%d\n", header->minor_version);
+    printf("%d\n", header->file_type);
+    printf("%ld\n", header->entry_point_address);
+    printf("%ld\n", header->section_header_address);
 
     return 0;
 }
