@@ -1,11 +1,13 @@
 [workspace]
 members = [
     "bundle",
+    "ecsl_bytecode",
     "ecsl_config",
     "ecsl_context",
     "ecsl_diagnostics",
     "ecsl_driver",
     "ecsl_error",
+    "ecsl_assembler",
     "ecsl_lexer",
     "ecsl_source",
     "ecsl_span"
