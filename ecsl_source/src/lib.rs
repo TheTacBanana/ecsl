@@ -1,11 +1,9 @@
 use std::{fs::File, io::Read, path::PathBuf};
 
+use cfgrammar::Span;
 use ecsl_diagnostics::Diagnostics;
 use ecsl_error::{ext::EcslErrorExt, snippet::Snippet, EcslError, ErrorLevel};
-use ecsl_span::{
-    index::{BytePos, LineNumber, SourceFileID},
-    Span,
-};
+use ecsl_index::SourceFileID;
 use lines::LineNumbers;
 
 pub mod lines;
@@ -38,7 +36,7 @@ impl SourceFile {
         let non_ascii = contents
             .chars()
             .enumerate()
-            .filter_map(|(i, c)| (!c.is_ascii()).then(|| BytePos::new(i)))
+            .filter_map(|(i, c)| (!c.is_ascii()).then(|| i))
             .collect::<Vec<_>>();
 
         let source = SourceFile {
@@ -50,7 +48,7 @@ impl SourceFile {
         };
 
         for pos in non_ascii {
-            let span = Span::new(id, pos, pos);
+            let span = Span::new(pos, pos);
 
             diag.push_error(
                 EcslError::new(
@@ -65,13 +63,13 @@ impl SourceFile {
         source
     }
 
-    pub fn line_number(&self, pos: BytePos) -> LineNumber {
+    pub fn line_number(&self, pos: usize) -> usize {
         self.lines.line_number(pos)
     }
 
-    pub fn get_line_slice(&self, line: LineNumber) -> Option<&str> {
+    pub fn get_line_slice(&self, line: usize) -> Option<&str> {
         let byte_slice = self.lines.byte_slice(line)?;
-        Some(&self.contents[byte_slice.0.inner()..=byte_slice.1.inner()])
+        Some(&self.contents[byte_slice.0..=byte_slice.1])
     }
 
     pub fn get_snippet(&self, error_span: Span, level: ErrorLevel) -> Snippet {
@@ -80,16 +78,14 @@ impl SourceFile {
         let lnc = self.lines.line_number_column(error_span.start());
 
         let full_span = Span::new(
-            error_span.file(),
             self.lines.line_start(error_span.start()),
             self.lines.line_end(error_span.end()),
         );
 
         let (start, end) = self.lines.get_lines_from_span(error_span);
-        for line in start.inner()..=end.inner() {
-            let number = LineNumber::new(line);
-            let contents = String::from(self.get_line_slice(number).unwrap());
-            snippet_lines.push((number, contents))
+        for line in start..=end {
+            let contents = String::from(self.get_line_slice(line).unwrap());
+            snippet_lines.push((line, contents))
         }
 
         Snippet::from_source_span(level, full_span, error_span, snippet_lines, lnc).unwrap()

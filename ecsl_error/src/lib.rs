@@ -7,7 +7,8 @@ use ansi_term::{
     Colour,
     Colour::{Blue, Red, White, Yellow},
 };
-use ecsl_span::Span;
+
+use cfgrammar::Span;
 use snippet::Snippet;
 
 pub mod ext;

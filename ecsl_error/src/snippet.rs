@@ -1,6 +1,7 @@
 use std::fmt::Write;
 use ansi_term::{Colour, Colour::Blue};
-use ecsl_span::{index::LineNumber, LineNumberColumn, Span};
+use ecsl_index::LineNumberColumn;
+use cfgrammar::Span;
 
 use crate::ErrorLevel;
 
@@ -19,7 +20,7 @@ impl Snippet {
         level: ErrorLevel,
         full_span: Span,
         error_span: Span,
-        lines: Vec<(LineNumber, String)>,
+        lines: Vec<(usize, String)>,
         lnc: LineNumberColumn,
     ) -> Result<Self, std::fmt::Error> {
         let number_padding = Self::get_number_padding(&lines);
@@ -31,8 +32,8 @@ impl Snippet {
 
         let mut underline = String::new();
         let mut underline = {
-            let padding = (error_span.start() - full_span.start()).inner();
-            let diff = (error_span.end() - error_span.start()).inner();
+            let padding = error_span.start() - full_span.start();
+            let diff = error_span.end() - error_span.start();
 
             underline.push_str(&(0..padding).map(|_| " ").collect::<String>());
             underline.push_str(&(0..=diff).map(|_| Snippet::UNDERLINE_CHAR).collect::<String>());
@@ -65,7 +66,7 @@ impl Snippet {
         })
     }
 
-    fn get_number_padding(lines: &Vec<(LineNumber, String)>) -> usize {
+    fn get_number_padding(lines: &Vec<(usize, String)>) -> usize {
         lines
             .iter()
             .max_by_key(|l| l.0.to_string())

@@ -1,4 +1,4 @@
-use ecsl_span::Span;
+use cfgrammar::Span;
 
 use crate::{stmt::Block, ty::Ty, Ident, P};
 

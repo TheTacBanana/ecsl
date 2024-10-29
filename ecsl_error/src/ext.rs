@@ -1,6 +1,5 @@
 use std::path::PathBuf;
-
-use ecsl_span::Span;
+use cfgrammar::Span;
 
 use crate::{snippet::Snippet, EcslError};
 

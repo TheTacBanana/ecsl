@@ -7,7 +7,7 @@ use ecsl_config::{package::PackageInfo, EcslRootConfig};
 use ecsl_diagnostics::Diagnostics;
 use ecsl_error::{ext::EcslErrorExt, EcslError, EcslResult, ErrorLevel};
 use ecsl_source::SourceFile;
-use ecsl_span::index::{CrateID, SourceFileID};
+use ecsl_index::{CrateID, SourceFileID};
 
 use glob::glob;
 

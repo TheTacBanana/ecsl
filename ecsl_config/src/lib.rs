@@ -1,7 +1,7 @@
 use std::{collections::HashMap, path::PathBuf};
 
 use ecsl_error::{ext::EcslErrorExt, EcslError, EcslResult, ErrorLevel};
-use ecsl_span::index::CrateID;
+use ecsl_index::CrateID;
 use package::{BundleToml, PackageDependency, PackageInfo};
 use petgraph::{algo, prelude::GraphMap, Directed};
 

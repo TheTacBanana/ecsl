@@ -1,6 +1,6 @@
-use ecsl_span::Span;
+use cfgrammar::Span;
 
-use crate::{data::Variant, expr::Expr, item::Item, ty::Mutable, Ident, P};
+use crate::{data::Variant, expr::Expr, item::Item, ty::{Mutable, Ty}, Ident, P};
 
 #[derive(Debug, Clone)]
 pub struct Block {
@@ -17,15 +17,12 @@ pub struct Stmt {
 #[derive(Debug, Clone)]
 pub enum StmtKind {
     /// `let mut ident : int = 1;`
-    Let(Mutable, Ident, P<Expr>),
-
-    /// Item
-    Item(P<Item>),
+    Let(Mutable, Ident, P<Ty>, P<Expr>),
 
     /// `if (*expr*) { .. }` Option of Else
     If(P<Expr>, P<Block>, Option<Expr>),
     /// `for (i in *expr*) { .. }`
-    For(Ident, P<Expr>),
+    For(Ident, P<Expr>, P<Block>),
     /// `while (*expr*) { .. }`
     While(P<Expr>, P<Block>),
 
@@ -34,6 +31,12 @@ pub enum StmtKind {
     ///     Variant2 => { .. },
     /// }
     Match(P<Expr>, Vec<P<MatchArm>>),
+
+    /// Expression of any kind terminated by a semicolon
+    Expr(P<Expr>),
+
+    /// Empty Semi Colon
+    Semi,
 }
 
 #[derive(Debug, Clone)]

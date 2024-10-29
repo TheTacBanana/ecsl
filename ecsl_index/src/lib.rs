@@ -1,5 +1,4 @@
-use std::ops::{Add, Sub};
-
+#[macro_export]
 macro_rules! generate_index_type {
     ($struct_name:ident) => {
         #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash)]
@@ -24,7 +23,7 @@ macro_rules! generate_index_type {
             }
         }
 
-        impl Add<$struct_name> for $struct_name {
+        impl std::ops::Add<$struct_name> for $struct_name {
             type Output = $struct_name;
 
             fn add(self, rhs: $struct_name) -> Self::Output {
@@ -32,7 +31,7 @@ macro_rules! generate_index_type {
             }
         }
 
-        impl Sub<$struct_name> for $struct_name {
+        impl std::ops::Sub<$struct_name> for $struct_name {
             type Output = $struct_name;
 
             fn sub(self, rhs: $struct_name) -> Self::Output {
@@ -44,8 +43,34 @@ macro_rules! generate_index_type {
 
 generate_index_type!(CrateID);
 generate_index_type!(SourceFileID);
-generate_index_type!(LineNumber);
-generate_index_type!(BytePos);
+// generate_index_type!(LineNumber);
+// generate_index_type!(BytePos);
+
+#[derive(Debug, Clone, Copy)]
+pub struct LineNumberColumn {
+    ln: usize,
+    col: usize,
+}
+
+impl LineNumberColumn {
+    pub fn new(ln: usize, col: usize) -> Self {
+        Self { ln, col }
+    }
+
+    pub fn ln(&self) -> usize {
+        self.ln
+    }
+
+    pub fn col(&self) -> usize {
+        self.col
+    }
+}
+
+impl std::fmt::Display for LineNumberColumn {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "{}:{}", self.ln + 1, self.col + 1)
+    }
+}
 
 #[cfg(test)]
 pub mod test {

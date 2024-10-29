@@ -1,0 +1,18 @@
+[package]
+name = "ecsl_parse"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ecsl_diagnostics = { path = "../ecsl_diagnostics" }
+ecsl_index = { path = "../ecsl_index" }
+ecsl_source = { path = "../ecsl_source" }
+ecsl_ast = { path = "../ecsl_ast" }
+cfgrammar = "0.13"
+lrlex = "0.13"
+lrpar = "0.13"
+
+[build-dependencies]
+cfgrammar = "0.13"
+lrlex = "0.13"
+lrpar = "0.13"

@@ -1,6 +1,6 @@
-use ecsl_span::Span;
+use cfgrammar::Span;
 
-use crate::{ecs::QueryExpr, op::{BinOp, UnOp}, stmt::Block, ty::Ty, Ident, P};
+use crate::{ecs::{QueryExpr, Schedule}, ty::Ty, Ident, P};
 
 
 #[derive(Debug, Clone)]
@@ -28,6 +28,10 @@ pub enum ExprKind {
     /// `1`
     /// `"string"`
     Lit(Literal),
+    /// Struct `Foo { bar : 1 }`
+    Struct(Ident, Vec<P<FieldExpr>>),
+    /// Enum `Foo::Bar { baz : 2 }`
+    Enum(Ident, Ident, Vec<P<FieldExpr>>),
 
     /// Casting expression into type
     /// `6 as int`
@@ -49,10 +53,20 @@ pub enum ExprKind {
     Return(Option<P<Expr>>),
 
     // ECS Features
-    /// Use of the Resource key word to access resources
+    /// Use of the Entity Keyword to create new Entities
+    Entity,
+    /// Use of the Resource Keyword to access resources
     Resource,
     /// Query the world to get an iterator of components
     Query(P<QueryExpr>),
+    /// Define a order for a series of system
+    /// ```
+    /// Schedule [
+    ///     { foo, bar },
+    ///     baz
+    /// ]
+    /// ```
+    Schedule(P<Schedule>),
 
 }
 
@@ -62,4 +76,45 @@ pub enum Literal {
     Float,
     String,
     Char,
+}
+
+
+#[derive(Debug, Clone)]
+pub struct BinOp {
+    span: Span,
+    kind: BinOpKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum BinOpKind {
+    Add,
+    Sub,
+    Mul,
+    Div,
+    And,
+    Or,
+    Eq,
+    Neq,
+    Lt,
+    Leq,
+    Gt,
+    Geq,
+}
+
+#[derive(Debug, Clone)]
+pub struct UnOp {
+    span: Span,
+    kind: UnOpKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum UnOpKind {
+    Neg,
+    Not,
+    //Deref
+}
+
+#[derive(Debug, Clone)]
+pub struct FieldExpr {
+
 }

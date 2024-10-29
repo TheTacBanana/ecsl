@@ -1,9 +1,19 @@
-use ecsl_span::Span;
-
-use crate::{callable::FnDef, data::{EnumDef, StructDef}, stmt::Block, ty::Ty, Ident, P};
+use cfgrammar::Span;
+use crate::{
+    callable::FnDef,
+    data::{EnumDef, StructDef},
+    ty::Ty,
+    P,
+};
 
 #[derive(Debug, Clone)]
-pub enum Item {
+pub struct Item {
+    span: Span,
+    kind: ItemKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum ItemKind {
     Use(), //TODO:
     /// Function or System Definition
     Fn(P<FnDef>),
@@ -15,6 +25,7 @@ pub enum Item {
     /// `enum Foo {}`
     Enum(P<EnumDef>),
     /// Impl block for Struct, Component or Enum for concrete generic
+    /// Impls can only contain Fn Definitions
     /// `impl Foo<Bar> {..}`
     Impl(P<ImplBlock>),
 }
@@ -23,5 +34,5 @@ pub enum Item {
 pub struct ImplBlock {
     span: Span,
     ty: P<Ty>,
-    block: P<Block>
+    fn_defs: Vec<P<FnDef>>,
 }

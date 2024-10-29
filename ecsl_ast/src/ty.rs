@@ -1,6 +1,6 @@
-use ecsl_span::Span;
+use crate::{data::Field, ecs::{EntityTy, QueryTy}, expr::Literal, path::Path, Ident, P};
 
-use crate::{data::Field, ecs::{EntityTy, QueryTy}, Ident, P};
+use cfgrammar::Span;
 
 
 #[derive(Debug, Clone)]
@@ -9,23 +9,24 @@ pub struct Ty {
     kind: TyKind,
 }
 
+impl Ty {
+    pub fn new(span: Span, kind: TyKind) -> Self {
+        Self { span, kind }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum TyKind {
-    /// Ident with concrete generic type
-    /// `Ident<Generic>`
-    Ident(Ident, Option<Vec<P<Ty>>>),
+    /// Identifier
+    Ident(Path),
 
     /// Array with associated size constant
     /// `[<ty> : N]`
-    Array(P<Ty>, usize),
+    Array(P<Ty>, Literal),
 
     /// Reference to Array
     /// `&[<ty>]`
     ArrayRef(P<Ty>),
-
-    /// A struct with no identifier
-    /// `{ field1: <ty>, field2: <ty>}`
-    AnonStruct(Vec<P<Field>>),
 
     /// Refers to the type of the self object
     /// `Self`
@@ -35,7 +36,7 @@ pub enum TyKind {
     /// `&mut <ty>`
     Ref(Mutable, P<Ty>),
     /// Pointer to Type with Mutability
-    /// `*const <ty>`
+    /// `*imm <ty>`
     /// `*mut <ty>`
     Ptr(Mutable, P<Ty>),
 
@@ -57,6 +58,14 @@ pub enum TyKind {
     /// `Query<With<foo: mut T>>`
     /// `Query<Without<T>>`
     Query(QueryTy),
+
+    /// System Type
+    /// `-> System`
+    System,
+
+    /// Schedule Type
+    /// `-> Schedule`
+    Schedule,
 }
 
 #[derive(Debug, Clone, Copy)]
