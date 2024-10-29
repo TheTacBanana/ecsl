@@ -10,6 +10,6 @@ members = [
     "ecsl_assembler",
     "ecsl_lexer",
     "ecsl_source",
-    "ecsl_span"
-]
+    "ecsl_span",
+    ]
 resolver = "1"

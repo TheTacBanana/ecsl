@@ -198,6 +198,7 @@ name = "ecsl_driver"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "ecsl_assembler",
  "ecsl_context",
  "ecsl_diagnostics",
  "ecsl_error",

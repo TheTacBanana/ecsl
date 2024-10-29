@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 ecsl_diagnostics = { path = "../ecsl_diagnostics" }
 ecsl_context = { path = "../ecsl_context" }
+ecsl_assembler = { path = "../ecsl_assembler" }
 ecsl_error = { path = "../ecsl_error" }
 ecsl_lexer = { path = "../ecsl_lexer" }
 anyhow = "1.0.86"
