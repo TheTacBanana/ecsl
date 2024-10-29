@@ -1,4 +1,5 @@
 use anyhow::Result;
+use ecsl_assembler::Assembler;
 use ecsl_error::ext::EcslErrorExt;
 use ecsl_lexer::SourceReader;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
@@ -27,12 +28,8 @@ impl Driver {
         };
         let diag = diag.finish_stage()?;
 
-        // Lex all source files into TokenStreams
-        let token_streams = ctx
-            .source_files()
-            .par_iter()
-            .map(|source| SourceReader::new(&source.contents).lex())
-            .collect::<Vec<_>>();
+        let assembler = Assembler::new();
+        assembler.output(path.clone()).unwrap();
 
         Ok(())
     }
