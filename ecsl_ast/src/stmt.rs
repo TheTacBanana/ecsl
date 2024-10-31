@@ -1,6 +1,6 @@
 use cfgrammar::Span;
 
-use crate::{data::Variant, expr::Expr, ty::{Mutable, Ty}, Ident, P};
+use crate::{data::Variant, expr::Expr, ty::{Mutable, Ty}, SymbolId, P};
 
 #[derive(Debug, Clone)]
 pub struct Block {
@@ -17,12 +17,12 @@ pub struct Stmt {
 #[derive(Debug, Clone)]
 pub enum StmtKind {
     /// `let mut ident : int = 1;`
-    Let(Mutable, Ident, P<Ty>, P<Expr>),
+    Let(Mutable, SymbolId, P<Ty>, P<Expr>),
 
     /// `if (*expr*) { .. }` Option of Else
     If(P<Expr>, P<Block>, Option<Expr>),
     /// `for (i : *ty* in *expr*) { .. }`
-    For(Ident, P<Ty>, P<Expr>, P<Block>),
+    For(SymbolId, P<Ty>, P<Expr>, P<Block>),
     /// `while (*expr*) { .. }`
     While(P<Expr>, P<Block>),
 

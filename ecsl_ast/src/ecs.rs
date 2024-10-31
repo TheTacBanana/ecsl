@@ -1,42 +1,42 @@
 use cfgrammar::Span;
 
-use crate::{ty::Ty, Ident, P};
+use crate::{ty::Ty, SymbolId, P};
 
 #[derive(Debug, Clone)]
 pub struct EntityTy {
-    bounds: Option<Vec<P<EntityComponent>>>,
+    pub bounds: Option<Vec<P<EntityComponent>>>,
 }
 
 #[derive(Debug, Clone)]
 pub struct EntityComponent {
-    span: Span,
-    ident: Ident,
-    ty: P<Ty>,
+    pub span: Span,
+    pub ident: SymbolId,
+    pub ty: P<Ty>,
 }
 
 #[derive(Debug, Clone)]
 pub struct QueryTy {
-    with: Vec<Ty>,
-    without: Vec<Ty>,
+    pub with: Vec<Ty>,
+    pub without: Vec<Ty>,
 }
 
 #[derive(Debug, Clone)]
 pub struct QueryExpr {
-    with: Vec<Ty>,
-    without: Vec<Ty>,
+    pub with: Vec<Ty>,
+    pub without: Vec<Ty>,
 }
 
 #[derive(Debug, Clone)]
 pub struct Schedule {
-    span: Span,
-    kind: ScheduleKind,
+    pub span: Span,
+    pub kind: ScheduleKind,
 }
 
 #[derive(Debug, Clone)]
 pub enum ScheduleKind {
     /// A system in the schedule
     /// `foo`
-    System(Ident), // TODO: This will require a pathed identifier for nice usage
+    System(SymbolId), // TODO: This will require a pathed identifier for nice usage
     /// A schedule which must be executed in order
     /// `[ foo, bar ]`
     Ordered(Vec<P<Schedule>>),

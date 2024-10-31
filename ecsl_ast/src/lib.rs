@@ -1,4 +1,3 @@
-use cfgrammar::Span;
 use ecsl_index::generate_index_type;
 use item::Item;
 
@@ -23,8 +22,7 @@ pub mod parse {
 
 pub type P<T> = Box<T>;
 
-#[derive(Debug, Clone, Copy)]
-pub struct Ident(pub Span);
+generate_index_type!(SymbolId);
 
 #[derive(Debug)]
 pub struct ParsedFile {

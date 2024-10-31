@@ -1,7 +1,7 @@
 use anyhow::Result;
 use ecsl_assembler::Assembler;
 use ecsl_error::ext::EcslErrorExt;
-use ecsl_parse::parse;
+use ecsl_parse::parse_file;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 
 use std::path::PathBuf;
@@ -29,7 +29,7 @@ impl Driver {
         let diag = diag.finish_stage()?;
 
         for s in ctx.source_files() {
-            parse(s);
+            parse_file(s);
         }
 
         let assembler = Assembler::new();

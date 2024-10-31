@@ -1,4 +1,4 @@
-use crate::{ecs::{EntityTy, QueryTy}, expr::Literal, Ident, P};
+use crate::{ecs::{EntityTy, QueryTy}, SymbolId, P};
 
 use cfgrammar::Span;
 
@@ -18,7 +18,7 @@ impl Ty {
 #[derive(Debug, Clone)]
 pub enum TyKind {
     /// Identifier
-    Ident(Ident),
+    Ident(SymbolId),
 
     /// Array with associated size constant
     // Includes span of constant
@@ -77,12 +77,12 @@ pub enum Mutable {
 
 #[derive(Debug, Clone)]
 pub struct Generics {
-    span: Span,
-    vec: Vec<GenericParam>
+    pub span: Span,
+    pub vec: Vec<GenericParam>
 }
 
 #[derive(Debug, Clone)]
 pub struct GenericParam {
-    span: Span,
-    ident: Ident,
+    pub span: Span,
+    pub ident: SymbolId,
 }

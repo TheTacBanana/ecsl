@@ -38,7 +38,7 @@ pub enum ItemKind {
 
 #[derive(Debug, Clone)]
 pub struct ImplBlock {
-    span: Span,
-    ty: P<Ty>,
-    fn_defs: Vec<P<FnDef>>,
+    pub span: Span,
+    pub ty: P<Ty>,
+    pub fn_defs: Vec<P<FnDef>>,
 }

@@ -1,19 +1,19 @@
 use cfgrammar::Span;
 
-use crate::{ecs::{QueryExpr, Schedule}, ty::Ty, Ident, P};
+use crate::{ecs::{QueryExpr, Schedule}, ty::Ty, SymbolId, P};
 
 
 #[derive(Debug, Clone)]
 pub struct Expr {
-    span: Span,
-    kind: ExprKind,
+    pub span: Span,
+    pub kind: ExprKind,
 }
 
 #[derive(Debug, Clone)]
 pub enum ExprKind {
     /// Assign expression to ident
     /// `ident = *expr*`
-    Assign(Ident, P<Expr>),
+    Assign(SymbolId, P<Expr>),
 
     /// Unary Operator
     /// `-value`
@@ -29,20 +29,20 @@ pub enum ExprKind {
     /// `"string"`
     Lit(Literal),
     /// Struct `Foo { bar : 1 }`
-    Struct(Ident, Vec<P<FieldExpr>>),
+    Struct(SymbolId, Vec<P<FieldExpr>>),
     /// Enum `Foo::Bar { baz : 2 }`
-    Enum(Ident, Ident, Vec<P<FieldExpr>>),
+    Enum(SymbolId, SymbolId, Vec<P<FieldExpr>>),
 
     /// Casting expression into type
     /// `6 as int`
     Cast(P<Expr>, P<Ty>),
     /// Field Access
     /// `foo.bar`
-    Field(P<Expr>, Ident),
+    Field(P<Expr>, SymbolId),
     /// Function call
     /// Called On, Function Ident, Args
     /// `x.foo(1, 2)`
-    Function(Option<P<Expr>>, P<Ident>, Option<Vec<P<Expr>>>),
+    Function(Option<P<Expr>>, P<SymbolId>, Option<Vec<P<Expr>>>),
 
     /// `break` loop
     Break,
@@ -81,8 +81,8 @@ pub enum Literal {
 
 #[derive(Debug, Clone)]
 pub struct BinOp {
-    span: Span,
-    kind: BinOpKind,
+    pub span: Span,
+    pub kind: BinOpKind,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -103,8 +103,8 @@ pub enum BinOpKind {
 
 #[derive(Debug, Clone)]
 pub struct UnOp {
-    span: Span,
-    kind: UnOpKind,
+    pub span: Span,
+    pub kind: UnOpKind,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

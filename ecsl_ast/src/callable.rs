@@ -1,12 +1,12 @@
 use cfgrammar::Span;
 
-use crate::{stmt::Block, ty::Ty, Ident, P};
+use crate::{stmt::Block, ty::Ty, SymbolId, P};
 
 #[derive(Debug, Clone)]
 pub struct FnDef {
     pub span: Span,
     pub kind: FnKind,
-    pub ident: Ident,
+    pub ident: SymbolId,
     pub params: Vec<Param>,
     pub ret: RetTy,
     pub block: Block,
@@ -15,7 +15,7 @@ pub struct FnDef {
 #[derive(Debug, Clone)]
 pub struct Param {
     pub span: Span,
-    pub ident: Ident,
+    pub ident: SymbolId,
     pub ty: P<Ty>
 }
 

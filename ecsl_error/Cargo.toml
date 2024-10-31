@@ -6,4 +6,4 @@ edition = "2021"
 [dependencies]
 ansi_term = "0.12.1"
 ecsl_index = { path = "../ecsl_index" }
-cfgrammar = "0.13"
+cfgrammar.workspace = true

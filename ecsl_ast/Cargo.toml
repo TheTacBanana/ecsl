@@ -5,4 +5,4 @@ edition = "2021"
 
 [dependencies]
 ecsl_index = { path = "../ecsl_index" }
-cfgrammar = "0.13"
+cfgrammar.workspace = true

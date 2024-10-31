@@ -1,4 +1,5 @@
 %start File
+%parse-param table: Rc<RefCell<SymbolTable>>
 %%
 File -> Result<ParsedFile, ()>:
     ItemList {
@@ -27,7 +28,7 @@ FnDef -> Result<FnDef, ()>:
         Ok(FnDef {
             span: $span,
             kind: $1?,
-            ident: Ident($2.map_err(|_| ())?.span()),
+            ident: table.new_ident($2.map_err(|_| ())?.span(), SymbolKind::Function),
             params: $4?,
             ret: $6?,
             block: $8?,
@@ -56,7 +57,7 @@ Arg -> Result<Param, ()>:
     'IDENT' 'COLON' Ty {
         Ok(Param {
             span: $span,
-            ident: Ident($1.map_err(|_| ())?.span()),
+            ident: table.new_ident($1.map_err(|_| ())?.span(), SymbolKind::Local),
             ty: P::new($3?)
             }
         )
@@ -75,7 +76,9 @@ ReturnTy -> Result<RetTy, ()>:
 
 Ty -> Result<Ty, ()>:
     'IDENT' {
-        Ok(Ty::new($span, TyKind::Ident(Ident($span))))
+        Ok(Ty::new($span, TyKind::Ident(
+            table.new_ident($1.map_err(|_| ())?.span(), SymbolKind::Local)
+        )))
     }
     | 'LSQUARE' Ty 'INT' 'RSQUARE' {
         Ok(Ty::new($span, TyKind::Array(
@@ -91,6 +94,7 @@ Block -> Result<Block, ()>:
 %%
 
 use ecsl_ast::parse::*;
+use crate::*;
 
 fn flatten<T>(lhs: Result<Vec<T>, ()>, rhs: Result<T, ()>)
            -> Result<Vec<T>, ()>

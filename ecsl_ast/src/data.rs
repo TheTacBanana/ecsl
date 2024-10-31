@@ -1,23 +1,23 @@
 use cfgrammar::Span;
 
-use crate::{item::Item, ty::{Generics, Ty}, Ident, P};
+use crate::{ty::{Generics, Ty}, SymbolId, P};
 
 #[derive(Debug, Clone)]
 pub struct StructDef {
-    span: Span,
-    kind: DataKind,
-    ident: Ident,
-    generics: P<Generics>,
-    fields: Vec<P<Field>>,
+    pub span: Span,
+    pub kind: DataKind,
+    pub ident: SymbolId,
+    pub generics: P<Generics>,
+    pub fields: Vec<P<Field>>,
 }
 
 #[derive(Debug, Clone)]
 pub struct EnumDef {
-    span: Span,
-    kind: DataKind,
-    ident: Ident,
-    generics: P<Generics>,
-    fields: Vec<P<Variant>>,
+    pub span: Span,
+    pub kind: DataKind,
+    pub ident: SymbolId,
+    pub generics: P<Generics>,
+    pub fields: Vec<P<Variant>>,
 }
 
 #[derive(Debug, Clone)]
@@ -28,14 +28,14 @@ pub enum DataKind {
 
 #[derive(Debug, Clone)]
 pub struct Field {
-    span: Span,
-    ident: Ident,
-    ty: P<Ty>,
+    pub span: Span,
+    pub ident: SymbolId,
+    pub ty: P<Ty>,
 }
 
 #[derive(Debug, Clone)]
 pub struct Variant {
-    span: Span,
-    ident: Ident,
-    fields: Vec<P<Field>>,
+    pub span: Span,
+    pub ident: SymbolId,
+    pub fields: Vec<P<Field>>,
 }

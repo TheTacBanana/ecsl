@@ -7,4 +7,4 @@ edition = "2021"
 ecsl_error = { path = "../ecsl_error" }
 ecsl_index = { path = "../ecsl_index" }
 ecsl_diagnostics = { path = "../ecsl_diagnostics"}
-cfgrammar = "0.13"
+cfgrammar.workspace = true

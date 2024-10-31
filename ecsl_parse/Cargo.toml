@@ -8,11 +8,11 @@ ecsl_diagnostics = { path = "../ecsl_diagnostics" }
 ecsl_index = { path = "../ecsl_index" }
 ecsl_source = { path = "../ecsl_source" }
 ecsl_ast = { path = "../ecsl_ast" }
-cfgrammar = "0.13"
-lrlex = "0.13"
-lrpar = "0.13"
+cfgrammar.workspace = true
+lrlex.workspace = true
+lrpar.workspace = true
 
 [build-dependencies]
-cfgrammar = "0.13"
-lrlex = "0.13"
-lrpar = "0.13"
+cfgrammar.workspace = true
+lrlex.workspace = true
+lrpar.workspace = true
