@@ -1,6 +1,6 @@
 use cfgrammar::Span;
 
-use crate::{path::Path, ty::Ty, Ident, P};
+use crate::{ty::Ty, Ident, P};
 
 #[derive(Debug, Clone)]
 pub struct EntityTy {
@@ -36,14 +36,14 @@ pub struct Schedule {
 pub enum ScheduleKind {
     /// A system in the schedule
     /// `foo`
-    System(Path), // TODO: This will require a pathed identifier for nice usage
+    System(Ident), // TODO: This will require a pathed identifier for nice usage
     /// A schedule which must be executed in order
     /// `[ foo, bar ]`
     Ordered(Vec<P<Schedule>>),
     /// A schedule where the order is non-deterministic
     /// `{ foo, bar }`
     Unordered(Vec<P<Schedule>>),
-    /// A schedule where the systems will be scheduled in parallel
-    /// `| foo, bar |`
-    Parallelized(Vec<P<Schedule>>),
+    // /// A schedule where the systems will be scheduled in parallel
+    // /// `| foo, bar |`
+    // Parallelized(Vec<P<Schedule>>),
 }

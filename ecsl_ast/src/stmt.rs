@@ -21,8 +21,8 @@ pub enum StmtKind {
 
     /// `if (*expr*) { .. }` Option of Else
     If(P<Expr>, P<Block>, Option<Expr>),
-    /// `for (i in *expr*) { .. }`
-    For(Ident, P<Expr>, P<Block>),
+    /// `for (i : *ty* in *expr*) { .. }`
+    For(Ident, P<Ty>, P<Expr>, P<Block>),
     /// `while (*expr*) { .. }`
     While(P<Expr>, P<Block>),
 

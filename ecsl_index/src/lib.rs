@@ -43,8 +43,6 @@ macro_rules! generate_index_type {
 
 generate_index_type!(CrateID);
 generate_index_type!(SourceFileID);
-// generate_index_type!(LineNumber);
-// generate_index_type!(BytePos);
 
 #[derive(Debug, Clone, Copy)]
 pub struct LineNumberColumn {

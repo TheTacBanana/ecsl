@@ -4,19 +4,19 @@ use crate::{stmt::Block, ty::Ty, Ident, P};
 
 #[derive(Debug, Clone)]
 pub struct FnDef {
-    span: Span,
-    kind: FnKind,
-    ident: Ident,
-    params: Vec<Param>,
-    ret: RetTy,
-    block: Block,
+    pub span: Span,
+    pub kind: FnKind,
+    pub ident: Ident,
+    pub params: Vec<Param>,
+    pub ret: RetTy,
+    // pub block: Block,
 }
 
 #[derive(Debug, Clone)]
 pub struct Param {
-    span: Span,
-    ident: Ident,
-    ty: P<Ty>
+    pub span: Span,
+    pub ident: Ident,
+    pub ty: P<Ty>
 }
 
 #[derive(Debug, Clone)]

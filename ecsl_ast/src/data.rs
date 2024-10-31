@@ -5,24 +5,25 @@ use crate::{item::Item, ty::{Generics, Ty}, Ident, P};
 #[derive(Debug, Clone)]
 pub struct StructDef {
     span: Span,
-    kind: StructKind,
+    kind: DataKind,
     ident: Ident,
     generics: P<Generics>,
     fields: Vec<P<Field>>,
 }
 
 #[derive(Debug, Clone)]
-pub enum StructKind {
-    Struct,
-    Comp,
-}
-
-#[derive(Debug, Clone)]
 pub struct EnumDef {
     span: Span,
+    kind: DataKind,
     ident: Ident,
     generics: P<Generics>,
     fields: Vec<P<Variant>>,
+}
+
+#[derive(Debug, Clone)]
+pub enum DataKind {
+    Normal,
+    Component,
 }
 
 #[derive(Debug, Clone)]

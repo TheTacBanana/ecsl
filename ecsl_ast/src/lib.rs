@@ -1,3 +1,4 @@
+use cfgrammar::Span;
 use ecsl_index::generate_index_type;
 
 pub mod callable;
@@ -5,7 +6,6 @@ pub mod data;
 pub mod ecs;
 pub mod expr;
 pub mod item;
-pub mod path;
 pub mod stmt;
 pub mod ty;
 
@@ -15,15 +15,16 @@ pub mod parse {
     pub use crate::ecs::*;
     pub use crate::expr::*;
     pub use crate::item::*;
-    pub use crate::path::*;
     pub use crate::stmt::*;
     pub use crate::ty::*;
     pub use crate::P;
+    pub use crate::Ident;
 }
 
 pub type P<T> = Box<T>;
 
-generate_index_type!(Ident);
+#[derive(Debug, Clone, Copy)]
+pub struct Ident(pub Span);
 
 // #[cfg(test)]
 // mod test {

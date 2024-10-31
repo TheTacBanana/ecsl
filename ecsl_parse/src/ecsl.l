@@ -30,9 +30,6 @@ in "IN"
 break "BREAK"
 continue "CONTINUE"
 
-Entity "ENTITY"
-Schedule "SCHEDULE"
-
 \( "LBRACKET"
 \) "RBRACKET"
 \{ "LCURLY"

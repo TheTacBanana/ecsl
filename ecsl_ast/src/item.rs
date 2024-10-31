@@ -1,15 +1,21 @@
-use cfgrammar::Span;
 use crate::{
     callable::FnDef,
     data::{EnumDef, StructDef},
     ty::Ty,
     P,
 };
+use cfgrammar::Span;
 
 #[derive(Debug, Clone)]
 pub struct Item {
-    span: Span,
-    kind: ItemKind,
+    pub span: Span,
+    pub kind: ItemKind,
+}
+
+impl Item {
+    pub fn new(span: Span, kind: ItemKind) -> Self {
+        Self { span, kind }
+    }
 }
 
 #[derive(Debug, Clone)]

@@ -1,12 +1,12 @@
-use crate::{data::Field, ecs::{EntityTy, QueryTy}, expr::Literal, path::Path, Ident, P};
+use crate::{ecs::{EntityTy, QueryTy}, expr::Literal, Ident, P};
 
 use cfgrammar::Span;
 
 
 #[derive(Debug, Clone)]
 pub struct Ty {
-    span: Span,
-    kind: TyKind,
+    pub span: Span,
+    pub kind: TyKind,
 }
 
 impl Ty {
@@ -18,11 +18,12 @@ impl Ty {
 #[derive(Debug, Clone)]
 pub enum TyKind {
     /// Identifier
-    Ident(Path),
+    Ident(Ident),
 
     /// Array with associated size constant
+    // Includes span of constant
     /// `[<ty> : N]`
-    Array(P<Ty>, Literal),
+    Array(P<Ty>, Span),
 
     /// Reference to Array
     /// `&[<ty>]`
