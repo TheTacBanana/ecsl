@@ -1,26 +1,53 @@
-%start Item
+%start File
 %%
-
-Item -> Result<Item, ()>:
-    'FN' 'IDENT' 'LBRACKET' FnArgs TrailingComma 'RBRACKET' ReturnTy {
-        Ok(Item::new(
-            $span,
-            ItemKind::Fn(P::new(
-                FnDef {
-                    span: $span,
-                    kind: FnKind::Fn,
-                    ident: Ident($2.map_err(|_| ())?.span()),
-                    params: $4?,
-                    ret: $7?,
-                    // block:
-                }
-            ))))
+File -> Result<ParsedFile, ()>:
+    ItemList {
+        Ok(ParsedFile { items: $1?})
     }
     ;
 
+ItemList -> Result<Vec<Item>, ()>:
+    Item { Ok(vec![$1?]) }
+    | ItemList Item {
+        flatten($1, $2)
+    }
+    ;
+
+Item -> Result<Item, ()>:
+    FnDef {
+        Ok(Item::new(
+            $span,
+            ItemKind::Fn(P::new($1?)
+        )))
+    }
+    ;
+
+FnDef -> Result<FnDef, ()>:
+    FnKind 'IDENT' 'LBRACKET' FnArgs 'RBRACKET' ReturnTy 'LCURLY' Block 'RCURLY' {
+        Ok(FnDef {
+            span: $span,
+            kind: $1?,
+            ident: Ident($2.map_err(|_| ())?.span()),
+            params: $4?,
+            ret: $6?,
+            block: $8?,
+        })
+    }
+    ;
+
+FnKind -> Result<FnKind, ()>:
+    'FN' { Ok(FnKind::Fn) }
+    | 'SYS' { Ok(FnKind::Sys) }
+    ;
+
 FnArgs -> Result<Vec<Param>, ()>:
+    ArgList TrailingComma { $1 }
+    | { Ok(Vec::new()) }
+    ;
+
+ArgList -> Result<Vec<Param>, ()>:
     Arg { Ok(vec![$1?]) }
-    | FnArgs 'COMMA' Arg {
+    | ArgList 'COMMA' Arg {
         flatten($1, $3)
     }
     ;
@@ -42,9 +69,7 @@ TrailingComma -> ():
     ;
 
 ReturnTy -> Result<RetTy, ()>:
-    'ARROW' Ty {
-        { Ok(RetTy::Ty(P::new($2?))) }
-    }
+    'ARROW' Ty { Ok(RetTy::Ty(P::new($2?))) }
     | {Ok(RetTy::None($span))}
     ;
 
@@ -59,6 +84,9 @@ Ty -> Result<Ty, ()>:
     }
     ;
 
+Block -> Result<Block, ()>:
+    { Ok(Block { span: $span, stmts: Vec::new() }) }
+    ;
 
 %%
 

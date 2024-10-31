@@ -1,17 +1,17 @@
 use cfgrammar::Span;
 
-use crate::{data::Variant, expr::Expr, item::Item, ty::{Mutable, Ty}, Ident, P};
+use crate::{data::Variant, expr::Expr, ty::{Mutable, Ty}, Ident, P};
 
 #[derive(Debug, Clone)]
 pub struct Block {
-    span: Span,
-    stmts: Vec<P<Stmt>>,
+    pub span: Span,
+    pub stmts: Vec<Stmt>,
 }
 
 #[derive(Debug, Clone)]
 pub struct Stmt {
-    span: Span,
-    kind: StmtKind,
+    pub span: Span,
+    pub kind: StmtKind,
 }
 
 #[derive(Debug, Clone)]
@@ -41,7 +41,7 @@ pub enum StmtKind {
 
 #[derive(Debug, Clone)]
 pub struct MatchArm {
-    span: Span,
-    variant: P<Variant>,
-    block: P<Block>,
+    pub span: Span,
+    pub variant: P<Variant>,
+    pub block: P<Block>,
 }

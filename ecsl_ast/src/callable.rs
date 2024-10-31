@@ -9,7 +9,7 @@ pub struct FnDef {
     pub ident: Ident,
     pub params: Vec<Param>,
     pub ret: RetTy,
-    // pub block: Block,
+    pub block: Block,
 }
 
 #[derive(Debug, Clone)]

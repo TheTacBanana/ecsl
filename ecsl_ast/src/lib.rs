@@ -1,5 +1,6 @@
 use cfgrammar::Span;
 use ecsl_index::generate_index_type;
+use item::Item;
 
 pub mod callable;
 pub mod data;
@@ -17,14 +18,18 @@ pub mod parse {
     pub use crate::item::*;
     pub use crate::stmt::*;
     pub use crate::ty::*;
-    pub use crate::P;
-    pub use crate::Ident;
+    pub use crate::*;
 }
 
 pub type P<T> = Box<T>;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Ident(pub Span);
+
+#[derive(Debug)]
+pub struct ParsedFile {
+    pub items: Vec<Item>,
+}
 
 // #[cfg(test)]
 // mod test {
