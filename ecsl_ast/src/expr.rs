@@ -1,4 +1,4 @@
-use cfgrammar::{yacc::ast::Symbol, Span};
+use cfgrammar::Span;
 
 use crate::{
     ecs::{QueryExpr, Schedule},

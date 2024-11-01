@@ -1,10 +1,6 @@
 use anyhow::Result;
 use ecsl_assembler::Assembler;
-use ecsl_error::ext::EcslErrorExt;
 use ecsl_parse::parse_file;
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
-
-use std::path::PathBuf;
 
 use ecsl_context::Context;
 use ecsl_diagnostics::Diagnostics;
@@ -26,7 +22,7 @@ impl Driver {
                 return Ok(());
             }
         };
-        let diag = diag.finish_stage()?;
+        let _diag = diag.finish_stage()?;
 
         for s in ctx.source_files() {
             parse_file(s);

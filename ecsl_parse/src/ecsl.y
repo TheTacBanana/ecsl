@@ -108,7 +108,36 @@ Stmt -> Result<Stmt, ()>:
             P::new($7?),
         )))
     }
+    | IfStmt { Ok($1?)}
+    | 'FOR' 'LBRACKET' 'IDENT' 'COLON' Ty 'IN' Expr 'RBRACKET' 'LCURLY' Block 'RCURLY' {
+        Ok(Stmt::new($span, StmtKind::For(
+            table.new_ident($3.map_err(|_| ())?.span(), SymbolKind::Local),
+            P::new($5?),
+            P::new($7?),
+            P::new($10?),
+        )))
+    }
+    | 'WHILE' 'LBRACKET' Expr 'RBRACKET' 'LCURLY' Block 'RCURLY' {
+        todo!()
+    }
     | 'SEMI' { Ok(Stmt::new($span, StmtKind::Semi)) }
+    ;
+
+IfStmt -> Result<Stmt, ()>:
+    'IF' 'LBRACKET' Expr 'RBRACKET' 'LCURLY' Block 'RCURLY' 'ELSE' IfStmt {
+        Ok(Stmt::new($span, StmtKind::If(
+            P::new($3?),
+            P::new($6?),
+            Some(P::new($9?)),
+        )))
+    }
+    | 'IF' 'LBRACKET' Expr 'RBRACKET' 'LCURLY' Block 'RCURLY' {
+        Ok(Stmt::new($span, StmtKind::If(
+            P::new($3?),
+            P::new($6?),
+            None,
+        )))
+    }
     ;
 
 Mutability -> Result<Mutable, ()>:

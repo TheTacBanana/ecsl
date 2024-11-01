@@ -26,7 +26,7 @@ pub enum StmtKind {
     Let(Mutable, SymbolId, P<Ty>, P<Expr>),
 
     /// `if (*expr*) { .. }` Option of Else
-    If(P<Expr>, P<Block>, Option<Expr>),
+    If(P<Expr>, P<Block>, Option<P<Stmt>>),
     /// `for (i : *ty* in *expr*) { .. }`
     For(SymbolId, P<Ty>, P<Expr>, P<Block>),
     /// `while (*expr*) { .. }`
