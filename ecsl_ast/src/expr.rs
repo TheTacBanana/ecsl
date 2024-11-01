@@ -1,12 +1,21 @@
-use cfgrammar::Span;
+use cfgrammar::{yacc::ast::Symbol, Span};
 
-use crate::{ecs::{QueryExpr, Schedule}, ty::Ty, SymbolId, P};
-
+use crate::{
+    ecs::{QueryExpr, Schedule},
+    ty::Ty,
+    SymbolId, P,
+};
 
 #[derive(Debug, Clone)]
 pub struct Expr {
     pub span: Span,
     pub kind: ExprKind,
+}
+
+impl Expr {
+    pub fn new(span: Span, kind: ExprKind) -> Self {
+        Self { span, kind }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -24,6 +33,9 @@ pub enum ExprKind {
 
     /// Array `[1, 2, 3, 4]`
     Array(Vec<P<Expr>>),
+    /// Locally accesible symbol
+    /// `foo` `bar`
+    Ident(SymbolId),
     /// Literal value
     /// `1`
     /// `"string"`
@@ -67,7 +79,6 @@ pub enum ExprKind {
     /// ]
     /// ```
     Schedule(P<Schedule>),
-
 }
 
 #[derive(Debug, Clone)]
@@ -76,8 +87,8 @@ pub enum Literal {
     Float,
     String,
     Char,
+    Bool,
 }
-
 
 #[derive(Debug, Clone)]
 pub struct BinOp {
@@ -115,6 +126,4 @@ pub enum UnOpKind {
 }
 
 #[derive(Debug, Clone)]
-pub struct FieldExpr {
-
-}
+pub struct FieldExpr {}

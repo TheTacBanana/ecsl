@@ -1,5 +1,5 @@
 %start File
-%parse-param table: Rc<RefCell<SymbolTable>>
+%parse-param table: Rc<RefCell<PartialSymbolTable>>
 %%
 File -> Result<ParsedFile, ()>:
     ItemList {
@@ -88,7 +88,51 @@ Ty -> Result<Ty, ()>:
     ;
 
 Block -> Result<Block, ()>:
-    { Ok(Block { span: $span, stmts: Vec::new() }) }
+    StmtList { Ok(Block { span: $span, stmts: $1? }) }
+    | { Ok(Block { span: $span, stmts: Vec::new() }) }
+    ;
+
+StmtList -> Result<Vec<Stmt>, ()>:
+    Stmt { Ok(vec![$1?]) }
+    | StmtList Stmt {
+        flatten($1, $2)
+    }
+    ;
+
+Stmt -> Result<Stmt, ()>:
+    'LET' Mutability 'IDENT' 'COLON' Ty 'ASSIGN' Expr 'SEMI' {
+        Ok(Stmt::new($span, StmtKind::Let(
+            $2?,
+            table.new_ident($3.map_err(|_| ())?.span(), SymbolKind::Local),
+            P::new($5?),
+            P::new($7?),
+        )))
+    }
+    | 'SEMI' { Ok(Stmt::new($span, StmtKind::Semi)) }
+    ;
+
+Mutability -> Result<Mutable, ()>:
+    'MUT' { Ok(Mutable::Mut) }
+    | 'IMM' { Ok(Mutable::Imm) }
+    | { Ok(Mutable::Imm) }
+    ;
+
+Expr -> Result<Expr, ()>:
+    Literal { Ok($1?) }
+    | 'IDENT' { Ok(Expr::new(
+        $span,
+        ExprKind::Ident(
+            table.new_ident($1.map_err(|_| ())?.span(), SymbolKind::Local)
+        )
+    ))}
+    ;
+
+Literal -> Result<Expr, ()>:
+    'BOOLEAN' { Ok(Expr::new($span, ExprKind::Lit(Literal::Bool))) }
+    | 'CHAR' { Ok(Expr::new($span, ExprKind::Lit(Literal::Char))) }
+    | 'INT' { Ok(Expr::new($span, ExprKind::Lit(Literal::Int))) }
+    | 'FLOAT' { Ok(Expr::new($span, ExprKind::Lit(Literal::Float))) }
+    | 'STRING' { Ok(Expr::new($span, ExprKind::Lit(Literal::String))) }
     ;
 
 %%

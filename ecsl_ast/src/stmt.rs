@@ -14,6 +14,12 @@ pub struct Stmt {
     pub kind: StmtKind,
 }
 
+impl Stmt {
+    pub fn new(span: Span, kind: StmtKind) -> Self {
+        Self { span, kind }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum StmtKind {
     /// `let mut ident : int = 1;`

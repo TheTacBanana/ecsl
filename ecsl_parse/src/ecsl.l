@@ -2,7 +2,7 @@
 
 // "FSFS"
 
-\; "SEMICOLON"
+\; "SEMI"
 : "COLON"
 , "COMMA"
 \. "DOT"
@@ -10,7 +10,9 @@
 
 use "USE"
 let "LET"
-= "EQ"
+mut "MUT"
+imm "IMM"
+= "ASSIGN"
 as "AS"
 
 struct "STRUCT"
@@ -59,7 +61,8 @@ continue "CONTINUE"
 
 [a-zA-Z_][a-zA-Z0-9_]* "IDENT"
 [0-9]+ "INT"
+[0-9]+\.[0-9]* "FLOAT"
 "(?:\\\\|\\"|[^"\n])*" "STRING"
 (false|true) "BOOLEAN"
-'([^\t\n\r\f\\'\\]|\\[tnfr'"\\])' "CHARACTER"
-[\t ]+ ;
+'([^\t\n\r\f\\'\\]|\\[tnfr'"\\])' "CHAR"
+[\t\n\r ]+ ;
