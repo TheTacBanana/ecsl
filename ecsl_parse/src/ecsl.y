@@ -108,7 +108,6 @@ Stmt -> Result<Stmt, ()>:
             P::new($7?),
         )))
     }
-    | IfStmt { Ok($1?)}
     | 'FOR' 'LBRACKET' 'IDENT' 'COLON' Ty 'IN' Expr 'RBRACKET' 'LCURLY' Block 'RCURLY' {
         Ok(Stmt::new($span, StmtKind::For(
             table.new_ident($3.map_err(|_| ())?.span(), SymbolKind::Local),
@@ -118,7 +117,17 @@ Stmt -> Result<Stmt, ()>:
         )))
     }
     | 'WHILE' 'LBRACKET' Expr 'RBRACKET' 'LCURLY' Block 'RCURLY' {
-        todo!()
+        Ok(Stmt::new($span, StmtKind::While(
+            P::new($3?),
+            P::new($6?),
+        )))
+    }
+    | IfStmt { Ok($1?)}
+    | MatchStmt { Ok($1?) }
+    | Expr 'SEMI' {
+        Ok(Stmt::new($span, StmtKind::Expr(
+            P::new($1?)
+        )))
     }
     | 'SEMI' { Ok(Stmt::new($span, StmtKind::Semi)) }
     ;
@@ -140,6 +149,55 @@ IfStmt -> Result<Stmt, ()>:
     }
     ;
 
+MatchStmt -> Result<Stmt, ()>:
+    'MATCH' 'LBRACKET' Expr 'RBRACKET' 'LCURLY' MatchArmList TrailingComma 'RCURLY' {
+        Ok(Stmt::new($span, StmtKind::Match(
+            P::new($3?),
+            $6?
+        )))
+    }
+    ;
+
+MatchArmList -> Result<Vec<MatchArm>, ()>:
+    MatchArm { Ok(vec![$1?]) }
+    | MatchArmList 'COMMA' MatchArm {
+        flatten($1, $3)
+    }
+    ;
+
+MatchArm -> Result<MatchArm, ()>:
+    'IDENT' 'LCURLY' FieldList 'RCURLY' 'ARROW' 'LCURLY' Block 'RCURLY' {
+        Ok(MatchArm {
+            span: $span,
+            fields: $3?,
+            block: P::new($7?)
+        })
+    }
+    | 'IDENT' 'ARROW' 'LCURLY' Block 'RCURLY' {
+        Ok(MatchArm {
+            span: $span,
+            fields: Vec::new(),
+            block: P::new($4?)
+        })
+    }
+    ;
+
+FieldList -> Result<Vec<Field>, ()>:
+    Field { Ok(vec![$1?]) }
+    | FieldList 'COMMA' Field {
+        flatten($1, $3)
+    }
+    ;
+
+Field -> Result<Field, ()>:
+    'IDENT' {
+        Ok(Field {
+            span: $span,
+            ident: table.new_ident($1.map_err(|_| ())?.span(), SymbolKind::Local),
+        })
+    }
+    ;
+
 Mutability -> Result<Mutable, ()>:
     'MUT' { Ok(Mutable::Mut) }
     | 'IMM' { Ok(Mutable::Imm) }
@@ -156,7 +214,7 @@ Expr -> Result<Expr, ()>:
     ))}
     ;
 
-Literal -> Result<Expr, ()>:
+Literal -> Result<Expr, ()>:2
     'BOOLEAN' { Ok(Expr::new($span, ExprKind::Lit(Literal::Bool))) }
     | 'CHAR' { Ok(Expr::new($span, ExprKind::Lit(Literal::Char))) }
     | 'INT' { Ok(Expr::new($span, ExprKind::Lit(Literal::Int))) }
@@ -168,11 +226,3 @@ Literal -> Result<Expr, ()>:
 
 use ecsl_ast::parse::*;
 use crate::*;
-
-fn flatten<T>(lhs: Result<Vec<T>, ()>, rhs: Result<T, ()>)
-           -> Result<Vec<T>, ()>
-{
-    let mut flt = lhs?;
-    flt.push(rhs?);
-    Ok(flt)
-}

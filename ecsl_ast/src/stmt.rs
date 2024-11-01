@@ -1,6 +1,6 @@
 use cfgrammar::Span;
 
-use crate::{data::Variant, expr::Expr, ty::{Mutable, Ty}, SymbolId, P};
+use crate::{expr::Expr, ty::{Mutable, Ty}, SymbolId, P};
 
 #[derive(Debug, Clone)]
 pub struct Block {
@@ -27,16 +27,16 @@ pub enum StmtKind {
 
     /// `if (*expr*) { .. }` Option of Else
     If(P<Expr>, P<Block>, Option<P<Stmt>>),
-    /// `for (i : *ty* in *expr*) { .. }`
+    /// `for (*symbol* : *ty* in *expr*) { .. }`
     For(SymbolId, P<Ty>, P<Expr>, P<Block>),
     /// `while (*expr*) { .. }`
     While(P<Expr>, P<Block>),
 
     /// match (*expr*) {
-    ///     Variant1 { field: T } => { .. },
-    ///     Variant2 => { .. },
+    ///     Variant1 { field } -> { .. },
+    ///     Variant2 -> { .. },
     /// }
-    Match(P<Expr>, Vec<P<MatchArm>>),
+    Match(P<Expr>, Vec<MatchArm>),
 
     /// Expression of any kind terminated by a semicolon
     Expr(P<Expr>),
@@ -48,6 +48,12 @@ pub enum StmtKind {
 #[derive(Debug, Clone)]
 pub struct MatchArm {
     pub span: Span,
-    pub variant: P<Variant>,
+    pub fields: Vec<Field>,
     pub block: P<Block>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Field {
+    pub span: Span,
+    pub ident: SymbolId,
 }

@@ -26,7 +26,6 @@ pub fn parse_file(source: &SourceFile) {
     }
 }
 
-
 pub trait GenerateIdentExt {
     fn new_ident(&self, span: Span, kind: SymbolKind) -> SymbolId;
 }
@@ -38,4 +37,12 @@ impl GenerateIdentExt for Rc<RefCell<PartialSymbolTable<'_, '_>>> {
         let id = s.insert_symbol(symbol_string, span, kind);
         id
     }
+}
+
+fn flatten<T>(lhs: Result<Vec<T>, ()>, rhs: Result<T, ()>)
+           -> Result<Vec<T>, ()>
+{
+    let mut flt = lhs?;
+    flt.push(rhs?);
+    Ok(flt)
 }

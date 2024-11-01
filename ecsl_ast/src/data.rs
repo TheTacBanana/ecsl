@@ -8,7 +8,7 @@ pub struct StructDef {
     pub kind: DataKind,
     pub ident: SymbolId,
     pub generics: P<Generics>,
-    pub fields: Vec<P<Field>>,
+    pub fields: Vec<P<FieldDef>>,
 }
 
 #[derive(Debug, Clone)]
@@ -27,7 +27,7 @@ pub enum DataKind {
 }
 
 #[derive(Debug, Clone)]
-pub struct Field {
+pub struct FieldDef {
     pub span: Span,
     pub ident: SymbolId,
     pub ty: P<Ty>,
@@ -37,5 +37,5 @@ pub struct Field {
 pub struct Variant {
     pub span: Span,
     pub ident: SymbolId,
-    pub fields: Vec<P<Field>>,
+    pub fields: Vec<P<FieldDef>>,
 }
