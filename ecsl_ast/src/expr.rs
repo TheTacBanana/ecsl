@@ -41,9 +41,9 @@ pub enum ExprKind {
     /// `"string"`
     Lit(Literal),
     /// Struct `Foo { bar : 1 }`
-    Struct(SymbolId, Vec<P<FieldExpr>>),
+    Struct(SymbolId, Vec<FieldExpr>),
     /// Enum `Foo::Bar { baz : 2 }`
-    Enum(SymbolId, SymbolId, Vec<P<FieldExpr>>),
+    Enum(SymbolId, SymbolId, Vec<FieldExpr>),
 
     /// Casting expression into type
     /// `6 as int`
@@ -54,7 +54,7 @@ pub enum ExprKind {
     /// Function call
     /// Called On, Function Ident, Args
     /// `x.foo(1, 2)`
-    Function(Option<P<Expr>>, P<SymbolId>, Option<Vec<P<Expr>>>),
+    Function(Option<P<Expr>>, SymbolId, Option<Vec<Expr>>),
 
     /// `break` loop
     Break,

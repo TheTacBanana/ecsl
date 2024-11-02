@@ -1,5 +1,5 @@
 use cfgrammar::Span;
-use ecsl_ast::SymbolId;
+use ecsl_ast::{data::DataKind, SymbolId};
 use lrlex::{DefaultLexerTypes, LRNonStreamingLexer};
 use std::collections::{hash_map::Entry, HashMap};
 
@@ -24,10 +24,11 @@ pub struct Symbol {
 #[derive(Debug, Clone, Copy)]
 pub enum SymbolKind {
     Local,
+    Generic,
     Function,
     FunctionArg,
-    Struct(bool),
-    Enum(bool),
+    Struct(DataKind),
+    Enum(DataKind),
 }
 
 impl<'a, 'b> PartialSymbolTable<'a, 'b> {

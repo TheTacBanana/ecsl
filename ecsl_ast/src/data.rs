@@ -7,8 +7,8 @@ pub struct StructDef {
     pub span: Span,
     pub kind: DataKind,
     pub ident: SymbolId,
-    pub generics: P<Generics>,
-    pub fields: Vec<P<FieldDef>>,
+    pub generics: Option<P<Generics>>,
+    pub fields: Vec<FieldDef>,
 }
 
 #[derive(Debug, Clone)]
@@ -16,11 +16,11 @@ pub struct EnumDef {
     pub span: Span,
     pub kind: DataKind,
     pub ident: SymbolId,
-    pub generics: P<Generics>,
-    pub fields: Vec<P<Variant>>,
+    pub generics: Option<P<Generics>>,
+    pub fields: Vec<Variant>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum DataKind {
     Normal,
     Component,
@@ -37,5 +37,5 @@ pub struct FieldDef {
 pub struct Variant {
     pub span: Span,
     pub ident: SymbolId,
-    pub fields: Vec<P<FieldDef>>,
+    pub fields: Vec<FieldDef>,
 }

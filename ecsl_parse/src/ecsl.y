@@ -15,24 +15,24 @@ ItemList -> Result<Vec<Item>, ()>:
     ;
 
 Item -> Result<Item, ()>:
-    FnDef {
-        Ok(Item::new(
-            $span,
-            ItemKind::Fn(P::new($1?)
-        )))
-    }
-    ;
-
-FnDef -> Result<FnDef, ()>:
     FnKind 'IDENT' 'LBRACKET' FnArgs 'RBRACKET' ReturnTy 'LCURLY' Block 'RCURLY' {
-        Ok(FnDef {
+        Ok(Item::new($span, ItemKind::Fn(P::new(FnDef {
             span: $span,
             kind: $1?,
             ident: table.new_ident($2.map_err(|_| ())?.span(), SymbolKind::Function),
             params: $4?,
             ret: $6?,
             block: $8?,
-        })
+        }))))
+    }
+    | 'STRUCT' Component 'IDENT' Generics 'LCURLY'  'RCURLY' {
+        Ok(Item::new($span, ItemKind::Struct(P::new(StructDef {
+            span: $span,
+            kind: $2?,
+            ident: table.new_ident($3.map_err(|_| ())?.span(), SymbolKind::Struct($2?)),
+            generics: $4?,
+            fields: Vec::new(),
+        }))))
     }
     ;
 
@@ -64,14 +64,48 @@ Arg -> Result<Param, ()>:
     }
     ;
 
+ReturnTy -> Result<RetTy, ()>:
+    'ARROW' Ty { Ok(RetTy::Ty(P::new($2?))) }
+    | {Ok(RetTy::None($span))}
+    ;
+
 TrailingComma -> ():
     'COMMA' { () }
     | { () }
     ;
 
-ReturnTy -> Result<RetTy, ()>:
-    'ARROW' Ty { Ok(RetTy::Ty(P::new($2?))) }
-    | {Ok(RetTy::None($span))}
+Component -> Result<DataKind, ()>:
+    'COMP' { Ok(DataKind::Component) }
+    | { Ok(DataKind::Normal) }
+    ;
+
+Generics -> Result<Option<P<Generics>>, ()>:
+    'LT' GenericList TrailingComma 'GT' {
+        Ok(Some(P::new(Generics {
+            span: $span,
+            params: $2?,
+        })))
+    }
+    'LT' 'GT' { Ok(None) }
+    | { Ok(None) }
+    ;
+
+GenericList -> Result<Vec<GenericParam>, ()>:
+    'IDENT' { Ok(vec![
+        GenericParam {
+            span: $span,
+            ident: table.new_ident($span, SymbolKind::Generic)
+        }])
+    }
+    | GenericList 'COMMA' 'IDENT' {
+        flatten(
+            $1,
+            Ok(GenericParam {
+                span: $span,
+                ident: table.new_ident($3.map_err(|_| ())?.span(), SymbolKind::Generic)
+            })
+        )
+    }
     ;
 
 Ty -> Result<Ty, ()>:
@@ -123,7 +157,12 @@ Stmt -> Result<Stmt, ()>:
         )))
     }
     | IfStmt { Ok($1?)}
-    | MatchStmt { Ok($1?) }
+    | 'MATCH' 'LBRACKET' Expr 'RBRACKET' 'LCURLY' MatchArmList TrailingComma 'RCURLY' {
+        Ok(Stmt::new($span, StmtKind::Match(
+            P::new($3?),
+            $6?
+        )))
+    }
     | Expr 'SEMI' {
         Ok(Stmt::new($span, StmtKind::Expr(
             P::new($1?)
@@ -145,15 +184,6 @@ IfStmt -> Result<Stmt, ()>:
             P::new($3?),
             P::new($6?),
             None,
-        )))
-    }
-    ;
-
-MatchStmt -> Result<Stmt, ()>:
-    'MATCH' 'LBRACKET' Expr 'RBRACKET' 'LCURLY' MatchArmList TrailingComma 'RCURLY' {
-        Ok(Stmt::new($span, StmtKind::Match(
-            P::new($3?),
-            $6?
         )))
     }
     ;
@@ -214,7 +244,7 @@ Expr -> Result<Expr, ()>:
     ))}
     ;
 
-Literal -> Result<Expr, ()>:2
+Literal -> Result<Expr, ()>:
     'BOOLEAN' { Ok(Expr::new($span, ExprKind::Lit(Literal::Bool))) }
     | 'CHAR' { Ok(Expr::new($span, ExprKind::Lit(Literal::Char))) }
     | 'INT' { Ok(Expr::new($span, ExprKind::Lit(Literal::Int))) }

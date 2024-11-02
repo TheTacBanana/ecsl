@@ -25,7 +25,7 @@ pub enum ItemKind {
     Fn(P<FnDef>),
     /// Struct or Component definition
     /// `struct Foo { field: Bar }`
-    /// `comp Bar { field: Foo }`
+    /// `struct comp Bar { field: Foo }`
     Struct(P<StructDef>),
     /// Enum definition
     /// `enum Foo {}`

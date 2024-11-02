@@ -78,7 +78,7 @@ pub enum Mutable {
 #[derive(Debug, Clone)]
 pub struct Generics {
     pub span: Span,
-    pub vec: Vec<GenericParam>
+    pub params: Vec<GenericParam>
 }
 
 #[derive(Debug, Clone)]
