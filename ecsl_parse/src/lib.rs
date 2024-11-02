@@ -22,7 +22,7 @@ pub fn parse_file(source: &SourceFile) {
     let (ast, errs) = ecsl_y::parse(&lexer, table.clone());
     println!("{:#?}", ast);
     for e in errs {
-        println!("{}", e)
+        println!("{}", e.pp(&lexer, &ecsl_y::token_epp));
     }
 }
 

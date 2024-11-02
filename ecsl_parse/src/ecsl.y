@@ -15,23 +15,24 @@ ItemList -> Result<Vec<Item>, ()>:
     ;
 
 Item -> Result<Item, ()>:
-    FnKind 'IDENT' 'LBRACKET' FnArgs 'RBRACKET' ReturnTy 'LCURLY' Block 'RCURLY' {
+    FnKind 'IDENT' Generics 'LBRACKET' FnArgs 'RBRACKET' ReturnTy Block {
         Ok(Item::new($span, ItemKind::Fn(P::new(FnDef {
             span: $span,
             kind: $1?,
             ident: table.new_ident($2.map_err(|_| ())?.span(), SymbolKind::Function),
-            params: $4?,
-            ret: $6?,
+            generics: $3?,
+            params: $5?,
+            ret: $7?,
             block: $8?,
         }))))
     }
-    | 'STRUCT' Component 'IDENT' Generics 'LCURLY'  'RCURLY' {
+    | 'STRUCT' Component 'IDENT' Generics FieldDefs {
         Ok(Item::new($span, ItemKind::Struct(P::new(StructDef {
             span: $span,
             kind: $2?,
             ident: table.new_ident($3.map_err(|_| ())?.span(), SymbolKind::Struct($2?)),
             generics: $4?,
-            fields: Vec::new(),
+            fields: $5?,
         }))))
     }
     ;
@@ -86,7 +87,7 @@ Generics -> Result<Option<P<Generics>>, ()>:
             params: $2?,
         })))
     }
-    'LT' 'GT' { Ok(None) }
+    | 'LT' 'GT' { Ok(None) }
     | { Ok(None) }
     ;
 
@@ -108,6 +109,29 @@ GenericList -> Result<Vec<GenericParam>, ()>:
     }
     ;
 
+FieldDefs -> Result<Vec<FieldDef>, ()>:
+    'LCURLY' FieldDefList TrailingComma 'RCURLY' { $2 }
+    | 'LCURLY' 'RCURLY' { Ok(Vec::new()) }
+    | 'SEMI' { Ok(Vec::new()) }
+    ;
+
+FieldDefList -> Result<Vec<FieldDef>, ()>:
+    FieldDef { Ok(vec![$1?]) }
+    | FieldDefList 'COMMA' FieldDef {
+        flatten($1, $3)
+    }
+    ;
+
+FieldDef -> Result<FieldDef, ()>:
+    'IDENT' 'COLON' Ty {
+        Ok(FieldDef{
+            span: $span,
+            ident: table.new_ident($1.map_err(|_| ())?.span(), SymbolKind::FieldDef),
+            ty: P::new($3?),
+        })
+    }
+    ;
+
 Ty -> Result<Ty, ()>:
     'IDENT' {
         Ok(Ty::new($span, TyKind::Ident(
@@ -122,8 +146,8 @@ Ty -> Result<Ty, ()>:
     ;
 
 Block -> Result<Block, ()>:
-    StmtList { Ok(Block { span: $span, stmts: $1? }) }
-    | { Ok(Block { span: $span, stmts: Vec::new() }) }
+    'LCURLY' StmtList 'RCURLY' { Ok(Block { span: $span, stmts: $2? }) }
+    | 'LCURLY' 'RCURLY'{ Ok(Block { span: $span, stmts: Vec::new() }) }
     ;
 
 StmtList -> Result<Vec<Stmt>, ()>:
@@ -142,18 +166,18 @@ Stmt -> Result<Stmt, ()>:
             P::new($7?),
         )))
     }
-    | 'FOR' 'LBRACKET' 'IDENT' 'COLON' Ty 'IN' Expr 'RBRACKET' 'LCURLY' Block 'RCURLY' {
+    | 'FOR' 'LBRACKET' 'IDENT' 'COLON' Ty 'IN' Expr 'RBRACKET' Block {
         Ok(Stmt::new($span, StmtKind::For(
             table.new_ident($3.map_err(|_| ())?.span(), SymbolKind::Local),
             P::new($5?),
             P::new($7?),
-            P::new($10?),
+            P::new($9?),
         )))
     }
-    | 'WHILE' 'LBRACKET' Expr 'RBRACKET' 'LCURLY' Block 'RCURLY' {
+    | 'WHILE' 'LBRACKET' Expr 'RBRACKET' Block {
         Ok(Stmt::new($span, StmtKind::While(
             P::new($3?),
-            P::new($6?),
+            P::new($5?),
         )))
     }
     | IfStmt { Ok($1?)}
@@ -172,17 +196,17 @@ Stmt -> Result<Stmt, ()>:
     ;
 
 IfStmt -> Result<Stmt, ()>:
-    'IF' 'LBRACKET' Expr 'RBRACKET' 'LCURLY' Block 'RCURLY' 'ELSE' IfStmt {
+    'IF' 'LBRACKET' Expr 'RBRACKET' Block 'ELSE' IfStmt {
         Ok(Stmt::new($span, StmtKind::If(
             P::new($3?),
-            P::new($6?),
-            Some(P::new($9?)),
+            P::new($5?),
+            Some(P::new($7?)),
         )))
     }
-    | 'IF' 'LBRACKET' Expr 'RBRACKET' 'LCURLY' Block 'RCURLY' {
+    | 'IF' 'LBRACKET' Expr 'RBRACKET' Block {
         Ok(Stmt::new($span, StmtKind::If(
             P::new($3?),
-            P::new($6?),
+            P::new($5?),
             None,
         )))
     }
@@ -196,18 +220,18 @@ MatchArmList -> Result<Vec<MatchArm>, ()>:
     ;
 
 MatchArm -> Result<MatchArm, ()>:
-    'IDENT' 'LCURLY' FieldList 'RCURLY' 'ARROW' 'LCURLY' Block 'RCURLY' {
+    'IDENT' 'LCURLY' FieldList 'RCURLY' 'ARROW' Block {
         Ok(MatchArm {
             span: $span,
             fields: $3?,
-            block: P::new($7?)
+            block: P::new($6?)
         })
     }
-    | 'IDENT' 'ARROW' 'LCURLY' Block 'RCURLY' {
+    | 'IDENT' 'ARROW' Block {
         Ok(MatchArm {
             span: $span,
             fields: Vec::new(),
-            block: P::new($4?)
+            block: P::new($3?)
         })
     }
     ;

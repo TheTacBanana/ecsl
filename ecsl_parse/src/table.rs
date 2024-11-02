@@ -29,6 +29,8 @@ pub enum SymbolKind {
     FunctionArg,
     Struct(DataKind),
     Enum(DataKind),
+    Variant,
+    FieldDef,
 }
 
 impl<'a, 'b> PartialSymbolTable<'a, 'b> {
