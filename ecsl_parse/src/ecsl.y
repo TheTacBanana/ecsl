@@ -21,17 +21,7 @@ Item -> Result<Item, ()>:
             path: P::new($2?),
         }))))
     }
-    | FnKind 'IDENT' Generics 'LBRACKET' FnArgs 'RBRACKET' ReturnTy Block {
-        Ok(Item::new($span, ItemKind::Fn(P::new(FnDef {
-            span: $span,
-            kind: $1?,
-            ident: table.new_ident($2.map_err(|_| ())?.span(), SymbolKind::Function),
-            generics: $3?,
-            params: $5?,
-            ret: $7?,
-            block: $8?,
-        }))))
-    }
+    | FnDef { Ok(Item::new($span, ItemKind::Fn(P::new($1?)))) }
     | 'STRUCT' Component 'IDENT' Generics FieldDefs {
         Ok(Item::new($span, ItemKind::Struct(P::new(StructDef {
             span: $span,
@@ -49,6 +39,40 @@ Item -> Result<Item, ()>:
             generics: $4?,
             variants: $5?,
         }))))
+    }
+    | 'IMPL' Generics Ty ImplBlockContents {
+        Ok(Item::new($span, ItemKind::Impl(P::new(ImplBlock {
+            span: $span,
+            generics: $2?,
+            ty: P::new($3?),
+            fn_defs: $4?
+        }))))
+    }
+    ;
+
+ImplBlockContents -> Result<Vec<FnDef>, ()>:
+    'LCURLY' FnDefList 'RCURLY' { $2 }
+    | 'LCURLY' 'RCURLY' { Ok(Vec::new()) }
+    ;
+
+FnDefList -> Result<Vec<FnDef>, ()>:
+    FnDef { Ok(vec![$1?]) }
+    | FnDefList FnDef {
+        flatten($1, $2)
+    }
+    ;
+
+FnDef -> Result<FnDef, ()>:
+    FnKind 'IDENT' Generics 'LBRACKET' FnArgs 'RBRACKET' ReturnTy Block {
+        Ok(FnDef {
+            span: $span,
+            kind: $1?,
+            ident: table.new_ident($2.map_err(|_| ())?.span(), SymbolKind::Function),
+            generics: $3?,
+            params: $5?,
+            ret: $7?,
+            block: $8?,
+        })
     }
     ;
 
@@ -211,7 +235,7 @@ UsePath -> Result<UsePath, ()>:
     ;
 
 Ty -> Result<Ty, ()>:
-    'IDENT' {
+    'IDENT' { //TODO: Generics
         Ok(Ty::new($span, TyKind::Ident(
             table.new_ident($1.map_err(|_| ())?.span(), SymbolKind::Local)
         )))

@@ -18,7 +18,7 @@ impl Ty {
 #[derive(Debug, Clone)]
 pub enum TyKind {
     /// Identifier
-    Ident(SymbolId),
+    Ident(SymbolId), //TODO: Generics
 
     /// Array with associated size constant
     // Includes span of constant

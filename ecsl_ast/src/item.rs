@@ -1,5 +1,5 @@
 use crate::{
-    callable::FnDef, data::{EnumDef, StructDef}, ty::Ty, SymbolId, P
+    callable::FnDef, data::{EnumDef, StructDef}, ty::{Generics, Ty}, SymbolId, P
 };
 use cfgrammar::Span;
 
@@ -50,6 +50,7 @@ pub enum UsePath {
 #[derive(Debug, Clone)]
 pub struct ImplBlock {
     pub span: Span,
+    pub generics: Option<P<Generics>>,
     pub ty: P<Ty>,
-    pub fn_defs: Vec<P<FnDef>>,
+    pub fn_defs: Vec<FnDef>,
 }
