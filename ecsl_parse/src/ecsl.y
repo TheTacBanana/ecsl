@@ -15,7 +15,13 @@ ItemList -> Result<Vec<Item>, ()>:
     ;
 
 Item -> Result<Item, ()>:
-    FnKind 'IDENT' Generics 'LBRACKET' FnArgs 'RBRACKET' ReturnTy Block {
+    'USE' UsePath 'SEMI' {
+        Ok(Item::new($span, ItemKind::Use(P::new(UseDef {
+            span: $span,
+            path: P::new($2?),
+        }))))
+    }
+    | FnKind 'IDENT' Generics 'LBRACKET' FnArgs 'RBRACKET' ReturnTy Block {
         Ok(Item::new($span, ItemKind::Fn(P::new(FnDef {
             span: $span,
             kind: $1?,
@@ -33,6 +39,15 @@ Item -> Result<Item, ()>:
             ident: table.new_ident($3.map_err(|_| ())?.span(), SymbolKind::Struct($2?)),
             generics: $4?,
             fields: $5?,
+        }))))
+    }
+    | 'ENUM' Component 'IDENT' Generics VariantDefs {
+        Ok(Item::new($span, ItemKind::Enum(P::new(EnumDef {
+            span: $span,
+            kind: $2?,
+            ident: table.new_ident($3.map_err(|_| ())?.span(), SymbolKind::Struct($2?)),
+            generics: $4?,
+            variants: $5?,
         }))))
     }
     ;
@@ -109,6 +124,34 @@ GenericList -> Result<Vec<GenericParam>, ()>:
     }
     ;
 
+VariantDefs -> Result<Vec<VariantDef>, ()>:
+    'LCURLY' VariantDefList TrailingComma 'RCURLY' { $2 }
+    | 'LCURLY' 'RCURLY' { Ok(Vec::new()) }
+    ;
+
+VariantDefList -> Result<Vec<VariantDef>, ()>:
+    VariantDef { Ok(vec![$1?]) }
+    | VariantDefList 'COMMA' VariantDef {
+        flatten($1, $3)
+    }
+    ;
+
+VariantDef -> Result<VariantDef, ()>:
+    'IDENT' VariantFieldDefs {
+        Ok(VariantDef{
+            span: $span,
+            ident: table.new_ident($1.map_err(|_| ())?.span(), SymbolKind::VariantDef),
+            fields: $2?,
+        })
+    }
+    ;
+
+VariantFieldDefs -> Result<Vec<FieldDef>, ()>:
+    'LCURLY' FieldDefList TrailingComma 'RCURLY' { $2 }
+    | 'LCURLY' 'RCURLY' { Ok(Vec::new()) }
+    | { Ok(Vec::new()) }
+    ;
+
 FieldDefs -> Result<Vec<FieldDef>, ()>:
     'LCURLY' FieldDefList TrailingComma 'RCURLY' { $2 }
     | 'LCURLY' 'RCURLY' { Ok(Vec::new()) }
@@ -129,6 +172,41 @@ FieldDef -> Result<FieldDef, ()>:
             ident: table.new_ident($1.map_err(|_| ())?.span(), SymbolKind::FieldDef),
             ty: P::new($3?),
         })
+    }
+    ;
+
+UsePathList -> Result<Vec<UsePath>, ()>:
+    UsePath { Ok(vec![$1?]) }
+    | UsePathList 'COMMA' UsePath {
+        flatten($1, $3)
+    }
+    ;
+
+UsePath -> Result<UsePath, ()>:
+    'LCURLY' UsePathList TrailingComma 'RCURLY' {
+        Ok(UsePath::Multiple(
+            $span,
+            $2?,
+        ))
+    }
+    | 'IDENT' 'PATH' UsePath {
+        Ok(UsePath::Single(
+            $1.map_err(|_| ())?.span(),
+            table.new_ident($1.map_err(|_| ())?.span(), SymbolKind::ImportPathSegment),
+            P::new($3?),
+        ))
+    }
+    | 'IDENT' {
+        Ok(UsePath::Item(
+            $span,
+            table.new_ident($1.map_err(|_| ())?.span(), SymbolKind::ImportItem),
+        ))
+    }
+    | 'SUPER' 'PATH' UsePath {
+        Ok(UsePath::Super(
+            $1.map_err(|_| ())?.span(),
+            P::new($3?),
+        ))
     }
     ;
 

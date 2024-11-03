@@ -23,13 +23,15 @@ pub struct Symbol {
 
 #[derive(Debug, Clone, Copy)]
 pub enum SymbolKind {
+    ImportPathSegment,
+    ImportItem,
     Local,
     Generic,
     Function,
     FunctionArg,
     Struct(DataKind),
     Enum(DataKind),
-    Variant,
+    VariantDef,
     FieldDef,
 }
 

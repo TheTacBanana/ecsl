@@ -5,10 +5,15 @@
 \; "SEMI"
 : "COLON"
 , "COMMA"
+\.\. "DOTDOT"
+\.\.= "DOTDOTEQ"
 \. "DOT"
 & "AMPERSAND"
 
 use "USE"
+:: "PATH"
+super "SUPER"
+
 let "LET"
 mut "MUT"
 imm "IMM"

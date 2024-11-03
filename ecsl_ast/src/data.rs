@@ -17,7 +17,7 @@ pub struct EnumDef {
     pub kind: DataKind,
     pub ident: SymbolId,
     pub generics: Option<P<Generics>>,
-    pub fields: Vec<Variant>,
+    pub variants: Vec<VariantDef>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -34,7 +34,7 @@ pub struct FieldDef {
 }
 
 #[derive(Debug, Clone)]
-pub struct Variant {
+pub struct VariantDef {
     pub span: Span,
     pub ident: SymbolId,
     pub fields: Vec<FieldDef>,
