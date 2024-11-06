@@ -37,6 +37,12 @@ in "IN"
 break "BREAK"
 continue "CONTINUE"
 
+Entity "ENTITY"
+Schedule "SCHEDULE"
+System "SYSTEM"
+Query "QUERY"
+Resource "RESOURCE"
+
 \( "LBRACKET"
 \) "RBRACKET"
 \{ "LCURLY"

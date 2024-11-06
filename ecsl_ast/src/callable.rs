@@ -1,13 +1,13 @@
 use cfgrammar::Span;
 
-use crate::{stmt::Block, ty::{Generics, Ty}, SymbolId, P};
+use crate::{stmt::Block, ty::{ConcreteGenerics, Ty}, SymbolId, P};
 
 #[derive(Debug, Clone)]
 pub struct FnDef {
     pub span: Span,
     pub kind: FnKind,
     pub ident: SymbolId,
-    pub generics: Option<P<Generics>>,
+    pub generics: Option<ConcreteGenerics>,
     pub params: Vec<Param>,
     pub ret: RetTy,
     pub block: Block,

@@ -18,7 +18,7 @@ impl Ty {
 #[derive(Debug, Clone)]
 pub enum TyKind {
     /// Identifier
-    Ident(SymbolId), //TODO: Generics
+    Ident(SymbolId, Option<ConcreteGenerics>),
 
     /// Array with associated size constant
     // Includes span of constant
@@ -27,11 +27,7 @@ pub enum TyKind {
 
     /// Reference to Array
     /// `&[<ty>]`
-    ArrayRef(P<Ty>),
-
-    /// Refers to the type of the self object
-    /// `Self`
-    MethodSelf,
+    ArrayRef(Mutable, P<Ty>),
 
     /// Ref to Type with Mutability
     /// `&mut <ty>`
@@ -85,4 +81,10 @@ pub struct Generics {
 pub struct GenericParam {
     pub span: Span,
     pub ident: SymbolId,
+}
+
+#[derive(Debug, Clone)]
+pub struct ConcreteGenerics {
+    pub span: Span,
+    pub params: Vec<Ty>
 }

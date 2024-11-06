@@ -63,7 +63,7 @@ FnDefList -> Result<Vec<FnDef>, ()>:
     ;
 
 FnDef -> Result<FnDef, ()>:
-    FnKind 'IDENT' Generics 'LBRACKET' FnArgs 'RBRACKET' ReturnTy Block {
+    FnKind 'IDENT' ConcreteGenerics 'LBRACKET' FnArgs 'RBRACKET' ReturnTy Block {
         Ok(FnDef {
             span: $span,
             kind: $1?,
@@ -117,6 +117,17 @@ TrailingComma -> ():
 Component -> Result<DataKind, ()>:
     'COMP' { Ok(DataKind::Component) }
     | { Ok(DataKind::Normal) }
+    ;
+
+ConcreteGenerics -> Result<Option<ConcreteGenerics>, ()>:
+    'LT' TyList TrailingComma 'GT' {
+        Ok(Some(ConcreteGenerics {
+            span: $span,
+            params: $2?,
+        }))
+    }
+    | 'LT' 'GT' { Ok(None) }
+    | { Ok(None) }
     ;
 
 Generics -> Result<Option<P<Generics>>, ()>:
@@ -234,16 +245,45 @@ UsePath -> Result<UsePath, ()>:
     }
     ;
 
+TyList -> Result<Vec<Ty>, ()>:
+    Ty { Ok(vec![$1?]) }
+    | TyList 'COMMA' Ty {
+        flatten($1, $3)
+    }
+    ;
+
 Ty -> Result<Ty, ()>:
-    'IDENT' { //TODO: Generics
+    'IDENT' ConcreteGenerics {
         Ok(Ty::new($span, TyKind::Ident(
-            table.new_ident($1.map_err(|_| ())?.span(), SymbolKind::Local)
+            table.new_ident($1.map_err(|_| ())?.span(), SymbolKind::Local),
+            $2?
         )))
     }
     | 'LSQUARE' Ty 'INT' 'RSQUARE' {
         Ok(Ty::new($span, TyKind::Array(
             P::new($2?), $3.map_err(|_| ())?.span()
         )))
+    }
+    | 'AMPERSAND' RefMutability 'LSQUARE' Ty 'RSQUARE' {
+        Ok(Ty::new($span, TyKind::ArrayRef(
+            $2?, P::new($4?)
+        )))
+    }
+    | 'AMPERSAND' RefMutability Ty {
+        Ok(Ty::new($span, TyKind::Ref(
+            $2?, P::new($3?)
+        )))
+    }
+    | 'STAR' PtrMutability Ty {
+        Ok(Ty::new($span, TyKind::Ptr(
+            $2?, P::new($3?)
+        )))
+    }
+    | 'SCHEDULE' {
+        Ok(Ty::new($span, TyKind::Schedule))
+    }
+    | 'SYSTEM' {
+        Ok(Ty::new($span, TyKind::System))
     }
     ;
 
@@ -260,7 +300,7 @@ StmtList -> Result<Vec<Stmt>, ()>:
     ;
 
 Stmt -> Result<Stmt, ()>:
-    'LET' Mutability 'IDENT' 'COLON' Ty 'ASSIGN' Expr 'SEMI' {
+    'LET' RefMutability 'IDENT' 'COLON' Ty 'ASSIGN' Expr 'SEMI' {
         Ok(Stmt::new($span, StmtKind::Let(
             $2?,
             table.new_ident($3.map_err(|_| ())?.span(), SymbolKind::Local),
@@ -354,10 +394,14 @@ Field -> Result<Field, ()>:
     }
     ;
 
-Mutability -> Result<Mutable, ()>:
+RefMutability -> Result<Mutable, ()>:
+    'MUT' { Ok(Mutable::Mut) }
+    | { Ok(Mutable::Imm) }
+    ;
+
+PtrMutability -> Result<Mutable, ()>:
     'MUT' { Ok(Mutable::Mut) }
     | 'IMM' { Ok(Mutable::Imm) }
-    | { Ok(Mutable::Imm) }
     ;
 
 Expr -> Result<Expr, ()>:
