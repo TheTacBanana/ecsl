@@ -4,21 +4,21 @@ use crate::{ty::Ty, SymbolId, P};
 
 #[derive(Debug, Clone)]
 pub struct EntityTy {
-    pub bounds: Option<Vec<P<EntityComponent>>>,
+    pub bounds: Vec<EntityAttribute>,
 }
 
 #[derive(Debug, Clone)]
-pub struct EntityComponent {
+pub struct EntityAttribute {
     pub span: Span,
     pub ident: SymbolId,
     pub ty: P<Ty>,
 }
 
-#[derive(Debug, Clone)]
-pub struct QueryTy {
-    pub with: Vec<Ty>,
-    pub without: Vec<Ty>,
-}
+// #[derive(Debug, Clone)]
+// pub struct QueryTy {
+//     pub with: Vec<Ty>,
+//     pub without: Vec<Ty>,
+// }
 
 #[derive(Debug, Clone)]
 pub struct QueryExpr {

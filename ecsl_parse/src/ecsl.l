@@ -56,13 +56,13 @@ Resource "RESOURCE"
 / "FSLASH"
 
 && "AND"
-|| "OR"
+\|\| "OR"
 ! "NOT"
 
 \< "LT"
 > "GT"
-\<= "LE"
->= "GE"
+\<= "LEQ"
+>= "GEQ"
 == "EQEQ"
 != "NOTEQ"
 

@@ -1,5 +1,14 @@
 %start File
 %parse-param table: Rc<RefCell<PartialSymbolTable>>
+
+%left 'OR'
+%left 'AND'
+%left 'EQEQ' 'NOTEQ'
+%left 'LT' 'LEQ' 'GT' 'GEQ'
+%left 'PLUS' 'MINUS'
+%left 'STAR' 'FSLASH'
+%left 'NOT' 'AMPERSAND'
+
 %%
 File -> Result<ParsedFile, ()>:
     ItemList {
@@ -279,11 +288,47 @@ Ty -> Result<Ty, ()>:
             $2?, P::new($3?)
         )))
     }
+    | EntityTy {
+        Ok(Ty::new($span, TyKind::Entity($1?)))
+    }
+    | 'QUERY' {
+        Ok(Ty::new($span, TyKind::Query))
+    }
     | 'SCHEDULE' {
         Ok(Ty::new($span, TyKind::Schedule))
     }
     | 'SYSTEM' {
         Ok(Ty::new($span, TyKind::System))
+    }
+    ;
+
+EntityTy -> Result<EntityTy, ()>:
+    'ENTITY' 'LT' EntityAttributeList TrailingComma 'GT' {
+        Ok(EntityTy {
+            bounds: $3?,
+        })
+    }
+    |'ENTITY' {
+        Ok(EntityTy {
+            bounds: Vec::new(),
+        })
+    }
+    ;
+
+EntityAttributeList -> Result<Vec<EntityAttribute>, ()>:
+    EntityAttribute { Ok(vec![$1?]) }
+    | EntityAttributeList 'COMMA' EntityAttribute {
+        flatten($1, $3)
+    }
+    ;
+
+EntityAttribute -> Result<EntityAttribute, ()>:
+    'IDENT' 'COLON' Ty {
+        Ok(EntityAttribute {
+            span: $span,
+            ident: table.new_ident($1.map_err(|_| ())?.span(), SymbolKind::Local),
+            ty: P::new($3?),
+        })
     }
     ;
 
@@ -405,13 +450,139 @@ PtrMutability -> Result<Mutable, ()>:
     ;
 
 Expr -> Result<Expr, ()>:
-    Literal { Ok($1?) }
-    | 'IDENT' { Ok(Expr::new(
-        $span,
-        ExprKind::Ident(
-            table.new_ident($1.map_err(|_| ())?.span(), SymbolKind::Local)
-        )
-    ))}
+    Expr 'OR' Expr {
+        Ok(Expr::new($span, ExprKind::BinOp(
+            BinOpKind::Or,
+            P::new($1?),
+            P::new($3?),
+        )))
+    }
+    | Expr 'AND' Expr {
+        Ok(Expr::new($span, ExprKind::BinOp(
+            BinOpKind::And,
+            P::new($1?),
+            P::new($3?),
+        )))
+    }
+    | Expr 'EQEQ' Expr {
+        Ok(Expr::new($span, ExprKind::BinOp(
+            BinOpKind::Eq,
+            P::new($1?),
+            P::new($3?),
+        )))
+    }
+    | Expr 'NOTEQ' Expr {
+        Ok(Expr::new($span, ExprKind::BinOp(
+            BinOpKind::Eq,
+            P::new($1?),
+            P::new($3?),
+        )))
+    }
+    | Expr 'LT' Expr {
+        Ok(Expr::new($span, ExprKind::BinOp(
+            BinOpKind::Lt,
+            P::new($1?),
+            P::new($3?),
+        )))
+    }
+    | Expr 'LEQ' Expr {
+        Ok(Expr::new($span, ExprKind::BinOp(
+            BinOpKind::Leq,
+            P::new($1?),
+            P::new($3?),
+        )))
+    }
+    | Expr 'GT' Expr {
+        Ok(Expr::new($span, ExprKind::BinOp(
+            BinOpKind::Gt,
+            P::new($1?),
+            P::new($3?),
+        )))
+    }
+    | Expr 'GEQ' Expr {
+        Ok(Expr::new($span, ExprKind::BinOp(
+            BinOpKind::Geq,
+            P::new($1?),
+            P::new($3?),
+        )))
+    }
+    | Expr 'PLUS' Expr {
+        Ok(Expr::new($span, ExprKind::BinOp(
+            BinOpKind::Add,
+            P::new($1?),
+            P::new($3?),
+        )))
+    }
+    | Expr 'MINUS' Expr {
+        Ok(Expr::new($span, ExprKind::BinOp(
+            BinOpKind::Sub,
+            P::new($1?),
+            P::new($3?),
+        )))
+    }
+    | Expr 'STAR' Expr {
+        Ok(Expr::new($span, ExprKind::BinOp(
+            BinOpKind::Mul,
+            P::new($1?),
+            P::new($3?),
+        )))
+    }
+    | Expr 'FSLASH' Expr {
+        Ok(Expr::new($span, ExprKind::BinOp(
+            BinOpKind::Div,
+            P::new($1?),
+            P::new($3?),
+        )))
+    }
+    | 'NOT' Expr {
+        Ok(Expr::new($span, ExprKind::UnOp(
+            UnOpKind::Not,
+            P::new($2?),
+        )))
+    }
+    | 'MINUS' Expr {
+        Ok(Expr::new($span, ExprKind::UnOp(
+            UnOpKind::Neg,
+            P::new($2?),
+        )))
+    }
+    | 'STAR' Expr {
+        Ok(Expr::new($span, ExprKind::UnOp(
+            UnOpKind::Deref,
+            P::new($2?),
+        )))
+    }
+    | 'AMPERSAND' RefMutability Expr {
+        Ok(Expr::new($span, ExprKind::Ref(
+            $2?,
+            P::new($3?),
+        )))
+    }
+    //| Expr 'AS' Ty {
+    //    Ok(Expr::new($span, ExprKind::Cast(
+    //        P::new($1?)
+    //        P::new($3?),
+    //    )))
+    //}
+    | 'LBRACKET' Expr 'RBRACKET' { $2 }
+    //|'IDENT' 'ASSIGN' Expr {
+    //    Ok(Expr::new(
+    //        $span,
+    //        ExprKind::Assign(
+    //            table.new_ident($1.map_err(|_| ())?.span(), SymbolKind::Local),
+    //            P::new($3?),
+    //        )
+    //    ))
+    //}
+    | Literal { Ok($1?) }
+    | 'IDENT' {
+        Ok(Expr::new(
+            $span,
+            ExprKind::Ident(
+                table.new_ident($1.map_err(|_| ())?.span(), SymbolKind::Local)
+            )
+        ))
+    }
     ;
 
 Literal -> Result<Expr, ()>:

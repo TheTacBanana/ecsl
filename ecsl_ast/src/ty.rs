@@ -1,4 +1,4 @@
-use crate::{ecs::{EntityTy, QueryTy}, SymbolId, P};
+use crate::{ecs::EntityTy, SymbolId, P};
 
 use cfgrammar::Span;
 
@@ -45,16 +45,9 @@ pub enum TyKind {
     /// `Entity<foo: Foo, ..>`
     Entity(EntityTy),
 
-    /// Resource Type with one and only one generic parameter
-    /// T must be a Component
-    /// `Resource<T>`
-    /// `Resource<mut T>`
-    Resource(Mutable, P<Ty>),
-
     /// Query Type
-    /// `Query<With<foo: mut T>>`
-    /// `Query<Without<T>>`
-    Query(QueryTy),
+    /// `Query`
+    Query,
 
     /// System Type
     /// `-> System`

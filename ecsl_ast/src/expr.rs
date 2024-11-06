@@ -2,7 +2,7 @@ use cfgrammar::Span;
 
 use crate::{
     ecs::{QueryExpr, Schedule},
-    ty::Ty,
+    ty::{Mutable, Ty},
     SymbolId, P,
 };
 
@@ -24,12 +24,16 @@ pub enum ExprKind {
     /// `ident = *expr*`
     Assign(SymbolId, P<Expr>),
 
+    /// Create a reference to an expression
+    /// `&foo &mut bar`
+    Ref(Mutable, P<Expr>),
+
     /// Unary Operator
     /// `-value`
-    UnOp(UnOp, P<Expr>),
+    UnOp(UnOpKind, P<Expr>),
     /// Binary Operator
     /// `l + r`
-    BinOp(BinOp, P<Expr>, P<Expr>),
+    BinOp(BinOpKind, P<Expr>, P<Expr>),
 
     /// Array `[1, 2, 3, 4]`
     Array(Vec<P<Expr>>),
@@ -90,12 +94,6 @@ pub enum Literal {
     Bool,
 }
 
-#[derive(Debug, Clone)]
-pub struct BinOp {
-    pub span: Span,
-    pub kind: BinOpKind,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum BinOpKind {
     Add,
@@ -112,17 +110,11 @@ pub enum BinOpKind {
     Geq,
 }
 
-#[derive(Debug, Clone)]
-pub struct UnOp {
-    pub span: Span,
-    pub kind: UnOpKind,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum UnOpKind {
     Neg,
     Not,
-    //Deref
+    Deref
 }
 
 #[derive(Debug, Clone)]
