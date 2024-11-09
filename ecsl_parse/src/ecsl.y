@@ -1,6 +1,7 @@
 %start File
 %parse-param table: Rc<RefCell<PartialSymbolTable>>
 
+%left 'ASSIGN'
 %left 'OR'
 %left 'AND'
 %left 'EQEQ' 'NOTEQ'
@@ -8,6 +9,10 @@
 %left 'PLUS' 'MINUS'
 %left 'STAR' 'FSLASH'
 %left 'NOT' 'AMPERSAND'
+%left 'AS'
+%left 'DOT'
+%left 'RETURN'
+%left 'SCHEDULE'
 
 %%
 File -> Result<ParsedFile, ()>:
@@ -268,9 +273,9 @@ Ty -> Result<Ty, ()>:
             $2?
         )))
     }
-    | 'LSQUARE' Ty 'INT' 'RSQUARE' {
+    | 'LSQUARE' Ty 'COLON' 'INT' 'RSQUARE' {
         Ok(Ty::new($span, TyKind::Array(
-            P::new($2?), $3.map_err(|_| ())?.span()
+            P::new($2?), $4.map_err(|_| ())?.span()
         )))
     }
     | 'AMPERSAND' RefMutability 'LSQUARE' Ty 'RSQUARE' {
@@ -449,8 +454,30 @@ PtrMutability -> Result<Mutable, ()>:
     | 'IMM' { Ok(Mutable::Imm) }
     ;
 
+ExprList -> Result<Vec<Expr>, ()>:
+    Expr { Ok(vec![$1?]) }
+    | ExprList 'COMMA' Expr {
+        flatten($1, $3)
+    }
+    ;
+
 Expr -> Result<Expr, ()>:
-    Expr 'OR' Expr {
+    'IDENT' 'ASSIGN' Expr {
+        Ok(Expr::new(
+            $span,
+            ExprKind::Assign(
+                table.new_ident($1.map_err(|_| ())?.span(), SymbolKind::Local),
+                P::new($3?),
+            )
+        ))
+    }
+    | 'LBRACKET' Expr 'RBRACKET' { $2 }
+    | 'LSQUARE' ExprList TrailingComma 'RSQUARE' {
+        Ok(Expr::new($span, ExprKind::Array(
+            $2?
+        )))
+    }
+    | Expr 'OR' Expr {
         Ok(Expr::new($span, ExprKind::BinOp(
             BinOpKind::Or,
             P::new($1?),
@@ -558,23 +585,57 @@ Expr -> Result<Expr, ()>:
             P::new($3?),
         )))
     }
+    | 'IDENT' FnArgExpr {
+        Ok(Expr::new($span, ExprKind::Function(
+            None,
+            table.new_ident($1.map_err(|_| ())?.span(), SymbolKind::Function),
+            $2?,
+        )))
+    }
+    | Expr 'DOT' 'IDENT' FnArgExpr {
+        Ok(Expr::new($span, ExprKind::Function(
+            Some(P::new($1?)),
+            table.new_ident($3.map_err(|_| ())?.span(), SymbolKind::Function),
+            $4?,
+        )))
+    }
+    | Expr 'DOT' 'IDENT' {
+        Ok(Expr::new($span, ExprKind::Field(
+            P::new($1?),
+            table.new_ident($3.map_err(|_| ())?.span(), SymbolKind::Local)
+        )))
+    }
     //| Expr 'AS' Ty {
     //    Ok(Expr::new($span, ExprKind::Cast(
-    //        P::new($1?)
+    //        P::new($1?),
     //        P::new($3?),
     //    )))
     //}
-    | 'LBRACKET' Expr 'RBRACKET' { $2 }
-    //|'IDENT' 'ASSIGN' Expr {
-    //    Ok(Expr::new(
-    //        $span,
-    //        ExprKind::Assign(
-    //            table.new_ident($1.map_err(|_| ())?.span(), SymbolKind::Local),
-    //            P::new($3?),
-    //        )
-    //    ))
-    //}
-    | Literal { Ok($1?) }
+
+    | 'BREAK' {
+        Ok(Expr::new($span, ExprKind::Break))
+    }
+    | 'CONTINUE' {
+        Ok(Expr::new($span, ExprKind::Continue))
+    }
+    | 'RETURN' Expr {
+        Ok(Expr::new($span, ExprKind::Return(
+            Some(P::new($2?))
+        )))
+    }
+    | 'RETURN' {
+        Ok(Expr::new($span, ExprKind::Return(None)))
+    }
+    | 'ENTITY' {
+        Ok(Expr::new($span, ExprKind::Entity))
+    }
+    | 'RESOURCE' {
+        Ok(Expr::new($span, ExprKind::Entity))
+    }
+    | 'SCHEDULE' ScheduleExpr {
+        Ok(Expr::new($span, ExprKind::Schedule(P::new($2?))))
+    }
+
     | 'IDENT' {
         Ok(Expr::new(
             $span,
@@ -583,6 +644,46 @@ Expr -> Result<Expr, ()>:
             )
         ))
     }
+    | Literal { Ok($1?) }
+    ;
+
+PrecedingSchedule -> ():
+    'SCHEDULE' { () }
+    | { () } // Nothing
+    ;
+
+ScheduleExpr -> Result<Schedule, ()>:
+    PrecedingSchedule 'LSQUARE' ScheduleList TrailingComma 'RSQUARE' {
+        Ok(Schedule::new($span,
+            ScheduleKind::Ordered($3?)
+        ))
+    }
+    | PrecedingSchedule 'LCURLY' ScheduleList TrailingComma 'RCURLY' {
+        Ok(Schedule::new($span,
+            ScheduleKind::Unordered($3?)
+        ))
+    }
+    | 'IDENT' {
+        Ok(Schedule::new($span,
+            ScheduleKind::Expr(P::new(
+                Expr::new($span, ExprKind::Ident(
+                    table.new_ident($1.map_err(|_| ())?.span(), SymbolKind::System),
+                ))
+            ))
+        ))
+    }
+    ;
+
+ScheduleList -> Result<Vec<Schedule>, ()>:
+    ScheduleExpr { Ok(vec![$1?]) }
+    | ScheduleList 'COMMA' ScheduleExpr {
+        flatten($1, $3)
+    }
+    ;
+
+FnArgExpr -> Result<Vec<Expr>, ()>:
+    'LBRACKET' ExprList TrailingComma 'RBRACKET' { $2 }
+    | 'LBRACKET' 'RBRACKET' { Ok(Vec::new()) }
     ;
 
 Literal -> Result<Expr, ()>:

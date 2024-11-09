@@ -28,6 +28,7 @@ pub enum SymbolKind {
     Local,
     Generic,
     Function,
+    System,
     FunctionArg,
     Struct(DataKind),
     Enum(DataKind),

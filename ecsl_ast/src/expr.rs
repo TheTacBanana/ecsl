@@ -36,7 +36,7 @@ pub enum ExprKind {
     BinOp(BinOpKind, P<Expr>, P<Expr>),
 
     /// Array `[1, 2, 3, 4]`
-    Array(Vec<P<Expr>>),
+    Array(Vec<Expr>),
     /// Locally accesible symbol
     /// `foo` `bar`
     Ident(SymbolId),
@@ -58,7 +58,7 @@ pub enum ExprKind {
     /// Function call
     /// Called On, Function Ident, Args
     /// `x.foo(1, 2)`
-    Function(Option<P<Expr>>, SymbolId, Option<Vec<Expr>>),
+    Function(Option<P<Expr>>, SymbolId, Vec<Expr>),
 
     /// `break` loop
     Break,

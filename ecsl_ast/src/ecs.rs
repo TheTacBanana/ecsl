@@ -1,6 +1,6 @@
 use cfgrammar::Span;
 
-use crate::{ty::Ty, SymbolId, P};
+use crate::{expr::Expr, ty::Ty, SymbolId, P};
 
 #[derive(Debug, Clone)]
 pub struct EntityTy {
@@ -32,17 +32,23 @@ pub struct Schedule {
     pub kind: ScheduleKind,
 }
 
+impl Schedule {
+    pub fn new(span: Span, kind: ScheduleKind) -> Self {
+        Self { span, kind }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum ScheduleKind {
-    /// A system in the schedule
-    /// `foo`
-    System(SymbolId), // TODO: This will require a pathed identifier for nice usage
+    /// An expr which returns a schedule or system
+    /// `foo` `bar.get_schedule()`
+    Expr(P<Expr>),
     /// A schedule which must be executed in order
     /// `[ foo, bar ]`
-    Ordered(Vec<P<Schedule>>),
+    Ordered(Vec<Schedule>),
     /// A schedule where the order is non-deterministic
     /// `{ foo, bar }`
-    Unordered(Vec<P<Schedule>>),
+    Unordered(Vec<Schedule>),
     // /// A schedule where the systems will be scheduled in parallel
     // /// `| foo, bar |`
     // Parallelized(Vec<P<Schedule>>),
