@@ -60,14 +60,6 @@ pub enum ExprKind {
     /// `x.foo(1, 2)`
     Function(Option<P<Expr>>, SymbolId, Vec<Expr>),
 
-    /// `break` loop
-    Break,
-    /// `continue` loop
-    Continue,
-    /// Return Value
-    /// `return 1`
-    Return(Option<P<Expr>>),
-
     // ECS Features
     /// Use of the Entity Keyword to create new Entities
     Entity,

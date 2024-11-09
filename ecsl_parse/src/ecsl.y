@@ -9,11 +9,8 @@
 %left 'PLUS' 'MINUS'
 %left 'STAR' 'FSLASH'
 %left 'NOT' 'AMPERSAND'
-%left 'AS'
 %left 'DOT'
-%left 'RETURN'
-%left 'SCHEDULE'
-%left 'QUERY' 'WITH' 'WITHOUT' 'ADDED' 'REMOVED'
+%left 'AS'
 
 %%
 File -> Result<ParsedFile, ()>:
@@ -380,6 +377,20 @@ Stmt -> Result<Stmt, ()>:
             $6?
         )))
     }
+    | 'BREAK' 'SEMI'{
+        Ok(Stmt::new($span, StmtKind::Break))
+    }
+    | 'CONTINUE' 'SEMI'{
+        Ok(Stmt::new($span, StmtKind::Continue))
+    }
+    | 'RETURN' Expr 'SEMI'{
+        Ok(Stmt::new($span, StmtKind::Return(
+            Some(P::new($2?))
+        )))
+    }
+    | 'RETURN' 'SEMI'{
+        Ok(Stmt::new($span, StmtKind::Return(None)))
+    }
     | Expr 'SEMI' {
         Ok(Stmt::new($span, StmtKind::Expr(
             P::new($1?)
@@ -606,27 +617,21 @@ Expr -> Result<Expr, ()>:
             table.new_ident($3.map_err(|_| ())?.span(), SymbolKind::Local)
         )))
     }
-    //| Expr 'AS' Ty {
-    //    Ok(Expr::new($span, ExprKind::Cast(
-    //        P::new($1?),
-    //        P::new($3?),
-    //    )))
-    //}
-
-    | 'BREAK' {
-        Ok(Expr::new($span, ExprKind::Break))
-    }
-    | 'CONTINUE' {
-        Ok(Expr::new($span, ExprKind::Continue))
-    }
-    | 'RETURN' Expr {
-        Ok(Expr::new($span, ExprKind::Return(
-            Some(P::new($2?))
+    | Expr 'AS' 'IDENT' {
+        Ok(Expr::new($span, ExprKind::Cast(
+            P::new($1?),
+            P::new(
+                Ty::new(
+                    $3.map_err(|_| ())?.span(),
+                    TyKind::Ident(
+                        table.new_ident($3.map_err(|_| ())?.span(), SymbolKind::Local),
+                        None,
+                    )
+                )
+            ),
         )))
     }
-    | 'RETURN' {
-        Ok(Expr::new($span, ExprKind::Return(None)))
-    }
+
     | 'ENTITY' {
         Ok(Expr::new($span, ExprKind::Entity))
     }

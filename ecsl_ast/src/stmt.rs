@@ -38,6 +38,14 @@ pub enum StmtKind {
     /// }
     Match(P<Expr>, Vec<MatchArm>),
 
+    /// `break` loop
+    Break,
+    /// `continue` loop
+    Continue,
+    /// Return Value
+    /// `return 1`
+    Return(Option<P<Expr>>),
+
     /// Expression of any kind terminated by a semicolon
     Expr(P<Expr>),
 
