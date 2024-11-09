@@ -13,6 +13,7 @@
 %left 'DOT'
 %left 'RETURN'
 %left 'SCHEDULE'
+%left 'QUERY' 'WITH' 'WITHOUT' 'ADDED' 'REMOVED'
 
 %%
 File -> Result<ParsedFile, ()>:
@@ -635,7 +636,20 @@ Expr -> Result<Expr, ()>:
     | 'SCHEDULE' ScheduleExpr {
         Ok(Expr::new($span, ExprKind::Schedule(P::new($2?))))
     }
-
+    | 'QUERY' 'LBRACKET' 'RBRACKET' {
+        Ok(Expr::new($span, ExprKind::Query(P::new(
+            QueryExpr {
+                filters: Vec::new(),
+            }
+        ))))
+    }
+    | 'QUERY' 'DOT' QueryFilterList 'LBRACKET' 'RBRACKET'{
+        Ok(Expr::new($span, ExprKind::Query(P::new(
+            QueryExpr {
+                filters: $3?,
+            }
+        ))))
+    }
     | 'IDENT' {
         Ok(Expr::new(
             $span,
@@ -678,6 +692,53 @@ ScheduleList -> Result<Vec<Schedule>, ()>:
     ScheduleExpr { Ok(vec![$1?]) }
     | ScheduleList 'COMMA' ScheduleExpr {
         flatten($1, $3)
+    }
+    ;
+
+QueryFilterList -> Result<Vec<QueryFilter>, ()>:
+    QueryFilter { Ok(vec![$1?]) }
+    | QueryFilterList 'DOT' QueryFilter {
+        flatten($1, $3)
+    }
+    ;
+
+QueryFilter -> Result<QueryFilter, ()>:
+    'WITH' 'LT' MutTyList TrailingComma 'GT' {
+        Ok(QueryFilter::new($span, FilterKind::With($3?)))
+    }
+    | 'WITH' 'LT' 'GT' {
+        Ok(QueryFilter::new($span, FilterKind::With(Vec::new())))
+    }
+    | 'WITHOUT' 'LT' TyList  TrailingComma 'GT' {
+        Ok(QueryFilter::new($span, FilterKind::Without($3?)))
+    }
+    | 'WITHOUT' 'LT' 'GT' {
+        Ok(QueryFilter::new($span, FilterKind::Without(Vec::new())))
+    }
+    | 'ADDED' 'LT' TyList TrailingComma 'GT' {
+        Ok(QueryFilter::new($span, FilterKind::Added($3?)))
+    }
+    | 'ADDED' 'LT' 'GT' {
+        Ok(QueryFilter::new($span, FilterKind::Added(Vec::new())))
+    }
+    | 'REMOVED' 'LT' TyList TrailingComma 'GT'{
+        Ok(QueryFilter::new($span, FilterKind::Removed($3?)))
+    }
+    | 'REMOVED' 'LT' 'GT' {
+        Ok(QueryFilter::new($span, FilterKind::Added(Vec::new())))
+    }
+    ;
+
+MutTyList -> Result<Vec<MutTy>, ()>:
+    RefMutability Ty {
+        Ok(vec![
+            MutTy::new($1?, $2?)
+        ])
+    }
+    | MutTyList 'COMMA' RefMutability Ty {
+        flatten($1,
+            Ok(MutTy::new($3?, $4?))
+        )
     }
     ;
 

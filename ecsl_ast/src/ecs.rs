@@ -1,6 +1,10 @@
 use cfgrammar::Span;
 
-use crate::{expr::Expr, ty::Ty, SymbolId, P};
+use crate::{
+    expr::Expr,
+    ty::{Mutable, Ty},
+    SymbolId, P,
+};
 
 #[derive(Debug, Clone)]
 pub struct EntityTy {
@@ -14,16 +18,41 @@ pub struct EntityAttribute {
     pub ty: P<Ty>,
 }
 
-// #[derive(Debug, Clone)]
-// pub struct QueryTy {
-//     pub with: Vec<Ty>,
-//     pub without: Vec<Ty>,
-// }
-
 #[derive(Debug, Clone)]
 pub struct QueryExpr {
-    pub with: Vec<Ty>,
-    pub without: Vec<Ty>,
+    pub filters: Vec<QueryFilter>,
+}
+
+#[derive(Debug, Clone)]
+pub struct QueryFilter {
+    pub span: Span,
+    pub kind: FilterKind,
+}
+
+impl QueryFilter {
+    pub fn new(span: Span, kind: FilterKind) -> Self {
+        Self { span, kind }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum FilterKind {
+    With(Vec<MutTy>),
+    Without(Vec<Ty>),
+    Added(Vec<Ty>),
+    Removed(Vec<Ty>),
+}
+
+#[derive(Debug, Clone)]
+pub struct MutTy {
+    pub mutable: Mutable,
+    pub ty: Ty,
+}
+
+impl MutTy {
+    pub fn new(mutable: Mutable, ty: Ty) -> Self {
+        Self { mutable, ty }
+    }
 }
 
 #[derive(Debug, Clone)]
