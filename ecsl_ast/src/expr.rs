@@ -2,7 +2,7 @@ use cfgrammar::Span;
 
 use crate::{
     ecs::{QueryExpr, Schedule},
-    ty::{Mutable, Ty},
+    ty::{ConcreteGenerics, Mutable, Ty},
     SymbolId, P,
 };
 
@@ -58,7 +58,7 @@ pub enum ExprKind {
     /// Function call
     /// Called On, Function Ident, Args
     /// `x.foo(1, 2)`
-    Function(Option<P<Expr>>, SymbolId, Vec<Expr>),
+    Function(Option<P<Expr>>, Option<ConcreteGenerics>, SymbolId, Vec<Expr>),
 
     // ECS Features
     /// Use of the Entity Keyword to create new Entities

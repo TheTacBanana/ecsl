@@ -75,7 +75,7 @@ FnDefList -> Result<Vec<FnDef>, ()>:
     ;
 
 FnDef -> Result<FnDef, ()>:
-    FnKind 'IDENT' ConcreteGenerics 'LBRACKET' FnArgs 'RBRACKET' ReturnTy Block {
+    FnKind 'IDENT' Generics 'LBRACKET' FnArgs 'RBRACKET' ReturnTy Block {
         Ok(FnDef {
             span: $span,
             kind: $1?,
@@ -142,12 +142,12 @@ ConcreteGenerics -> Result<Option<ConcreteGenerics>, ()>:
     | { Ok(None) }
     ;
 
-Generics -> Result<Option<P<Generics>>, ()>:
+Generics -> Result<Option<Generics>, ()>:
     'LT' GenericList TrailingComma 'GT' {
-        Ok(Some(P::new(Generics {
+        Ok(Some(Generics {
             span: $span,
             params: $2?,
-        })))
+        }))
     }
     | 'LT' 'GT' { Ok(None) }
     | { Ok(None) }
@@ -598,16 +598,35 @@ Expr -> Result<Expr, ()>:
             P::new($3?),
         )))
     }
+
+    | 'IDENT' 'PATH' ConcreteGenerics 'PATH' FnArgExpr {
+        Ok(Expr::new($span, ExprKind::Function(
+            None,
+            None,
+            table.usage($1.map_err(|_| ())?.span(), SymbolKind::FunctionUsage),
+            $5?,
+        )))
+    }
     | 'IDENT' FnArgExpr {
         Ok(Expr::new($span, ExprKind::Function(
+            None,
             None,
             table.usage($1.map_err(|_| ())?.span(), SymbolKind::FunctionUsage),
             $2?,
         )))
     }
+    | Expr 'DOT' 'IDENT' 'PATH' ConcreteGenerics 'PATH' FnArgExpr {
+        Ok(Expr::new($span, ExprKind::Function(
+            Some(P::new($1?)),
+            $5?,
+            table.usage($3.map_err(|_| ())?.span(), SymbolKind::FunctionUsage),
+            $7?,
+        )))
+    }
     | Expr 'DOT' 'IDENT' FnArgExpr {
         Ok(Expr::new($span, ExprKind::Function(
             Some(P::new($1?)),
+            None,
             table.usage($3.map_err(|_| ())?.span(), SymbolKind::FunctionUsage),
             $4?,
         )))

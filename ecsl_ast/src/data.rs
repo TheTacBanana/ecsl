@@ -7,7 +7,7 @@ pub struct StructDef {
     pub span: Span,
     pub kind: DataKind,
     pub ident: SymbolId,
-    pub generics: Option<P<Generics>>,
+    pub generics: Option<Generics>,
     pub fields: Vec<FieldDef>,
 }
 
@@ -16,7 +16,7 @@ pub struct EnumDef {
     pub span: Span,
     pub kind: DataKind,
     pub ident: SymbolId,
-    pub generics: Option<P<Generics>>,
+    pub generics: Option<Generics>,
     pub variants: Vec<VariantDef>,
 }
 

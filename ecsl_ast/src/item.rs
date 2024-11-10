@@ -50,7 +50,7 @@ pub enum UsePath {
 #[derive(Debug, Clone)]
 pub struct ImplBlock {
     pub span: Span,
-    pub generics: Option<P<Generics>>,
+    pub generics: Option<Generics>,
     pub ty: P<Ty>,
     pub fn_defs: Vec<FnDef>,
 }
