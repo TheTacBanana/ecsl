@@ -27,14 +27,23 @@ pub fn parse_file(source: &SourceFile) {
 }
 
 pub trait GenerateIdentExt {
-    fn new_ident(&self, span: Span, kind: SymbolKind) -> SymbolId;
+    fn definition(&self, span: Span, kind: SymbolKind) -> SymbolId;
+
+    fn usage(&self, span: Span, kind: SymbolKind) -> SymbolId;
 }
 
 impl GenerateIdentExt for Rc<RefCell<PartialSymbolTable<'_, '_>>> {
-    fn new_ident(&self, span: Span, kind: SymbolKind) -> SymbolId {
+    fn definition(&self, span: Span, kind: SymbolKind) -> SymbolId {
         let mut s = self.borrow_mut();
         let symbol_string = s.lexer.span_str(span).to_string();
-        let id = s.insert_symbol(symbol_string, span, kind);
+        let id = s.define_symbol(symbol_string, span, kind);
+        id
+    }
+
+    fn usage(&self, span: Span, kind: SymbolKind) -> SymbolId {
+        let mut s = self.borrow_mut();
+        let symbol_string = s.lexer.span_str(span).to_string();
+        let id = s.use_symbol(symbol_string, span, kind);
         id
     }
 }

@@ -45,9 +45,9 @@ pub enum ExprKind {
     /// `"string"`
     Lit(Literal),
     /// Struct `Foo { bar : 1 }`
-    Struct(SymbolId, Vec<FieldExpr>),
+    Struct(P<Ty>, Vec<FieldExpr>),
     /// Enum `Foo::Bar { baz : 2 }`
-    Enum(SymbolId, SymbolId, Vec<FieldExpr>),
+    Enum(P<Ty>, SymbolId, Vec<FieldExpr>),
 
     /// Casting expression into type
     /// `6 as int`
@@ -110,4 +110,8 @@ pub enum UnOpKind {
 }
 
 #[derive(Debug, Clone)]
-pub struct FieldExpr {}
+pub struct FieldExpr {
+    pub span: Span,
+    pub ident: SymbolId,
+    pub expr: P<Expr>,
+}

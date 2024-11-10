@@ -1,5 +1,5 @@
 use cfgrammar::Span;
-use ecsl_ast::{data::DataKind, SymbolId};
+use ecsl_ast::{data::DataKind, parse::FnKind, SymbolId};
 use lrlex::{DefaultLexerTypes, LRNonStreamingLexer};
 use std::collections::{hash_map::Entry, HashMap};
 
@@ -16,24 +16,42 @@ pub struct SymbolTable {
 
 #[derive(Debug, Clone)]
 pub struct Symbol {
-    pub kind: SymbolKind,
-    pub first: Span,
-    pub used: Vec<Span>,
+    pub definitions: Vec<(SymbolKind, Span)>,
+    pub usages: Vec<(SymbolKind, Span)>,
+}
+
+impl Symbol {
+    pub fn add_definition(&mut self, kind: SymbolKind, span: Span) {
+        self.definitions.push((kind, span));
+    }
+
+    pub fn add_usage(&mut self, kind: SymbolKind, span: Span) {
+        self.usages.push((kind, span));
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
 pub enum SymbolKind {
-    ImportPathSegment,
+    ImportPath,
     ImportItem,
+
+    Ty,
     Local,
+
     Generic,
-    Function,
-    System,
+    Function(FnKind),
+    FunctionUsage,
     FunctionArg,
+
+    EntityAttribute,
+    ScheduleItem,
+
     Struct(DataKind),
     Enum(DataKind),
-    VariantDef,
-    FieldDef,
+    Variant,
+    VariantUsage,
+    Field,
+    FieldUsage
 }
 
 impl<'a, 'b> PartialSymbolTable<'a, 'b> {
@@ -45,25 +63,34 @@ impl<'a, 'b> PartialSymbolTable<'a, 'b> {
         }
     }
 
-    pub fn insert_symbol(&mut self, name: String, span: Span, kind: SymbolKind) -> SymbolId {
+    pub fn define_symbol(&mut self, name: String, span: Span, kind: SymbolKind) -> SymbolId {
+        let (id, entry) = self.create_entry(name);
+        entry.add_usage(kind, span);
+        id
+    }
+
+    pub fn use_symbol(&mut self, name: String, span: Span, kind: SymbolKind) -> SymbolId {
+        let (id, entry) = self.create_entry(name);
+        entry.add_usage(kind, span);
+        id
+    }
+
+    pub fn create_entry(&mut self, name: String) -> (SymbolId, &mut Symbol) {
         let symbol_id: SymbolId;
         match self.symbol_map.entry(name) {
             Entry::Vacant(e) => {
                 symbol_id = SymbolId(self.symbols.len() as u32);
                 e.insert(symbol_id);
                 self.symbols.push(Symbol {
-                    kind,
-                    first: span,
-                    used: Vec::new(),
+                    definitions: Vec::new(),
+                    usages: Vec::new(),
                 });
             }
             Entry::Occupied(e) => {
                 symbol_id = *e.get();
-                let symbol = &mut self.symbols[symbol_id.inner()];
-                symbol.used.push(span);
             }
         }
-        symbol_id
+        (symbol_id, self.symbols.get_mut(symbol_id.inner()).unwrap())
     }
 
     pub fn finish(self) -> SymbolTable {

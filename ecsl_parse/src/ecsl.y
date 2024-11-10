@@ -38,7 +38,7 @@ Item -> Result<Item, ()>:
         Ok(Item::new($span, ItemKind::Struct(P::new(StructDef {
             span: $span,
             kind: $2?,
-            ident: table.new_ident($3.map_err(|_| ())?.span(), SymbolKind::Struct($2?)),
+            ident: table.definition($3.map_err(|_| ())?.span(), SymbolKind::Struct($2?)),
             generics: $4?,
             fields: $5?,
         }))))
@@ -47,7 +47,7 @@ Item -> Result<Item, ()>:
         Ok(Item::new($span, ItemKind::Enum(P::new(EnumDef {
             span: $span,
             kind: $2?,
-            ident: table.new_ident($3.map_err(|_| ())?.span(), SymbolKind::Struct($2?)),
+            ident: table.definition($3.map_err(|_| ())?.span(), SymbolKind::Enum($2?)),
             generics: $4?,
             variants: $5?,
         }))))
@@ -79,7 +79,7 @@ FnDef -> Result<FnDef, ()>:
         Ok(FnDef {
             span: $span,
             kind: $1?,
-            ident: table.new_ident($2.map_err(|_| ())?.span(), SymbolKind::Function),
+            ident: table.definition($2.map_err(|_| ())?.span(), SymbolKind::Function($1?)),
             generics: $3?,
             params: $5?,
             ret: $7?,
@@ -109,7 +109,7 @@ Arg -> Result<Param, ()>:
     'IDENT' 'COLON' Ty {
         Ok(Param {
             span: $span,
-            ident: table.new_ident($1.map_err(|_| ())?.span(), SymbolKind::Local),
+            ident: table.definition($1.map_err(|_| ())?.span(), SymbolKind::FunctionArg),
             ty: P::new($3?)
             }
         )
@@ -157,7 +157,7 @@ GenericList -> Result<Vec<GenericParam>, ()>:
     'IDENT' { Ok(vec![
         GenericParam {
             span: $span,
-            ident: table.new_ident($span, SymbolKind::Generic)
+            ident: table.definition($span, SymbolKind::Generic)
         }])
     }
     | GenericList 'COMMA' 'IDENT' {
@@ -165,7 +165,7 @@ GenericList -> Result<Vec<GenericParam>, ()>:
             $1,
             Ok(GenericParam {
                 span: $span,
-                ident: table.new_ident($3.map_err(|_| ())?.span(), SymbolKind::Generic)
+                ident: table.definition($3.map_err(|_| ())?.span(), SymbolKind::Generic)
             })
         )
     }
@@ -187,7 +187,7 @@ VariantDef -> Result<VariantDef, ()>:
     'IDENT' VariantFieldDefs {
         Ok(VariantDef{
             span: $span,
-            ident: table.new_ident($1.map_err(|_| ())?.span(), SymbolKind::VariantDef),
+            ident: table.definition($1.map_err(|_| ())?.span(), SymbolKind::Variant),
             fields: $2?,
         })
     }
@@ -216,7 +216,7 @@ FieldDef -> Result<FieldDef, ()>:
     'IDENT' 'COLON' Ty {
         Ok(FieldDef{
             span: $span,
-            ident: table.new_ident($1.map_err(|_| ())?.span(), SymbolKind::FieldDef),
+            ident: table.definition($1.map_err(|_| ())?.span(), SymbolKind::Field),
             ty: P::new($3?),
         })
     }
@@ -239,14 +239,14 @@ UsePath -> Result<UsePath, ()>:
     | 'IDENT' 'PATH' UsePath {
         Ok(UsePath::Single(
             $1.map_err(|_| ())?.span(),
-            table.new_ident($1.map_err(|_| ())?.span(), SymbolKind::ImportPathSegment),
+            table.definition($1.map_err(|_| ())?.span(), SymbolKind::ImportPath),
             P::new($3?),
         ))
     }
     | 'IDENT' {
         Ok(UsePath::Item(
             $span,
-            table.new_ident($1.map_err(|_| ())?.span(), SymbolKind::ImportItem),
+            table.definition($1.map_err(|_| ())?.span(), SymbolKind::ImportItem),
         ))
     }
     | 'SUPER' 'PATH' UsePath {
@@ -267,7 +267,7 @@ TyList -> Result<Vec<Ty>, ()>:
 Ty -> Result<Ty, ()>:
     'IDENT' ConcreteGenerics {
         Ok(Ty::new($span, TyKind::Ident(
-            table.new_ident($1.map_err(|_| ())?.span(), SymbolKind::Local),
+            table.usage($1.map_err(|_| ())?.span(), SymbolKind::Ty),
             $2?
         )))
     }
@@ -329,7 +329,7 @@ EntityAttribute -> Result<EntityAttribute, ()>:
     'IDENT' 'COLON' Ty {
         Ok(EntityAttribute {
             span: $span,
-            ident: table.new_ident($1.map_err(|_| ())?.span(), SymbolKind::Local),
+            ident: table.definition($1.map_err(|_| ())?.span(), SymbolKind::EntityAttribute),
             ty: P::new($3?),
         })
     }
@@ -351,14 +351,14 @@ Stmt -> Result<Stmt, ()>:
     'LET' RefMutability 'IDENT' 'COLON' Ty 'ASSIGN' Expr 'SEMI' {
         Ok(Stmt::new($span, StmtKind::Let(
             $2?,
-            table.new_ident($3.map_err(|_| ())?.span(), SymbolKind::Local),
+            table.definition($3.map_err(|_| ())?.span(), SymbolKind::Local),
             P::new($5?),
             P::new($7?),
         )))
     }
     | 'FOR' 'LBRACKET' 'IDENT' 'COLON' Ty 'IN' Expr 'RBRACKET' Block {
         Ok(Stmt::new($span, StmtKind::For(
-            table.new_ident($3.map_err(|_| ())?.span(), SymbolKind::Local),
+            table.definition($3.map_err(|_| ())?.span(), SymbolKind::Local),
             P::new($5?),
             P::new($7?),
             P::new($9?),
@@ -451,7 +451,7 @@ Field -> Result<Field, ()>:
     'IDENT' {
         Ok(Field {
             span: $span,
-            ident: table.new_ident($1.map_err(|_| ())?.span(), SymbolKind::Local),
+            ident: table.usage($1.map_err(|_| ())?.span(), SymbolKind::Field),
         })
     }
     ;
@@ -478,7 +478,7 @@ Expr -> Result<Expr, ()>:
         Ok(Expr::new(
             $span,
             ExprKind::Assign(
-                table.new_ident($1.map_err(|_| ())?.span(), SymbolKind::Local),
+                table.usage($1.map_err(|_| ())?.span(), SymbolKind::Local),
                 P::new($3?),
             )
         ))
@@ -489,6 +489,7 @@ Expr -> Result<Expr, ()>:
             $2?
         )))
     }
+
     | Expr 'OR' Expr {
         Ok(Expr::new($span, ExprKind::BinOp(
             BinOpKind::Or,
@@ -600,31 +601,31 @@ Expr -> Result<Expr, ()>:
     | 'IDENT' FnArgExpr {
         Ok(Expr::new($span, ExprKind::Function(
             None,
-            table.new_ident($1.map_err(|_| ())?.span(), SymbolKind::Function),
+            table.usage($1.map_err(|_| ())?.span(), SymbolKind::FunctionUsage),
             $2?,
         )))
     }
     | Expr 'DOT' 'IDENT' FnArgExpr {
         Ok(Expr::new($span, ExprKind::Function(
             Some(P::new($1?)),
-            table.new_ident($3.map_err(|_| ())?.span(), SymbolKind::Function),
+            table.usage($3.map_err(|_| ())?.span(), SymbolKind::FunctionUsage),
             $4?,
         )))
     }
     | Expr 'DOT' 'IDENT' {
         Ok(Expr::new($span, ExprKind::Field(
             P::new($1?),
-            table.new_ident($3.map_err(|_| ())?.span(), SymbolKind::Local)
+            table.usage($3.map_err(|_| ())?.span(), SymbolKind::FieldUsage)
         )))
     }
-    | Expr 'AS' 'IDENT' {
+    | Expr 'AS' 'IDENT' { //TODO: Doesnt work for ptr casting
         Ok(Expr::new($span, ExprKind::Cast(
             P::new($1?),
             P::new(
                 Ty::new(
                     $3.map_err(|_| ())?.span(),
                     TyKind::Ident(
-                        table.new_ident($3.map_err(|_| ())?.span(), SymbolKind::Local),
+                        table.usage($3.map_err(|_| ())?.span(), SymbolKind::Ty),
                         None,
                     )
                 )
@@ -655,15 +656,78 @@ Expr -> Result<Expr, ()>:
             }
         ))))
     }
+
+    | 'IDENT' 'PATH' ConcreteGenerics 'PATH' 'IDENT' FieldAssignments {
+        Ok(Expr::new($span, ExprKind::Enum(
+            P::new(Ty::new($span, TyKind::Ident(
+                table.usage($1.map_err(|_| ())?.span(), SymbolKind::Ty),
+                $3?
+            ))),
+            table.usage($5.map_err(|_| ())?.span(), SymbolKind::VariantUsage),
+            $6?,
+        )))
+    }
+    | 'IDENT' 'PATH' 'IDENT' FieldAssignments {
+        Ok(Expr::new($span, ExprKind::Enum(
+            P::new(Ty::new($span, TyKind::Ident(
+                table.usage($1.map_err(|_| ())?.span(), SymbolKind::Ty),
+                None,
+            ))),
+            table.usage($3.map_err(|_| ())?.span(), SymbolKind::VariantUsage),
+            $4?,
+        )))
+    }
+    | 'IDENT' 'PATH' ConcreteGenerics FieldAssignments {
+        Ok(Expr::new($span, ExprKind::Struct(
+            P::new(Ty::new($span, TyKind::Ident(
+                table.usage($1.map_err(|_| ())?.span(), SymbolKind::Ty),
+                $3?
+            ))),
+            $4?,
+        )))
+    }
+    | 'IDENT' FieldAssignments {
+        Ok(Expr::new($span, ExprKind::Struct(
+            P::new(Ty::new($span, TyKind::Ident(
+                table.usage($1.map_err(|_| ())?.span(), SymbolKind::Ty),
+                None,
+            ))),
+            $2?,
+        )))
+    }
+
     | 'IDENT' {
         Ok(Expr::new(
             $span,
             ExprKind::Ident(
-                table.new_ident($1.map_err(|_| ())?.span(), SymbolKind::Local)
+                table.usage($1.map_err(|_| ())?.span(), SymbolKind::Local)
             )
         ))
     }
     | Literal { Ok($1?) }
+    ;
+
+FieldAssignments -> Result<Vec<FieldExpr>, ()>:
+    'LCURLY' FieldExprList TrailingComma 'RCURLY' { $2 }
+    | 'LCURLY' 'RCURLY' { Ok(Vec::new()) }
+    //| { Ok(Vec::new()) }
+    ;
+
+FieldExprList -> Result<Vec<FieldExpr>, ()>:
+    FieldExpr { Ok(vec![$1?]) }
+    | FieldExprList 'COMMA' FieldExpr {
+        flatten($1, $3)
+    }
+    ;
+
+FieldExpr -> Result<FieldExpr, ()>:
+    'IDENT' 'COLON' Expr {
+        Ok(FieldExpr {
+            span: $span,
+            ident: table.usage($1.map_err(|_| ())?.span(), SymbolKind::FieldUsage),
+            expr: P::new($3?),
+        })
+    }
     ;
 
 PrecedingSchedule -> ():
@@ -686,7 +750,7 @@ ScheduleExpr -> Result<Schedule, ()>:
         Ok(Schedule::new($span,
             ScheduleKind::Expr(P::new(
                 Expr::new($span, ExprKind::Ident(
-                    table.new_ident($1.map_err(|_| ())?.span(), SymbolKind::System),
+                    table.usage($1.map_err(|_| ())?.span(), SymbolKind::ScheduleItem),
                 ))
             ))
         ))

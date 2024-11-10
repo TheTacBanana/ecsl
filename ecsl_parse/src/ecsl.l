@@ -1,24 +1,20 @@
 %%
-
-// "FSFS"
-
-\; "SEMI"
-: "COLON"
-, "COMMA"
-\.\. "DOTDOT"
-\.\.= "DOTDOTEQ"
-\. "DOT"
-& "AMPERSAND"
-
 use "USE"
 :: "PATH"
 super "SUPER"
 
-let "LET"
-mut "MUT"
-imm "IMM"
-= "ASSIGN"
-as "AS"
+&& "AND"
+\|\| "OR"
+! "NOT"
+
+\; "SEMI"
+: "COLON"
+, "COMMA"
+\.\.= "DOTDOTEQ"
+\.\. "DOTDOT"
+\. "DOT"
+& "AMPERSAND"
+
 
 struct "STRUCT"
 enum "ENUM"
@@ -56,25 +52,28 @@ changed "CHANGED"
 \[ "LSQUARE"
 \] "RSQUARE"
 
+\| "PIPE"
+# "HASH"
+\-> "ARROW"
+
 \+ "PLUS"
 \- "MINUS"
 \* "STAR"
 / "FSLASH"
 
-&& "AND"
-\|\| "OR"
-! "NOT"
-
-\< "LT"
-> "GT"
 \<= "LEQ"
+\< "LT"
 >= "GEQ"
+> "GT"
 == "EQEQ"
 != "NOTEQ"
 
-\| "PIPE"
-# "HASH"
-\-> "ARROW"
+let "LET"
+mut "MUT"
+imm "IMM"
+= "ASSIGN"
+as "AS"
+
 
 (false|true) "BOOLEAN"
 [a-zA-Z_][a-zA-Z0-9_]* "IDENT"
@@ -82,4 +81,4 @@ changed "CHANGED"
 [0-9]+ "INT"
 "(?:\\\\|\\"|[^"\n])*" "STRING"
 '([^\t\n\r\f\\'\\]|\\[tnfr'"\\])' "CHAR"
-[\t\n\r ]+ ;
+([\t\n\r ]+|//[^\r\n]*|/\*.*\*/) ;

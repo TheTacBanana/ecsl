@@ -20,7 +20,7 @@ pub struct Param {
     pub ty: P<Ty>
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum FnKind {
     Fn,
     Sys,
