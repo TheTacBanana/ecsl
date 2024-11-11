@@ -314,6 +314,7 @@ dependencies = [
  "ecsl_diagnostics",
  "ecsl_index",
  "ecsl_source",
+ "lazy_static",
  "lrlex",
  "lrpar",
 ]

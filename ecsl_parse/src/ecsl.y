@@ -311,6 +311,11 @@ EntityTy -> Result<EntityTy, ()>:
             bounds: $3?,
         })
     }
+    | 'ENTITY' 'LT' 'GT' {
+        Ok(EntityTy {
+            bounds: Vec::new(),
+        })
+    }
     |'ENTITY' {
         Ok(EntityTy {
             bounds: Vec::new(),

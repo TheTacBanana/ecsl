@@ -68,7 +68,7 @@ pub enum ExprKind {
     /// Query the world to get an iterator of components
     Query(P<QueryExpr>),
     /// Define a order for a series of system
-    /// ```
+    /// ```ignore
     /// Schedule [
     ///     { foo, bar },
     ///     baz
