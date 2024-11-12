@@ -49,6 +49,8 @@ pub enum ExprKind {
     /// Enum `Foo::Bar { baz : 2 }`
     Enum(P<Ty>, SymbolId, Vec<FieldExpr>),
 
+    Range(P<Expr>, P<Expr>, RangeType),
+
     /// Casting expression into type
     /// `6 as int`
     Cast(P<Expr>, P<Ty>),
@@ -114,4 +116,11 @@ pub struct FieldExpr {
     pub span: Span,
     pub ident: SymbolId,
     pub expr: P<Expr>,
+}
+
+
+#[derive(Debug, Clone, Copy)]
+pub enum RangeType {
+    Exclusive,
+    Inclusive,
 }

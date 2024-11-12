@@ -2,6 +2,7 @@
 %parse-param table: Rc<RefCell<PartialSymbolTable>>
 
 %left 'ASSIGN'
+%left 'DOTDOT' 'DOTDOTEQ'
 %left 'OR'
 %left 'AND'
 %left 'EQEQ' 'NOTEQ'
@@ -417,20 +418,29 @@ Stmt -> Result<Stmt, ()>:
     ;
 
 IfStmt -> Result<Stmt, ()>:
-    'IF' 'LBRACKET' Expr 'RBRACKET' Block 'ELSE' IfStmt {
+    'IF' 'LBRACKET' Expr 'RBRACKET' Block ElseStmt {
         Ok(Stmt::new($span, StmtKind::If(
             P::new($3?),
             P::new($5?),
-            Some(P::new($7?)),
+            $6?,
         )))
     }
-    | 'IF' 'LBRACKET' Expr 'RBRACKET' Block {
-        Ok(Stmt::new($span, StmtKind::If(
-            P::new($3?),
-            P::new($5?),
-            None,
-        )))
+    ;
+
+ElseStmt -> Result<Option<P<Stmt>>, ()>:
+    'ELSE' 'IF' 'LBRACKET' Expr 'RBRACKET' Block ElseStmt {
+        Ok(Some(P::new(Stmt::new($span, StmtKind::ElseIf(
+            P::new($4?),
+            P::new($6?),
+            $7?,
+        )))))
     }
+    | 'ELSE' Block {
+        Ok(Some(P::new(Stmt::new($span, StmtKind::Else(
+            P::new($2?),
+        )))))
+    }
+    | { Ok(None) }
     ;
 
 MatchArmList -> Result<Vec<MatchArm>, ()>:
@@ -506,7 +516,20 @@ Expr -> Result<Expr, ()>:
             $2?
         )))
     }
-
+    | Expr 'DOTDOT' Expr {
+        Ok(Expr::new($span, ExprKind::Range(
+            P::new($1?),
+            P::new($3?),
+            RangeType::Exclusive,
+        )))
+    }
+    | Expr 'DOTDOTEQ' Expr {
+        Ok(Expr::new($span, ExprKind::Range(
+            P::new($1?),
+            P::new($3?),
+            RangeType::Inclusive,
+        )))
+    }
     | Expr 'OR' Expr {
         Ok(Expr::new($span, ExprKind::BinOp(
             BinOpKind::Or,

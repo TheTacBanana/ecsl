@@ -156,6 +156,7 @@ mod test {
         }
     }
 
+    /// Test cases for Item Parsing
     mod item {
         generate_pass_fail!("{}");
 
@@ -216,5 +217,46 @@ mod test {
             pass(r#"enum Option { None, Some {} }"#);
             pass(r#"enum Option<T> { None, Some { val: T}}"#);
         }
+
+        #[test]
+        fn impl_block() {
+            pass(r#"impl Foo { }"#);
+            pass(r#"impl<T> Foo<T> { }"#);
+            pass(r#"impl Foo { fn bar() -> int {} }"#);
+        }
+    }
+
+    /// Test cases for Stmt Parsing
+    mod stmt {
+        generate_pass_fail!("fn main() {{ {} }}");
+
+        #[test]
+        fn let_() {
+            pass(r#"let i : int = 0;"#);
+            pass(r#"let mut i : int = 0;"#);
+
+            fail(r#"let i :  = 0;"#);
+        }
+
+        #[test]
+        fn for_() {
+            pass(r#"for (i : int in array) {}"#);
+            pass(r#"for (i : int in &array) {}"#);
+            pass(r#"for (i : int in 0..10) {}"#);
+            pass(r#"for (i : int in 0..=10) {}"#);
+        }
+
+        #[test]
+        fn while_() {
+            pass(r#"while (true) {}"#);
+        }
+
+        #[test]
+        fn if_() {
+            pass(r#"if (true) {}"#);
+            pass(r#"if (true) {} else {}"#);
+            pass(r#"if (true) {} else if (true) {}"#);
+        }
+
     }
 }

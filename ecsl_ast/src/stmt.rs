@@ -27,6 +27,11 @@ pub enum StmtKind {
 
     /// `if (*expr*) { .. }` Option of Else
     If(P<Expr>, P<Block>, Option<P<Stmt>>),
+    /// `.. else if (*expr*) {}` Option of Else
+    ElseIf(P<Expr>, P<Block>, Option<P<Stmt>>),
+    /// `.. else`
+    Else(P<Block>),
+
     /// `for (*symbol* : *ty* in *expr*) { .. }`
     For(SymbolId, P<Ty>, P<Expr>, P<Block>),
     /// `while (*expr*) { .. }`
