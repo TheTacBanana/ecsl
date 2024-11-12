@@ -106,13 +106,18 @@ ArgList -> Result<Vec<Param>, ()>:
     ;
 
 Arg -> Result<Param, ()>:
-    'IDENT' 'COLON' Ty {
-        Ok(Param {
-            span: $span,
-            ident: table.definition($1.map_err(|_| ())?.span(), SymbolKind::FunctionArg),
-            ty: P::new($3?)
-            }
-        )
+    RefMutability 'SELF' {
+        Ok(Param::new($span,ParamKind::SelfValue($1?)))
+    }
+    | 'AMPERSAND' RefMutability 'SELF' {
+        Ok(Param::new($span,ParamKind::SelfReference($2?)))
+    }
+    | RefMutability 'IDENT' 'COLON' Ty {
+        Ok(Param::new($span, ParamKind::Normal(
+            $1?,
+            table.definition($2.map_err(|_| ())?.span(), SymbolKind::FunctionArg),
+            P::new($4?),
+        )))
     }
     ;
 
@@ -174,6 +179,7 @@ GenericList -> Result<Vec<GenericParam>, ()>:
 VariantDefs -> Result<Vec<VariantDef>, ()>:
     'LCURLY' VariantDefList TrailingComma 'RCURLY' { $2 }
     | 'LCURLY' 'RCURLY' { Ok(Vec::new()) }
+    | 'SEMI' { Ok(Vec::new()) }
     ;
 
 VariantDefList -> Result<Vec<VariantDef>, ()>:
@@ -230,7 +236,13 @@ UsePathList -> Result<Vec<UsePath>, ()>:
     ;
 
 UsePath -> Result<UsePath, ()>:
-    'LCURLY' UsePathList TrailingComma 'RCURLY' {
+    'LCURLY' 'RCURLY' {
+        Ok(UsePath::Multiple(
+            $span,
+            Vec::new(),
+        ))
+    }
+    | 'LCURLY' UsePathList TrailingComma 'RCURLY' {
         Ok(UsePath::Multiple(
             $span,
             $2?,

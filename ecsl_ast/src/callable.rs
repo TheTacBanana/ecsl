@@ -1,6 +1,10 @@
 use cfgrammar::Span;
 
-use crate::{stmt::Block, ty::{Generics, Ty}, SymbolId, P};
+use crate::{
+    stmt::Block,
+    ty::{Generics, Mutable, Ty},
+    SymbolId, P,
+};
 
 #[derive(Debug, Clone)]
 pub struct FnDef {
@@ -16,8 +20,20 @@ pub struct FnDef {
 #[derive(Debug, Clone)]
 pub struct Param {
     pub span: Span,
-    pub ident: SymbolId,
-    pub ty: P<Ty>
+    pub kind: ParamKind,
+}
+
+impl Param {
+    pub fn new(span: Span, kind: ParamKind) -> Self {
+        Self { span, kind }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum ParamKind {
+    SelfValue(Mutable),
+    SelfReference(Mutable),
+    Normal(Mutable, SymbolId, P<Ty>), //TODO: Find a better name
 }
 
 #[derive(Debug, Clone, Copy)]

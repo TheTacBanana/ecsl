@@ -15,7 +15,7 @@ super "SUPER"
 \. "DOT"
 & "AMPERSAND"
 
-
+self "SELF"
 struct "STRUCT"
 enum "ENUM"
 comp "COMP"

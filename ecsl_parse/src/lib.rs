@@ -155,4 +155,66 @@ mod test {
             pass("Schedule");
         }
     }
+
+    mod item {
+        generate_pass_fail!("{}");
+
+        #[test]
+        fn imports() {
+            pass("use folder::file::Item;");
+            pass(r#"use folder::file::{Item1, Item2};"#);
+            pass("use super::file::Item;");
+            pass(r#"use super::file::{};"#);
+
+            fail("use ;");
+            fail("use ::;");
+            fail("use ::file;");
+            fail("use super::;");
+        }
+
+        #[test]
+        fn func_defs() {
+            // Fn Kind
+            pass(r#"fn foo() {}"#);
+            pass(r#"sys foo() {}"#);
+
+            // Return Types
+            pass(r#"fn foo() -> Schedule {}"#);
+            fail(r#"fn foo() ->  {}"#);
+
+            // Arguments
+            pass(r#"fn foo(bar: &Bar,) {}"#);
+            pass(r#"fn foo(bar: &Bar, mut buz: Buz) {}"#);
+
+            // Member Functions
+            pass(r#"fn foo(self) {}"#);
+            pass(r#"fn foo(mut self) {}"#);
+            pass(r#"fn foo(&self) {}"#);
+            pass(r#"fn foo(&mut self) {}"#);
+
+            // Generics
+            pass(r#"fn foo<T, U>(t: T) -> U {}"#);
+        }
+
+        #[test]
+        fn struct_defs() {
+            pass(r#"struct Foo;"#);
+            pass(r#"struct comp Foo;"#);
+
+            pass(r#"struct Foo {}"#);
+            pass(r#"struct Foo { bar: Bar }"#);
+            pass(r#"struct Foo { bar: Bar, baz: Baz, }"#);
+            pass(r#"struct Foo<T> { bar: Bar, val: T }"#);
+        }
+
+        #[test]
+        fn enum_defs() {
+            pass(r#"enum Foo;"#);
+            pass(r#"enum comp Foo;"#);
+
+            pass(r#"enum Foo { Bar, Buz}"#);
+            pass(r#"enum Option { None, Some {} }"#);
+            pass(r#"enum Option<T> { None, Some { val: T}}"#);
+        }
+    }
 }
