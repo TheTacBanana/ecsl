@@ -256,6 +256,30 @@ mod test {
             pass(r#"if (true) {}"#);
             pass(r#"if (true) {} else {}"#);
             pass(r#"if (true) {} else if (true) {}"#);
+            pass(r#"if (true) {} else if (true) {} else if (true) {}"#);
+        }
+
+        #[test]
+        fn match_() {
+            pass(r#"match (e) { Some { val } -> {}, None -> {}, }"#);
+        }
+
+        #[test]
+        fn break_continue() {
+            pass(r#"break;"#);
+            pass(r#"continue;"#);
+        }
+
+        #[test]
+        fn return_() {
+            pass(r#"return;"#);
+            pass(r#"return 1 + 2;"#);
+        }
+
+        #[test]
+        fn expr() {
+            pass("foo = 1;");
+            pass(";");
         }
 
     }
