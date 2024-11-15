@@ -1,9 +1,10 @@
 use crate::{ecs::EntityTy, SymbolId, P};
 
 use cfgrammar::Span;
+use ecsl_ast_derive::AST;
 
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, AST)]
 pub struct Ty {
     pub span: Span,
     pub kind: TyKind,
@@ -15,7 +16,7 @@ impl Ty {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, AST)]
 pub enum TyKind {
     /// Identifier
     Ident(SymbolId, Option<ConcreteGenerics>),
@@ -58,25 +59,25 @@ pub enum TyKind {
     Schedule,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Mutable {
     Imm,
     Mut,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, AST)]
 pub struct Generics {
     pub span: Span,
     pub params: Vec<GenericParam>
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, AST)]
 pub struct GenericParam {
     pub span: Span,
     pub ident: SymbolId,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, AST)]
 pub struct ConcreteGenerics {
     pub span: Span,
     pub params: Vec<Ty>

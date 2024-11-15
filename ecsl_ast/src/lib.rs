@@ -1,3 +1,4 @@
+use ecsl_ast_derive::AST;
 use ecsl_index::generate_index_type;
 use item::Item;
 
@@ -24,7 +25,7 @@ pub type P<T> = Box<T>;
 
 generate_index_type!(SymbolId);
 
-#[derive(Debug)]
+#[derive(Debug, AST)]
 pub struct ParsedFile {
     pub items: Vec<Item>,
 }

@@ -2,8 +2,9 @@ use crate::{
     callable::FnDef, data::{EnumDef, StructDef}, ty::{Generics, Ty}, SymbolId, P
 };
 use cfgrammar::Span;
+use ecsl_ast_derive::AST;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, AST)]
 pub struct Item {
     pub span: Span,
     pub kind: ItemKind,
@@ -15,7 +16,7 @@ impl Item {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, AST)]
 pub enum ItemKind {
     Use(P<UseDef>),
     /// Function or System Definition
@@ -33,13 +34,13 @@ pub enum ItemKind {
     Impl(P<ImplBlock>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, AST)]
 pub struct UseDef {
     pub span: Span,
     pub path: P<UsePath>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, AST)]
 pub enum UsePath {
     Super(Span, P<UsePath>),
     Single(Span, SymbolId, P<UsePath>),
@@ -47,7 +48,7 @@ pub enum UsePath {
     Item(Span, SymbolId),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, AST)]
 pub struct ImplBlock {
     pub span: Span,
     pub generics: Option<Generics>,

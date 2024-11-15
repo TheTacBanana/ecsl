@@ -1,4 +1,5 @@
 use cfgrammar::Span;
+use ecsl_ast_derive::AST;
 
 use crate::{
     ecs::{QueryExpr, Schedule},
@@ -6,7 +7,7 @@ use crate::{
     SymbolId, P,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, AST)]
 pub struct Expr {
     pub span: Span,
     pub kind: ExprKind,
@@ -18,7 +19,7 @@ impl Expr {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, AST)]
 pub enum ExprKind {
     /// Assign expression to ident
     /// `ident = *expr*`
@@ -79,7 +80,7 @@ pub enum ExprKind {
     Schedule(P<Schedule>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Literal {
     Int,
     Float,
@@ -111,7 +112,7 @@ pub enum UnOpKind {
     Deref
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, AST)]
 pub struct FieldExpr {
     pub span: Span,
     pub ident: SymbolId,
@@ -119,7 +120,7 @@ pub struct FieldExpr {
 }
 
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RangeType {
     Exclusive,
     Inclusive,

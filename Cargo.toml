@@ -8,6 +8,7 @@ members = [
     "ecsl_driver",
     "ecsl_error",
     "ecsl_ast",
+    "ecsl_ast_derive",
     "ecsl_source",
     "ecsl_index",
     "ecsl_parse",

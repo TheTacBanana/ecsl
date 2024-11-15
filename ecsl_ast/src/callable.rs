@@ -1,4 +1,5 @@
 use cfgrammar::Span;
+use ecsl_ast_derive::AST;
 
 use crate::{
     stmt::Block,
@@ -6,7 +7,7 @@ use crate::{
     SymbolId, P,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, AST)]
 pub struct FnDef {
     pub span: Span,
     pub kind: FnKind,
@@ -17,7 +18,7 @@ pub struct FnDef {
     pub block: Block,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, AST)]
 pub struct Param {
     pub span: Span,
     pub kind: ParamKind,
@@ -29,20 +30,20 @@ impl Param {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, AST)]
 pub enum ParamKind {
     SelfValue(Mutable),
     SelfReference(Mutable),
     Normal(Mutable, SymbolId, P<Ty>), //TODO: Find a better name
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FnKind {
     Fn,
     Sys,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, AST)]
 pub enum RetTy {
     None(Span),
     Ty(P<Ty>),

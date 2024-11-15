@@ -281,6 +281,14 @@ mod test {
             pass("foo = 1;");
             pass(";");
         }
+    }
 
+    mod expr {
+        generate_pass_fail!("fn main() {{ let i: int = {}; }}");
+
+        #[test]
+        fn operations() {
+            pass("1 + 2");
+        }
     }
 }
