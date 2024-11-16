@@ -63,20 +63,36 @@ fn flatten<T>(lhs: Result<Vec<T>, ()>, rhs: Result<T, ()>) -> Result<Vec<T>, ()>
 mod test {
     macro_rules! generate_pass_fail {
         ($s:expr) => {
-            fn pass(s: &str) {
+            #[allow(unused)]
+            fn run_test(s: &str) -> (Option<Result<ecsl_ast::ParsedFile, ()>>, usize) {
                 println!("Testing: \'{s}\'");
                 let f = format!($s, s);
                 let lexer = crate::LEXER_DEF.lexer(&f);
                 let table = std::rc::Rc::new(std::cell::RefCell::new(
                     crate::PartialSymbolTable::new(&lexer),
                 ));
-                let (_, errs) = crate::ecsl_y::parse(&lexer, table.clone());
+                let (out, errs) = crate::ecsl_y::parse(&lexer, table.clone());
+                println!("{:#?}", out);
                 for e in &errs {
                     println!("{}", e.pp(&lexer, &crate::ecsl_y::token_epp));
                 }
-                assert!(errs.len() == 0)
+                (out, errs.len())
             }
 
+            #[allow(unused)]
+            fn pass_ret(s: &str) -> ecsl_ast::ParsedFile {
+                let (out, len) = run_test(s);
+                assert!(len == 0);
+                out.unwrap().unwrap()
+            }
+
+            #[allow(unused)]
+            fn pass(s: &str) {
+                let (_, len) = run_test(s);
+                assert!(len == 0);
+            }
+
+            #[allow(unused)]
             fn fail(s: &str) {
                 print!("Fail ");
                 assert!(std::panic::catch_unwind(|| pass(s)).is_err());
@@ -287,8 +303,109 @@ mod test {
         generate_pass_fail!("fn main() {{ let i: int = {}; }}");
 
         #[test]
-        fn operations() {
-            pass("1 + 2");
+        fn bin_ops() {
+            assert_eq!(pass_ret("1 + 2"), pass_ret("(1 + 2)"));
+            assert_eq!(pass_ret("1 + 2 * 3"), pass_ret("1 + (2 * 3)"));
+            assert_eq!(
+                pass_ret("1 - 2 + 3 * 4 / 5"),
+                pass_ret("(1 - 2) + ((3 * 4) / 5)")
+            );
+            assert_eq!(
+                pass_ret("true || false && true"),
+                pass_ret("true || (false && true)")
+            );
+        }
+
+        #[test]
+        fn un_ops() {
+            pass("*foo");
+            pass("-foo");
+            pass("!foo");
+            pass("&self");
+            pass("&mut self");
+
+            assert_eq!(pass_ret("1 + -2"), pass_ret("1 + (-2)"));
+            assert_eq!(pass_ret("false && !true"), pass_ret("false && (!true)"));
+            assert_eq!(pass_ret("&foo.bar()"), pass_ret("&(foo.bar())"));
+            assert_eq!(pass_ret("*foo.bar()"), pass_ret("*(foo.bar())"));
+        }
+
+        #[test]
+        fn as_() {
+            pass("i as int");
+            pass("(1 + 2) as long");
+
+            assert_eq!(pass_ret("1 + 2 as int"), pass_ret("1 + (2 as int)"));
+        }
+
+        #[test]
+        fn array() {
+            pass("[]");
+            pass("[1]");
+            pass("[1, 2,]");
+        }
+
+        #[test]
+        fn literal() {
+            pass(r#""Hello World!""#);
+            pass(r#"'c'"#);
+            pass(r#"'\n'"#);
+            pass("true");
+            pass("false");
+            pass("1");
+        }
+
+        #[test]
+        fn range() {
+            pass("1..2");
+            pass("1.0..2.0");
+            pass("1..=2");
+            pass("1..n");
+        }
+
+        #[test]
+        fn struct_() {
+            pass(r#"Foo {}"#);
+            pass(r#"Foo { bar: 1, }"#);
+            pass(r#"Foo { bar: 1, baz: 2 }"#);
+            pass(r#"Foo::<int> { bar: 1, baz: 2 }"#);
+        }
+
+        #[test]
+        fn enum_() {
+            pass(r#"Option::None {}"#);
+            pass(r#"Foo::Bar { baz: 2 }"#);
+            pass(r#"Option::<T>::Some { val: 1, }"#);
+        }
+
+        #[test]
+        fn field() {
+            pass("foo.bar");
+            pass("foo.bar.baz");
+            pass("foo.bar().baz");
+
+            assert_eq!(pass_ret("foo.bar().baz"), pass_ret("(foo.bar()).baz"))
+        }
+
+        #[test]
+        fn function() {
+            pass("foo()");
+            pass("foo.bar()");
+            pass("foo.bar().baz()");
+        }
+
+        #[test]
+        fn schedule() {
+            pass(r#"Schedule {}"#);
+            pass(r#"Schedule [ {}, {}]"#);
+            pass(r#"Schedule [ foo, bar, { baz } ]"#);
+        }
+
+        #[test]
+        fn query() {
+            pass(r#"Query()"#);
+            pass(r#"Query.with<Foo>()"#);
+            pass(r#"Query.with<Foo>.without<Bar>()"#);
         }
     }
 }

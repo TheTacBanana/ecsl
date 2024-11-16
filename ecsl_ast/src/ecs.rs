@@ -38,22 +38,10 @@ impl QueryFilter {
 
 #[derive(Debug, Clone, AST)]
 pub enum FilterKind {
-    With(Vec<MutTy>),
+    With(Vec<Ty>),
     Without(Vec<Ty>),
     Added(Vec<Ty>),
     Removed(Vec<Ty>),
-}
-
-#[derive(Debug, Clone, AST)]
-pub struct MutTy {
-    pub mutable: Mutable,
-    pub ty: Ty,
-}
-
-impl MutTy {
-    pub fn new(mutable: Mutable, ty: Ty) -> Self {
-        Self { mutable, ty }
-    }
 }
 
 #[derive(Debug, Clone, AST)]

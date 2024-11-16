@@ -5,58 +5,52 @@ extern crate quote;
 
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{
-    parse_macro_input, Data, DeriveInput, Fields, Ident, PatIdent
-};
+use syn::{parse_macro_input, Data, DeriveInput, Fields, PathSegment};
 
 #[proc_macro_derive(AST)]
 pub fn ast_attribute(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    // Parse the string representation
     let ast = parse_macro_input!(input as DeriveInput);
 
-    // Build the impl
     impl_partial_eq(&ast).into()
+}
+
+fn exclude_symbols(s: &PathSegment) -> bool {
+    s.ident == "Span" || s.ident == "SymbolId"
 }
 
 fn impl_partial_eq(ast: &DeriveInput) -> TokenStream {
     let name = &ast.ident;
     match &ast.data {
         Data::Struct(data) => {
-            let mut lident_list = Vec::new();
-            let mut rident_list = Vec::new();
-            let mut c_list = Vec::new();
-            for (i, f) in data.fields.iter().enumerate() {
+            let mut left = Vec::new();
+            let mut right = Vec::new();
+            let mut comparions = Vec::new();
+            for f in data.fields.iter() {
                 let l = f.ident.clone().unwrap();
                 let r = f.ident.clone().unwrap();
                 let c = match &f.ty {
-                    syn::Type::Path(path)
-                        if path
-                            .path
-                            .segments
-                            .iter()
-                            .any(|f| f.ident == "Span" || f.ident == "SymbolId") =>
-                    {
+                    syn::Type::Path(path) if path.path.segments.iter().any(exclude_symbols) => {
                         TokenStream::new()
                     }
                     _ => {
-                        quote!{
+                        quote! {
                             (lhs.#l == rhs.#r) &&
                         }
                     }
                 };
-                lident_list.push(l);
-                rident_list.push(r);
-                c_list.push(c);
+                left.push(l);
+                right.push(r);
+                comparions.push(c);
             }
-            if c_list.is_empty() {
-                c_list.push(quote!{ true });
+            if comparions.is_empty() {
+                comparions.push(quote! { true });
             }
 
             quote!(
                 impl PartialEq for #name {
                     fn eq(&self, rhs: &Self) -> bool {
                         let lhs = self;
-                        #(#c_list)* true
+                        #(#comparions)* true
                     }
                 }
             )
@@ -67,19 +61,15 @@ fn impl_partial_eq(ast: &DeriveInput) -> TokenStream {
                 let v_name = &v.ident;
                 let arm = match &v.fields {
                     Fields::Unnamed(fields) => {
-                        let mut lident_list = Vec::new();
-                        let mut rident_list = Vec::new();
-                        let mut c_list = Vec::new();
+                        let mut left = Vec::new();
+                        let mut right = Vec::new();
+                        let mut comparisons = Vec::new();
                         for (i, f) in fields.unnamed.iter().enumerate() {
                             let lhs = format_ident!("l{}", i);
                             let rhs = format_ident!("r{}", i);
                             let c = match &f.ty {
                                 syn::Type::Path(path)
-                                    if path
-                                        .path
-                                        .segments
-                                        .iter()
-                                        .any(|f| f.ident == "Span" || f.ident == "SymbolId") =>
+                                    if path.path.segments.iter().any(exclude_symbols) =>
                                 {
                                     TokenStream::new()
                                 }
@@ -87,17 +77,17 @@ fn impl_partial_eq(ast: &DeriveInput) -> TokenStream {
                                     quote!(#lhs == #rhs &&)
                                 }
                             };
-                            lident_list.push(lhs);
-                            rident_list.push(rhs);
-                            c_list.push(c);
+                            left.push(lhs);
+                            right.push(rhs);
+                            comparisons.push(c);
                         }
-                        if c_list.is_empty() {
-                            c_list.push(quote!{ true });
+                        if comparisons.is_empty() {
+                            comparisons.push(quote! { true });
                         }
 
                         quote! {
-                            (#name::#v_name ( #( #lident_list),* ), #name::#v_name ( #( #rident_list),* )) => {
-                                #(#c_list)* true
+                            (#name::#v_name ( #( #left),* ), #name::#v_name ( #( #right),* )) => {
+                                #(#comparisons)* true
                             },
                         }
                     }
@@ -107,13 +97,13 @@ fn impl_partial_eq(ast: &DeriveInput) -> TokenStream {
                                 true
                             },
                         }
-                    },
+                    }
                     Fields::Named(_) => todo!(),
                 };
                 match_arms.push(arm);
             }
 
-            let q = quote!(
+            quote!(
                 impl PartialEq for #name {
                     fn eq(&self, rhs: &Self) -> bool {
                         let lhs = self;
@@ -123,10 +113,8 @@ fn impl_partial_eq(ast: &DeriveInput) -> TokenStream {
                         }
                     }
                 }
-            );
-            // panic!("{q}")
-            q
+            )
         }
-        Data::Union(_) => panic!(),
+        Data::Union(_) => panic!("Unions not supported"),
     }
 }

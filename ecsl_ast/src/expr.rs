@@ -41,6 +41,9 @@ pub enum ExprKind {
     /// Locally accesible symbol
     /// `foo` `bar`
     Ident(SymbolId),
+    /// Self in method
+    /// `self`
+    MethodSelf,
     /// Literal value
     /// `1`
     /// `"string"`
