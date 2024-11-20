@@ -1,0 +1,19 @@
+[package]
+name = "ecsl_parse"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ecsl_diagnostics = { path = "../ecsl_diagnostics" }
+ecsl_index = { path = "../ecsl_index" }
+ecsl_ast = { path = "../ecsl_ast" }
+ecsl_error = { path = "../ecsl_error" }
+cfgrammar.workspace = true
+lrlex.workspace = true
+lrpar.workspace = true
+lazy_static = "1.5.0"
+
+[build-dependencies]
+cfgrammar.workspace = true
+lrlex.workspace = true
+lrpar.workspace = true

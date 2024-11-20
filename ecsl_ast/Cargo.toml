@@ -1,9 +1,9 @@
 [package]
-name = "ecsl_error"
+name = "ecsl_ast"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-ansi_term = "0.12.1"
 ecsl_index = { path = "../ecsl_index" }
+ecsl_ast_derive = { path = "../ecsl_ast_derive" }
 cfgrammar.workspace = true

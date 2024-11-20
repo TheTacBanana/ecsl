@@ -6,12 +6,13 @@ use std::{
 use ecsl_config::{package::PackageInfo, EcslRootConfig};
 use ecsl_diagnostics::Diagnostics;
 use ecsl_error::{ext::EcslErrorExt, EcslError, EcslResult, ErrorLevel};
-use ecsl_source::SourceFile;
-use ecsl_span::index::{CrateID, SourceFileID};
+// use ecsl_source::SourceFile;
+use ecsl_index::{CrateID, SourceFileID};
 
+use ecsl_parse::source::SourceFile;
 use glob::glob;
 
-#[derive(Debug)]
+// #[derive(Debug)]
 pub struct Context {
     config: EcslRootConfig,
     sources: Vec<SourceFile>,
@@ -93,16 +94,11 @@ impl Context {
         self.crate_map.insert(id, source_collection);
     }
 
-    fn create_source_file(
-        &mut self,
-        full_path: PathBuf,
-        diagnostics: &mut Diagnostics,
-    ) -> SourceFileID {
+    fn create_source_file(&mut self, full_path: PathBuf, _diag: &mut Diagnostics) -> SourceFileID {
         let next_id = self.sources.len();
-        let source =
-            SourceFile::from_path(diagnostics, full_path, SourceFileID::new(next_id));
+        let source = SourceFile::from_path(full_path, SourceFileID::new(next_id));
         self.sources.push(source);
-        SourceFileID::new(next_id )
+        SourceFileID::new(next_id)
     }
 
     pub fn get_source(&self, id: SourceFileID) -> Option<&SourceFile> {

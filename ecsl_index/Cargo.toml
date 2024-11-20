@@ -1,6 +1,7 @@
 [package]
-name = "ecsl_span"
+name = "ecsl_index"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+cfgrammar.workspace = true

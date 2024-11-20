@@ -1,10 +1,8 @@
+use std::collections::BTreeMap;
+
 use anyhow::Result;
 use ecsl_assembler::Assembler;
-use ecsl_error::ext::EcslErrorExt;
-use ecsl_lexer::SourceReader;
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
-
-use std::path::PathBuf;
+use ecsl_parse::parse_file;
 
 use ecsl_context::Context;
 use ecsl_diagnostics::Diagnostics;
@@ -26,7 +24,27 @@ impl Driver {
                 return Ok(());
             }
         };
-        let diag = diag.finish_stage()?;
+        let mut diag = diag.finish_stage()?;
+
+        let mut _failed = false;
+        let mut parsed = BTreeMap::new();
+        for s in ctx.source_files() {
+            let lexer = s.lexer();
+            let result = parse_file(&s, &lexer);
+
+            if result.ast.is_none() || result.errs.len() > 0 {
+                for e in result.errs {
+                    diag.push_error(e);
+                }
+                _failed = true;
+            }
+
+            if let Some(ast) = result.ast {
+                parsed.insert(ast.file, ast);
+            }
+        }
+
+        let mut _diag = diag.finish_stage()?;
 
         let assembler = Assembler::new();
         assembler.output(path.clone()).unwrap();
