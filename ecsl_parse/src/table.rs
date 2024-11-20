@@ -3,12 +3,14 @@ use ecsl_ast::{data::DataKind, parse::FnKind, SymbolId};
 use lrlex::{DefaultLexerTypes, LRNonStreamingLexer};
 use std::collections::{hash_map::Entry, HashMap};
 
+#[derive(Clone)]
 pub struct PartialSymbolTable<'a, 'b> {
     pub symbols: Vec<Symbol>,
     pub symbol_map: HashMap<String, SymbolId>,
     pub lexer: &'a LRNonStreamingLexer<'a, 'b, DefaultLexerTypes>,
 }
 
+#[derive(Clone)]
 pub struct SymbolTable {
     pub symbols: Vec<Symbol>,
     pub symbol_map: HashMap<String, SymbolId>,

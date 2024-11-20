@@ -22,10 +22,17 @@ impl Driver {
                 return Ok(());
             }
         };
-        let _diag = diag.finish_stage()?;
+        let mut diag = diag.finish_stage()?;
 
+        let mut failed = false;
+        let parsed = Vec::new();
         for s in ctx.source_files() {
-            parse_file(s);
+            let lexer = s.lexer();
+            let (r, table, errs) = parse_file(&lexer);
+
+            if r.is_err() {
+                failed = true;
+            }
         }
 
         let assembler = Assembler::new();

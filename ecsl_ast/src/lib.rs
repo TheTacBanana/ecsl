@@ -26,6 +26,6 @@ pub type P<T> = Box<T>;
 generate_index_type!(SymbolId);
 
 #[derive(Debug, AST)]
-pub struct ParsedFile {
+pub struct SourceAST {
     pub items: Vec<Item>,
 }

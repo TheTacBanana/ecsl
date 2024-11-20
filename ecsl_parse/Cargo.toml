@@ -6,8 +6,8 @@ edition = "2021"
 [dependencies]
 ecsl_diagnostics = { path = "../ecsl_diagnostics" }
 ecsl_index = { path = "../ecsl_index" }
-ecsl_source = { path = "../ecsl_source" }
 ecsl_ast = { path = "../ecsl_ast" }
+ecsl_error = { path = "../ecsl_error" }
 cfgrammar.workspace = true
 lrlex.workspace = true
 lrpar.workspace = true

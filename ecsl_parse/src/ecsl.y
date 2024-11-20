@@ -1,4 +1,9 @@
 %start File
+%avoid_insert 'INT'
+%avoid_insert 'FLOAT'
+%avoid_insert 'BOOLEAN'
+%avoid_insert 'STRING'
+%avoid_insert 'CHAR'
 %parse-param table: Rc<RefCell<PartialSymbolTable>>
 
 %right 'ASSIGN'

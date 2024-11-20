@@ -8,4 +8,3 @@ ecsl_diagnostics = { path = "../ecsl_diagnostics" }
 ecsl_error = { path = "../ecsl_error" }
 ecsl_index = { path = "../ecsl_index" }
 ecsl_context = { path = "../ecsl_context" }
-ecsl_source = { path = "../ecsl_source" }

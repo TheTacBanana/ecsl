@@ -263,7 +263,7 @@ dependencies = [
  "ecsl_diagnostics",
  "ecsl_error",
  "ecsl_index",
- "ecsl_source",
+ "ecsl_parse",
  "glob",
 ]
 
@@ -312,7 +312,6 @@ dependencies = [
  "ecsl_diagnostics",
  "ecsl_error",
  "ecsl_index",
- "ecsl_source",
 ]
 
 [[package]]
@@ -322,21 +321,11 @@ dependencies = [
  "cfgrammar",
  "ecsl_ast",
  "ecsl_diagnostics",
+ "ecsl_error",
  "ecsl_index",
- "ecsl_source",
  "lazy_static",
  "lrlex",
  "lrpar",
-]
-
-[[package]]
-name = "ecsl_source"
-version = "0.1.0"
-dependencies = [
- "cfgrammar",
- "ecsl_diagnostics",
- "ecsl_error",
- "ecsl_index",
 ]
 
 [[package]]

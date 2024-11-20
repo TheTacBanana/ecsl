@@ -2,33 +2,36 @@
 
 use std::{cell::RefCell, rc::Rc};
 
-use ecsl_ast::SymbolId;
-use ecsl_source::SourceFile;
+use ecsl_ast::{SourceAST, SymbolId};
 use lazy_static::lazy_static;
-use lrlex::{lrlex_mod, DefaultLexerTypes, LRNonStreamingLexerDef};
-use lrpar::{lrpar_mod, NonStreamingLexer, Span};
-use table::{PartialSymbolTable, SymbolKind};
+use lrlex::{lrlex_mod, DefaultLexerTypes, LRNonStreamingLexer, LRNonStreamingLexerDef};
+use lrpar::{lrpar_mod, LexParseError, NonStreamingLexer, Span};
+use table::{PartialSymbolTable, SymbolKind, SymbolTable};
 
+pub mod source;
 pub mod table;
 
 lrlex_mod!("ecsl.l");
 lrpar_mod!("ecsl.y");
 
-type LexerTy = LRNonStreamingLexerDef<DefaultLexerTypes<u32>>;
+type LexerDef = LRNonStreamingLexerDef<DefaultLexerTypes<u32>>;
+type LexerTy<'a, 'b> = LRNonStreamingLexer<'a, 'b, DefaultLexerTypes<u32>>;
 
 lazy_static! {
-    static ref LEXER_DEF: LexerTy = ecsl_l::lexerdef();
+    static ref LEXER_DEF: LexerDef = ecsl_l::lexerdef();
 }
 
-pub fn parse_file(source: &SourceFile) {
-    let lexer = LEXER_DEF.lexer(&source.contents);
-
+pub fn parse_file(
+    lexer: &LexerTy,
+) -> (
+    Result<SourceAST, ()>,
+    SymbolTable,
+    Vec<LexParseError<u32, DefaultLexerTypes>>,
+) {
     let table = Rc::new(RefCell::new(PartialSymbolTable::new(&lexer)));
-    let (ast, errs) = ecsl_y::parse(&lexer, table.clone());
-    println!("{:#?}", ast);
-    for e in errs {
-        println!("{}", e.pp(&lexer, &ecsl_y::token_epp));
-    }
+    let (ast, errs) = ecsl_y::parse(lexer, table.clone());
+    let finished_table = (*table).clone().into_inner().finish();
+    (ast.unwrap_or(Err(())), finished_table, errs)
 }
 
 pub trait GenerateIdentExt {
@@ -64,7 +67,7 @@ mod test {
     macro_rules! generate_pass_fail {
         ($s:expr) => {
             #[allow(unused)]
-            fn run_test(s: &str) -> (Option<Result<ecsl_ast::ParsedFile, ()>>, usize) {
+            fn run_test(s: &str) -> (Option<Result<ecsl_ast::SourceAST, ()>>, usize) {
                 println!("Testing: \'{s}\'");
                 let f = format!($s, s);
                 let lexer = crate::LEXER_DEF.lexer(&f);
@@ -80,7 +83,7 @@ mod test {
             }
 
             #[allow(unused)]
-            fn pass_ret(s: &str) -> ecsl_ast::ParsedFile {
+            fn pass_ret(s: &str) -> ecsl_ast::SourceAST {
                 let (out, len) = run_test(s);
                 assert!(len == 0);
                 out.unwrap().unwrap()
