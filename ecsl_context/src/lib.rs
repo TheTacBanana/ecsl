@@ -94,16 +94,11 @@ impl Context {
         self.crate_map.insert(id, source_collection);
     }
 
-    fn create_source_file(
-        &mut self,
-        full_path: PathBuf,
-        diag: &mut Diagnostics,
-    ) -> SourceFileID {
+    fn create_source_file(&mut self, full_path: PathBuf, _diag: &mut Diagnostics) -> SourceFileID {
         let next_id = self.sources.len();
-        let source =
-            SourceFile::from_path(full_path, SourceFileID::new(next_id));
+        let source = SourceFile::from_path(full_path, SourceFileID::new(next_id));
         self.sources.push(source);
-        SourceFileID::new(next_id )
+        SourceFileID::new(next_id)
     }
 
     pub fn get_source(&self, id: SourceFileID) -> Option<&SourceFile> {

@@ -1,5 +1,5 @@
 use ecsl_ast_derive::AST;
-use ecsl_index::generate_index_type;
+use ecsl_index::{generate_index_type, SourceFileID};
 use item::Item;
 
 pub mod callable;
@@ -27,5 +27,6 @@ generate_index_type!(SymbolId);
 
 #[derive(Debug, AST)]
 pub struct SourceAST {
+    pub file: SourceFileID,
     pub items: Vec<Item>,
 }

@@ -4,6 +4,88 @@
 %avoid_insert 'BOOLEAN'
 %avoid_insert 'STRING'
 %avoid_insert 'CHAR'
+%avoid_insert 'ENTITY'
+%avoid_insert 'QUERY'
+%avoid_insert 'RESOURCE'
+%avoid_insert 'SELF'
+
+%epp 'USE' 'use'
+%epp 'PATH' '::'
+
+%epp 'STRUCT' 'struct'
+%epp 'ENUM' 'enum'
+%epp 'COMP' 'comp'
+%epp 'IMPL' 'impl'
+
+%epp 'FN' 'fn'
+%epp 'SYS' 'sys'
+
+%epp 'PLUS' '+'
+%epp 'MINUS' '-'
+%epp 'STAR' '*'
+%epp 'FSLASH' '/'
+
+%epp 'LEQ'  '<='
+%epp 'LT' '<'
+%epp 'GEQ' '>='
+%epp 'GT' '>'
+%epp 'EQEQ' '=='
+%epp 'NOTEQ' '!='
+
+%epp 'OR' '||'
+%epp 'AND' '&&'
+%epp 'NOT' '!'
+
+%epp 'LET' 'let'
+%epp 'MUT' 'mut'
+%epp 'IMM' 'imm'
+%epp 'ASSIGN' '='
+%epp 'AS' 'as'
+
+%epp 'LBRACKET' '('
+%epp 'RBRACKET' ')'
+%epp 'LCURLY' '{'
+%epp 'RCURLY' '}'
+%epp 'LSQUARE' '['
+%epp 'RSQUARE' ']'
+
+%epp 'SEMI' ';'
+%epp 'COLON' ':'
+%epp 'COMMA' ','
+%epp 'DOTDOTEQ' '..='
+%epp 'DOTDOT' '..'
+%epp 'DOT' '.'
+
+%epp 'AMPERSAND' '&'
+%epp 'ARROW' '->'
+
+%epp 'BOOLEAN' 'Boolean'
+%epp 'IDENT' 'Ident'
+%epp 'FLOAT' 'Float'
+%epp 'INT' 'Int'
+%epp 'STRING' 'String'
+%epp 'CHAR' 'Char'
+
+%epp 'ENTITY' 'Entity'
+%epp 'QUERY' 'Query'
+%epp 'RESOURCE' 'Resource'
+%epp 'SCHEDULE' 'Schedule'
+%epp 'SYSTEM' 'System'
+%epp 'WITH' 'with'
+%epp 'WITHOUT' 'without'
+%epp 'ADDED' 'added'
+%epp 'REMOVED' 'removed'
+
+%epp 'IF' 'if'
+%epp 'ELSE' 'else'
+%epp 'FOR' 'for'
+%epp 'IN' 'in'
+%epp 'WHILE' 'while'
+%epp 'MATCH' 'match'
+%epp 'BREAK' 'break'
+%epp 'CONTINUE' 'continue'
+%epp 'RETURN' 'return'
+
 %parse-param table: Rc<RefCell<PartialSymbolTable>>
 
 %right 'ASSIGN'
@@ -19,9 +101,12 @@
 %right 'AS'
 
 %%
-File -> Result<ParsedFile, ()>:
+File -> Result<SourceAST, ()>:
     ItemList {
-        Ok(ParsedFile { items: $1?})
+        Ok(SourceAST {
+            file: table.file_id(),
+            items: $1?
+        })
     }
     ;
 

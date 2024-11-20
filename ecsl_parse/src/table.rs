@@ -1,10 +1,12 @@
 use cfgrammar::Span;
 use ecsl_ast::{data::DataKind, parse::FnKind, SymbolId};
+use ecsl_index::SourceFileID;
 use lrlex::{DefaultLexerTypes, LRNonStreamingLexer};
 use std::collections::{hash_map::Entry, HashMap};
 
 #[derive(Clone)]
 pub struct PartialSymbolTable<'a, 'b> {
+    pub file: SourceFileID,
     pub symbols: Vec<Symbol>,
     pub symbol_map: HashMap<String, SymbolId>,
     pub lexer: &'a LRNonStreamingLexer<'a, 'b, DefaultLexerTypes>,
@@ -12,6 +14,7 @@ pub struct PartialSymbolTable<'a, 'b> {
 
 #[derive(Clone)]
 pub struct SymbolTable {
+    pub file: SourceFileID,
     pub symbols: Vec<Symbol>,
     pub symbol_map: HashMap<String, SymbolId>,
 }
@@ -53,12 +56,16 @@ pub enum SymbolKind {
     Variant,
     VariantUsage,
     Field,
-    FieldUsage
+    FieldUsage,
 }
 
 impl<'a, 'b> PartialSymbolTable<'a, 'b> {
-    pub fn new(lexer: &'a LRNonStreamingLexer<'a, 'b, DefaultLexerTypes>) -> Self {
+    pub fn new(
+        file: SourceFileID,
+        lexer: &'a LRNonStreamingLexer<'a, 'b, DefaultLexerTypes>,
+    ) -> Self {
         PartialSymbolTable {
+            file,
             symbols: Vec::new(),
             symbol_map: HashMap::new(),
             lexer,
@@ -97,6 +104,7 @@ impl<'a, 'b> PartialSymbolTable<'a, 'b> {
 
     pub fn finish(self) -> SymbolTable {
         SymbolTable {
+            file: self.file,
             symbols: self.symbols,
             symbol_map: self.symbol_map,
         }

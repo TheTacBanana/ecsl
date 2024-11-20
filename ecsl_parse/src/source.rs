@@ -1,13 +1,9 @@
 use std::{fs::File, io::Read, path::PathBuf};
 
-use cfgrammar::Span;
-use ecsl_diagnostics::Diagnostics;
-use ecsl_error::{ext::EcslErrorExt, snippet::Snippet, EcslError, ErrorLevel};
-use ecsl_index::SourceFileID;
-use lrlex::{DefaultLexerTypes, LRNonStreamingLexer};
-use lrpar::{Lexer, LexerTypes, NonStreamingLexer};
-
-use crate::{LexerDef, LexerTy, LEXER_DEF};
+use crate::{LexerTy, LEXER_DEF};
+use ecsl_error::{snippet::Snippet, ErrorLevel};
+use ecsl_index::{LineNumberColumn, SourceFileID};
+use lrpar::{NonStreamingLexer, Span};
 
 pub struct SourceFile {
     pub id: SourceFileID,
@@ -41,22 +37,38 @@ impl SourceFile {
         LEXER_DEF.lexer(&self.contents)
     }
 
-    // pub fn get_snippet(&self, error_span: Span, level: ErrorLevel) -> Snippet {
-    //     let mut snippet_lines = Vec::new();
+    pub fn get_snippet(&self, err_span: Span, level: ErrorLevel, lexer: &LexerTy) -> Snippet {
+        let ((sl, sc), (el, _)) = lexer.line_col(err_span);
+        let lnc = LineNumberColumn::new(sl, sc);
 
-    //     let lnc = self.lines.line_number_column(error_span.start());
+        let new_start = i32::max(err_span.start() as i32 - sc as i32, 0) as usize;
+        let new_end = (|| {
+            let current_el = el;
 
-    //     let full_span = Span::new(
-    //         self.lines.line_start(error_span.start()),
-    //         self.lines.line_end(error_span.end()),
-    //     );
+            for i in err_span.end()..self.file_size {
+                let (_, (el, _)) = lexer.line_col(Span::new(i, i));
+                if el > current_el {
+                    return i;
+                }
+            }
+            return err_span.end();
+        })();
 
-    //     let (start, end) = self.lines.get_lines_from_span(error_span);
-    //     for line in start..=end {
-    //         let contents = String::from(self.get_line_slice(line).unwrap());
-    //         snippet_lines.push((line, contents))
-    //     }
+        let temp_span = Span::new(new_start, err_span.end());
+        let ((sl, sc), (_, _)) = lexer.line_col(temp_span);
 
-    //     Snippet::from_source_span(level, full_span, error_span, snippet_lines, lnc).unwrap()
-    // }
+        let new_start = i32::max(temp_span.start() as i32 - sc as i32 + 1, 0) as usize;
+        let full_span = Span::new(new_start, new_end);
+
+        let mut lines = Vec::new();
+        for (i, line) in lexer
+            .span_lines_str(full_span)
+            .split_inclusive('\n')
+            .enumerate()
+        {
+            lines.push((sl + i, line.to_string()));
+        }
+
+        Snippet::from_source_span(level, full_span, err_span, lines, lnc).unwrap()
+    }
 }

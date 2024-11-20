@@ -1,7 +1,7 @@
-use std::fmt::Write;
 use ansi_term::{Colour, Colour::Blue};
-use ecsl_index::LineNumberColumn;
 use cfgrammar::Span;
+use ecsl_index::LineNumberColumn;
+use std::fmt::Write;
 
 use crate::ErrorLevel;
 
@@ -13,7 +13,7 @@ pub struct Snippet {
 }
 
 impl Snippet {
-    const PIPE_COLOUR : Colour = Blue;
+    const PIPE_COLOUR: Colour = Blue;
     const UNDERLINE_CHAR: &'static str = "^";
 
     pub fn from_source_span(
@@ -36,7 +36,11 @@ impl Snippet {
             let diff = error_span.end() - error_span.start();
 
             underline.push_str(&(0..padding).map(|_| " ").collect::<String>());
-            underline.push_str(&(0..=diff).map(|_| Snippet::UNDERLINE_CHAR).collect::<String>());
+            underline.push_str(
+                &(0..diff)
+                    .map(|_| Snippet::UNDERLINE_CHAR)
+                    .collect::<String>(),
+            );
             underline.drain(..)
         };
 
@@ -57,6 +61,10 @@ impl Snippet {
                 pipe,
                 underline_colour.paint(underline.collect::<String>())
             )?;
+        }
+        let last = underline.collect::<String>();
+        if !last.is_empty() {
+            panic!("Underline is not empty");
         }
 
         Ok(Self {

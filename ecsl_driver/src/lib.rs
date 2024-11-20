@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use anyhow::Result;
 use ecsl_assembler::Assembler;
 use ecsl_parse::parse_file;
@@ -24,16 +26,25 @@ impl Driver {
         };
         let mut diag = diag.finish_stage()?;
 
-        let mut failed = false;
-        let parsed = Vec::new();
+        let mut _failed = false;
+        let mut parsed = BTreeMap::new();
         for s in ctx.source_files() {
             let lexer = s.lexer();
-            let (r, table, errs) = parse_file(&lexer);
+            let result = parse_file(&s, &lexer);
 
-            if r.is_err() {
-                failed = true;
+            if result.ast.is_none() || result.errs.len() > 0 {
+                for e in result.errs {
+                    diag.push_error(e);
+                }
+                _failed = true;
+            }
+
+            if let Some(ast) = result.ast {
+                parsed.insert(ast.file, ast);
             }
         }
+
+        let mut _diag = diag.finish_stage()?;
 
         let assembler = Assembler::new();
         assembler.output(path.clone()).unwrap();

@@ -1,5 +1,5 @@
-use std::path::PathBuf;
 use cfgrammar::Span;
+use std::path::PathBuf;
 
 use crate::{snippet::Snippet, EcslError};
 
@@ -8,6 +8,7 @@ pub trait EcslErrorExt<T> {
     fn with_span(self, span: impl Fn(&EcslError) -> Span) -> T;
     fn with_path(self, path: impl Fn(&EcslError) -> PathBuf) -> T;
     fn with_snippet(self, snippet: impl Fn(&EcslError) -> Snippet) -> T;
+    fn with_note(self, note: impl Fn(&EcslError) -> String) -> T;
 }
 
 impl<T> EcslErrorExt<Result<T, EcslError>> for Result<T, EcslError> {
@@ -31,6 +32,13 @@ impl<T> EcslErrorExt<Result<T, EcslError>> for Result<T, EcslError> {
             Err(e) => Err(e.with_snippet(snippet)),
         }
     }
+
+    fn with_note(self, note: impl Fn(&EcslError) -> String) -> Result<T, EcslError> {
+        match self {
+            Ok(e) => Ok(e),
+            Err(e) => Err(e.with_note(note)),
+        }
+    }
 }
 
 impl EcslErrorExt<EcslError> for EcslError {
@@ -46,6 +54,11 @@ impl EcslErrorExt<EcslError> for EcslError {
 
     fn with_snippet(mut self, snippet: impl Fn(&EcslError) -> Snippet) -> EcslError {
         self.snippet = Some(snippet(&self));
+        self
+    }
+
+    fn with_note(mut self, note: impl Fn(&EcslError) -> String) -> EcslError {
+        self.notes.push(note(&self));
         self
     }
 }

@@ -16,7 +16,7 @@ pub mod snippet;
 
 pub type EcslResult<T> = Result<T, EcslError>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct EcslError {
     // Required
     level: ErrorLevel,
@@ -26,6 +26,7 @@ pub struct EcslError {
     span: Option<Span>,
     path: Option<PathBuf>,
     snippet: Option<Snippet>,
+    notes: Vec<String>,
 }
 
 impl EcslError {
@@ -36,6 +37,7 @@ impl EcslError {
             span: None,
             path: None,
             snippet: None,
+            notes: Vec::new(),
         }
     }
 
@@ -57,6 +59,10 @@ impl EcslError {
 
     pub fn get_snippet(&self) -> Option<&Snippet> {
         self.snippet.as_ref()
+    }
+
+    pub fn get_notes(&self) -> &Vec<String> {
+        self.notes.as_ref()
     }
 }
 
@@ -88,7 +94,17 @@ impl std::fmt::Display for EcslError {
 
         // Write the snippet associated with the error
         if let Some(snippet) = self.get_snippet() {
-            writeln!(f, "{}", snippet)?
+            writeln!(f, "{}", snippet)?;
+
+            for note in &self.notes {
+                writeln!(
+                    f,
+                    "{}{} {}",
+                    format!(" {: >1$} ", " ", snippet.number_padding() as usize),
+                    HIGHLIGHT_COLOUR.paint("="),
+                    note
+                )?;
+            }
         }
 
         Ok(())

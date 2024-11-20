@@ -1,5 +1,5 @@
-use clap::{Args, Parser, Subcommand};
 use anyhow::Result;
+use clap::{Parser, Subcommand};
 
 use crate::{compile::Compile, new::New};
 

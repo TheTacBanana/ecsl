@@ -66,7 +66,7 @@ impl LineNumberColumn {
 
 impl std::fmt::Display for LineNumberColumn {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "{}:{}", self.ln + 1, self.col + 1)
+        writeln!(f, "{}:{}", self.ln, self.col)
     }
 }
 

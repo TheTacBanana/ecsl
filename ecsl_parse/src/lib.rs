@@ -1,11 +1,15 @@
-// use ecsl_diagnostics::Diagnostics;
-
 use std::{cell::RefCell, rc::Rc};
 
 use ecsl_ast::{SourceAST, SymbolId};
+use ecsl_error::{ext::EcslErrorExt, EcslError, ErrorLevel};
+use ecsl_index::SourceFileID;
 use lazy_static::lazy_static;
-use lrlex::{lrlex_mod, DefaultLexerTypes, LRNonStreamingLexer, LRNonStreamingLexerDef};
-use lrpar::{lrpar_mod, LexParseError, NonStreamingLexer, Span};
+use lrlex::{
+    lrlex_mod, DefaultLexeme, DefaultLexerTypes, LRLexError, LRNonStreamingLexer,
+    LRNonStreamingLexerDef,
+};
+use lrpar::{lrpar_mod, LexError, LexParseError, Lexeme, NonStreamingLexer, ParseError, Span};
+use source::SourceFile;
 use table::{PartialSymbolTable, SymbolKind, SymbolTable};
 
 pub mod source;
@@ -21,26 +25,84 @@ lazy_static! {
     static ref LEXER_DEF: LexerDef = ecsl_l::lexerdef();
 }
 
-pub fn parse_file(
+pub struct ParseResult {
+    pub ast: Option<SourceAST>,
+    pub table: SymbolTable,
+    pub errs: Vec<EcslError>,
+}
+
+pub fn parse_file(source: &SourceFile, lexer: &LexerTy) -> ParseResult {
+    let table = Rc::new(RefCell::new(PartialSymbolTable::new(source.id, &lexer)));
+    let (ast, mut errs) = ecsl_y::parse(lexer, table.clone());
+    let table = (*table).clone().into_inner().finish();
+
+    let errs = errs
+        .drain(..)
+        .map(|e| match e {
+            LexParseError::LexError(lex_error) => rewrite_lex_error(source, lexer, lex_error),
+            LexParseError::ParseError(parse_error) => {
+                rewrite_parse_error(source, lexer, parse_error)
+            }
+        })
+        .collect();
+
+    ParseResult {
+        ast: ast.unwrap_or(Err(())).ok(),
+        table,
+        errs,
+    }
+}
+
+fn rewrite_lex_error(source: &SourceFile, lexer: &LexerTy, err: LRLexError) -> EcslError {
+    let span = err.span();
+    EcslError::new(ErrorLevel::Error, "Lexer Error")
+        .with_path(|_| source.path.clone().unwrap())
+        .with_snippet(|e| source.get_snippet(span, e.level(), lexer))
+}
+
+//TODO: Improve representation of repair sequences
+fn rewrite_parse_error(
+    source: &SourceFile,
     lexer: &LexerTy,
-) -> (
-    Result<SourceAST, ()>,
-    SymbolTable,
-    Vec<LexParseError<u32, DefaultLexerTypes>>,
-) {
-    let table = Rc::new(RefCell::new(PartialSymbolTable::new(&lexer)));
-    let (ast, errs) = ecsl_y::parse(lexer, table.clone());
-    let finished_table = (*table).clone().into_inner().finish();
-    (ast.unwrap_or(Err(())), finished_table, errs)
+    err: ParseError<DefaultLexeme, u32>,
+) -> EcslError {
+    let span = err.lexeme().span();
+    let mut e_out = EcslError::new(ErrorLevel::Error, "Parser Error")
+        .with_path(|_| source.path.clone().unwrap())
+        .with_snippet(|e| source.get_snippet(span, e.level(), lexer));
+
+    // let notes = Vec::new();
+    if let Some(repair_seq) = err.repairs().iter().next() {
+        for step in repair_seq {
+            match step {
+                lrpar::ParseRepair::Delete(l) => {
+                    let s = lexer.span_str(l.span()).replace('\n', "\\n");
+                    e_out = e_out.with_note(|_| format!("Try remove '{}'", s));
+                }
+                lrpar::ParseRepair::Insert(id) => {
+                    e_out = e_out
+                        .with_note(|_| format!("Try insert '{}'", ecsl_y::token_epp(*id).unwrap()));
+                }
+                _ => (),
+            }
+        }
+    }
+    e_out
 }
 
 pub trait GenerateIdentExt {
+    fn file_id(&self) -> SourceFileID;
+
     fn definition(&self, span: Span, kind: SymbolKind) -> SymbolId;
 
     fn usage(&self, span: Span, kind: SymbolKind) -> SymbolId;
 }
 
 impl GenerateIdentExt for Rc<RefCell<PartialSymbolTable<'_, '_>>> {
+    fn file_id(&self) -> SourceFileID {
+        self.borrow().file
+    }
+
     fn definition(&self, span: Span, kind: SymbolKind) -> SymbolId {
         let mut s = self.borrow_mut();
         let symbol_string = s.lexer.span_str(span).to_string();
@@ -72,7 +134,7 @@ mod test {
                 let f = format!($s, s);
                 let lexer = crate::LEXER_DEF.lexer(&f);
                 let table = std::rc::Rc::new(std::cell::RefCell::new(
-                    crate::PartialSymbolTable::new(&lexer),
+                    crate::PartialSymbolTable::new(ecsl_index::SourceFileID::ZERO, &lexer),
                 ));
                 let (out, errs) = crate::ecsl_y::parse(&lexer, table.clone());
                 println!("{:#?}", out);
