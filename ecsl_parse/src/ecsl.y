@@ -544,6 +544,7 @@ MatchArm -> Result<MatchArm, ()>:
     'IDENT' 'LCURLY' FieldList 'RCURLY' 'ARROW' Block {
         Ok(MatchArm {
             span: $span,
+            ident: table.usage($1.map_err(|_| ())?.span(), SymbolKind::VariantUsage),
             fields: $3?,
             block: P::new($6?)
         })
@@ -551,6 +552,7 @@ MatchArm -> Result<MatchArm, ()>:
     | 'IDENT' 'ARROW' Block {
         Ok(MatchArm {
             span: $span,
+            ident: table.usage($1.map_err(|_| ())?.span(), SymbolKind::VariantUsage),
             fields: Vec::new(),
             block: P::new($3?)
         })
