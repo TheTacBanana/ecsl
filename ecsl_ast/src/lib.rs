@@ -9,6 +9,7 @@ pub mod expr;
 pub mod item;
 pub mod stmt;
 pub mod ty;
+pub mod visit;
 
 pub mod parse {
     pub use crate::callable::*;

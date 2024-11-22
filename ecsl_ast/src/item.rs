@@ -1,5 +1,8 @@
 use crate::{
-    callable::FnDef, data::{EnumDef, StructDef}, ty::{Generics, Ty}, SymbolId, P
+    callable::FnDef,
+    data::{EnumDef, StructDef},
+    ty::{Generics, Ty},
+    SymbolId, P,
 };
 use cfgrammar::Span;
 use ecsl_ast_derive::AST;

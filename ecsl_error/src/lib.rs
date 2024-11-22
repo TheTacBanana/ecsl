@@ -101,7 +101,7 @@ impl std::fmt::Display for EcslError {
                     f,
                     "{}{} {}",
                     format!(" {: >1$} ", " ", snippet.number_padding() as usize),
-                    HIGHLIGHT_COLOUR.paint("="),
+                    HIGHLIGHT_COLOUR.paint("= Note:"),
                     note
                 )?;
             }

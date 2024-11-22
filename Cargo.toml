@@ -12,7 +12,7 @@ members = [
     "ecsl_index",
     "ecsl_parse",
     "ecsl_assembler",
-    "ecsl_lexer",
+    "ecsl_lexer", "ecsl_ast_validation",
     ]
 
 resolver = "1"

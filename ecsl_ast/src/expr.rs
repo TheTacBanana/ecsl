@@ -64,7 +64,12 @@ pub enum ExprKind {
     /// Function call
     /// Called On, Function Ident, Args
     /// `x.foo(1, 2)`
-    Function(Option<P<Expr>>, Option<ConcreteGenerics>, SymbolId, Vec<Expr>),
+    Function(
+        Option<P<Expr>>,
+        Option<ConcreteGenerics>,
+        SymbolId,
+        Vec<Expr>,
+    ),
 
     // ECS Features
     /// Use of the Entity Keyword to create new Entities
@@ -112,7 +117,7 @@ pub enum BinOpKind {
 pub enum UnOpKind {
     Neg,
     Not,
-    Deref
+    Deref,
 }
 
 #[derive(Debug, Clone, AST)]
@@ -121,7 +126,6 @@ pub struct FieldExpr {
     pub ident: SymbolId,
     pub expr: P<Expr>,
 }
-
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RangeType {

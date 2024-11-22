@@ -236,6 +236,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "ecsl_ast_validation"
+version = "0.1.0"
+dependencies = [
+ "ecsl_ast",
+ "ecsl_diagnostics",
+ "ecsl_error",
+]
+
+[[package]]
 name = "ecsl_bytecode"
 version = "0.1.0"
 dependencies = [
@@ -281,6 +290,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "ecsl_assembler",
+ "ecsl_ast_validation",
  "ecsl_context",
  "ecsl_diagnostics",
  "ecsl_error",
