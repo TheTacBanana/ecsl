@@ -2,6 +2,8 @@ use std::collections::BTreeMap;
 
 use anyhow::Result;
 use ecsl_assembler::Assembler;
+use ecsl_ast_validation::validate_ast;
+use ecsl_error::ext::EcslErrorExt;
 use ecsl_parse::parse_file;
 
 use ecsl_context::Context;
@@ -26,7 +28,7 @@ impl Driver {
         };
         let mut diag = diag.finish_stage()?;
 
-        let mut _failed = false;
+        // Parse all source files
         let mut parsed = BTreeMap::new();
         for s in ctx.source_files() {
             let lexer = s.lexer();
@@ -36,11 +38,29 @@ impl Driver {
                 for e in result.errs {
                     diag.push_error(e);
                 }
-                _failed = true;
             }
 
+            //TODO: Store Table
+
             if let Some(ast) = result.ast {
-                parsed.insert(ast.file, ast);
+                parsed.insert(ast.file, (lexer, ast));
+            }
+        }
+
+        let mut diag = diag.finish_stage()?;
+
+        // Validate all ASTs
+        for source in ctx.source_files() {
+            let (lexer, ast) = parsed.get(&source.id).unwrap();
+
+            let errs = validate_ast(&ast);
+            for err in errs {
+                diag.push_error(
+                    err.with_path(|_| source.path.clone().unwrap())
+                        .with_snippet(|e| {
+                            source.get_snippet(e.get_span().unwrap(), e.level(), lexer)
+                        }),
+                );
             }
         }
 
