@@ -1,9 +1,9 @@
 use ecsl_ast::{
     expr::{Expr, ExprKind},
     parse::{FnDef, FnHeader, FnKind, ParamKind},
-    ty::{Generics, Ty, TyKind},
-    visit::{walk_expr, walk_fn, walk_ty, FnCtxt, Visitor, VisitorCF},
-    SymbolId,
+    stmt::{Block, Stmt, StmtKind},
+    ty::{Ty, TyKind},
+    visit::{walk_block, walk_expr, walk_fn, walk_stmt, walk_ty, FnCtxt, Visitor, VisitorCF},
 };
 use ecsl_error::{ext::EcslErrorExt, EcslError, ErrorLevel};
 
@@ -11,6 +11,7 @@ use ecsl_error::{ext::EcslErrorExt, EcslError, ErrorLevel};
 pub enum FnValidationError {
     IncorrectSelfPosition,
     SelfUseInFreeFunction,
+    IllegalAssignmentPosition,
 
     EntityUsedInPlainFn,
     QueryUsedInPlainFn,
@@ -24,6 +25,10 @@ impl std::fmt::Display for FnValidationError {
         let s = match self {
             FnValidationError::IncorrectSelfPosition => "Usage of self in incorrect position",
             FnValidationError::SelfUseInFreeFunction => "Usage of self in free function",
+            FnValidationError::IllegalAssignmentPosition => {
+                "Usage of assignment in illegal position"
+            }
+
             FnValidationError::EntityUsedInPlainFn => "Usage of Entity in 'fn'",
             FnValidationError::QueryUsedInPlainFn => "Usage of Query in 'fn'",
             FnValidationError::ResourceUsedInPlainFn => "Usage of Resource in 'fn'",
@@ -35,10 +40,17 @@ impl std::fmt::Display for FnValidationError {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AssignmentState {
+    Allowed,
+    Illegal,
+}
+
 pub struct FnValidator {
     pub errors: Vec<EcslError>,
     pub fn_headers: Vec<FnHeader>,
-    pub in_expr: Option<bool>,
+    /// None when not in expr, Some(true) when assignment available,
+    pub assignment_state: AssignmentState,
 }
 
 impl FnValidator {
@@ -46,7 +58,7 @@ impl FnValidator {
         FnValidator {
             errors: Vec::new(),
             fn_headers: Vec::new(),
-            in_expr: None,
+            assignment_state: AssignmentState::Allowed,
         }
     }
 }
@@ -94,12 +106,13 @@ impl Visitor for FnValidator {
                 }
             }
         }
-        let ret = walk_fn(self, f, ctxt);
-        ret
+        walk_fn(self, f, ctxt)
     }
 
     fn visit_expr(&mut self, e: &Expr) -> VisitorCF {
         let fn_header = self.fn_headers.last().unwrap();
+
+        // Exclude ECS Features from fn's
         let err = match (&e.kind, fn_header.kind) {
             (ExprKind::Entity, FnKind::Fn) => Some(FnValidationError::EntityUsedInPlainFn),
             (ExprKind::Resource, FnKind::Fn) => Some(FnValidationError::ResourceUsedInPlainFn),
@@ -114,7 +127,41 @@ impl Visitor for FnValidator {
                     .with_note(|_| "Try convert 'fn' to 'sys'".to_string()),
             );
         }
+
+        // Exclude assignment in illegal positions
+        let cur_state = self.assignment_state;
+        self.assignment_state = match (&e.kind, cur_state) {
+            (_, AssignmentState::Allowed) => AssignmentState::Illegal,
+            (ExprKind::Assign(_, _), AssignmentState::Illegal) => {
+                self.errors.push(
+                    EcslError::new(
+                        ErrorLevel::Error,
+                        FnValidationError::IllegalAssignmentPosition,
+                    )
+                    .with_span(|_| e.span),
+                );
+                cur_state
+            }
+            (_, AssignmentState::Illegal) => cur_state,
+        };
+
         walk_expr(self, e)
+    }
+
+    fn visit_stmt(&mut self, s: &Stmt) -> VisitorCF {
+        self.assignment_state = match s.kind {
+            StmtKind::Expr(_) => AssignmentState::Allowed,
+            _ => AssignmentState::Illegal,
+        };
+        walk_stmt(self, s)
+    }
+
+    fn visit_block(&mut self, b: &Block) -> VisitorCF {
+        let cur_state = self.assignment_state;
+        self.assignment_state = AssignmentState::Allowed;
+        let ret = walk_block(self, b);
+        self.assignment_state = cur_state;
+        ret
     }
 
     fn visit_ty(&mut self, t: &Ty) -> VisitorCF {
