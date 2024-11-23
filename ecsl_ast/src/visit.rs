@@ -3,7 +3,7 @@ use crate::{
     ecs::{QueryExpr, Schedule, ScheduleKind},
     expr::{Expr, ExprKind, FieldExpr},
     item::{ImplBlock, Item, ItemKind, UseDef},
-    parse::FnDef,
+    parse::{FnDef, RetTy},
     stmt::{Block, MatchArm, Stmt, StmtKind},
     ty::{ConcreteGenerics, Generics, Ty, TyKind},
     SourceAST,
@@ -112,9 +112,11 @@ pub fn walk_use<V: Visitor>(_v: &mut V, _u: &UseDef) -> VisitorCF {
 }
 
 pub fn walk_fn<V: Visitor>(v: &mut V, f: &FnDef, ctxt: FnCtxt) -> VisitorCF {
-    visit!(v.visit_fn(f, ctxt));
     if let Some(g) = &f.generics {
         visit!(v.visit_generics(g));
+    }
+    if let RetTy::Ty(t) = &f.ret {
+        visit!(v.visit_ty(t));
     }
     visit!(v.visit_block(&f.block));
     VisitorCF::Continue

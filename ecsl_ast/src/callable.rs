@@ -18,6 +18,27 @@ pub struct FnDef {
     pub block: Block,
 }
 
+impl FnDef {
+    pub fn to_header(&self) -> FnHeader {
+        FnHeader {
+            span: self.span,
+            kind: self.kind,
+            generics: self.generics.as_ref().map(|g| g.params.len()),
+            params: self.params.len(),
+            ret: matches!(self.ret, RetTy::Ty(_)),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct FnHeader {
+    pub span: Span,
+    pub kind: FnKind,
+    pub generics: Option<usize>,
+    pub params: usize,
+    pub ret: bool,
+}
+
 #[derive(Debug, Clone, AST)]
 pub struct Param {
     pub span: Span,
