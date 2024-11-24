@@ -49,7 +49,6 @@ pub enum AssignmentState {
 pub struct FnValidator {
     pub errors: Vec<EcslError>,
     pub fn_headers: Vec<FnHeader>,
-    /// None when not in expr, Some(true) when assignment available,
     pub assignment_state: AssignmentState,
 }
 
@@ -106,7 +105,7 @@ impl Visitor for FnValidator {
                 }
             }
         }
-        walk_fn(self, f, ctxt)
+        walk_fn(self, f)
     }
 
     fn visit_expr(&mut self, e: &Expr) -> VisitorCF {

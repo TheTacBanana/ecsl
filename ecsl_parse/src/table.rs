@@ -21,6 +21,7 @@ pub struct SymbolTable {
 
 #[derive(Debug, Clone)]
 pub struct Symbol {
+    pub name: String,
     pub definitions: Vec<(SymbolKind, Span)>,
     pub usages: Vec<(SymbolKind, Span)>,
 }
@@ -86,11 +87,12 @@ impl<'a, 'b> PartialSymbolTable<'a, 'b> {
 
     pub fn create_entry(&mut self, name: String) -> (SymbolId, &mut Symbol) {
         let symbol_id: SymbolId;
-        match self.symbol_map.entry(name) {
+        match self.symbol_map.entry(name.clone()) {
             Entry::Vacant(e) => {
                 symbol_id = SymbolId(self.symbols.len() as u32);
                 e.insert(symbol_id);
                 self.symbols.push(Symbol {
+                    name: name,
                     definitions: Vec::new(),
                     usages: Vec::new(),
                 });
@@ -108,5 +110,15 @@ impl<'a, 'b> PartialSymbolTable<'a, 'b> {
             symbols: self.symbols,
             symbol_map: self.symbol_map,
         }
+    }
+}
+
+impl SymbolTable {
+    pub fn get_symbol(&self, id: SymbolId) -> Option<&Symbol> {
+        self.symbols.get(id.inner())
+    }
+
+    pub fn get_symbol_mut(&mut self, id: SymbolId) -> Option<&mut Symbol> {
+        self.symbols.get_mut(id.inner())
     }
 }

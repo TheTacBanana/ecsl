@@ -40,10 +40,8 @@ impl Driver {
                 }
             }
 
-            //TODO: Store Table
-
             if let Some(ast) = result.ast {
-                parsed.insert(ast.file, (lexer, ast));
+                parsed.insert(ast.file, (lexer, ast, result.table));
             }
         }
 
@@ -51,9 +49,9 @@ impl Driver {
 
         // Validate all ASTs
         for source in ctx.source_files() {
-            let (lexer, ast) = parsed.get(&source.id).unwrap();
+            let (lexer, ast, table) = parsed.get(&source.id).unwrap();
 
-            let errs = validate_ast(&ast);
+            let errs = validate_ast(&ast, table);
             for err in errs {
                 diag.push_error(
                     err.with_path(|_| source.path.clone().unwrap())

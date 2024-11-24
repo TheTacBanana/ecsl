@@ -1,5 +1,5 @@
 use crate::{
-    data::{EnumDef, StructDef},
+    data::{EnumDef, FieldDef, StructDef, VariantDef},
     ecs::{QueryExpr, Schedule, ScheduleKind},
     expr::{Expr, ExprKind, FieldExpr},
     item::{ImplBlock, Item, ItemKind, UseDef},
@@ -10,6 +10,9 @@ use crate::{
 };
 
 pub trait Visitor: Sized {
+    fn visit_ast(&mut self, s: &SourceAST) -> VisitorCF {
+        walk_ast(self, s)
+    }
     fn visit_block(&mut self, b: &Block) -> VisitorCF {
         walk_block(self, b)
     }
@@ -22,8 +25,8 @@ pub trait Visitor: Sized {
     fn visit_use(&mut self, u: &UseDef) -> VisitorCF {
         walk_use(self, u)
     }
-    fn visit_fn(&mut self, f: &FnDef, ctxt: FnCtxt) -> VisitorCF {
-        walk_fn(self, f, ctxt)
+    fn visit_fn(&mut self, f: &FnDef, _ctxt: FnCtxt) -> VisitorCF {
+        walk_fn(self, f)
     }
     fn visit_generics(&mut self, g: &Generics) -> VisitorCF {
         walk_generics(self, g)
@@ -42,6 +45,12 @@ pub trait Visitor: Sized {
     }
     fn visit_enum_def(&mut self, e: &EnumDef) -> VisitorCF {
         walk_enum_def(self, e)
+    }
+    fn visit_variant_def(&mut self, v: &VariantDef) -> VisitorCF {
+        walk_variant_def(self, v)
+    }
+    fn visit_field_def(&mut self, f: &FieldDef) -> VisitorCF {
+        walk_field_def(self, f)
     }
     fn visit_ty(&mut self, t: &Ty) -> VisitorCF {
         walk_ty(self, t)
@@ -66,23 +75,6 @@ pub enum FnCtxt {
     Impl,
 }
 
-pub struct ASTVisitor<'v, 'ast, V: Visitor> {
-    pub visitor: &'v mut V,
-    pub ast: &'ast SourceAST,
-}
-
-impl<'v, 'ast, V: Visitor> ASTVisitor<'v, 'ast, V> {
-    pub fn new(visitor: &'v mut V, ast: &'ast SourceAST) -> Self {
-        Self { visitor, ast }
-    }
-
-    pub fn visit(&mut self) {
-        for item in &self.ast.items {
-            self.visitor.visit_item(item);
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VisitorCF {
     Continue,
@@ -95,6 +87,13 @@ macro_rules! visit {
             return VisitorCF::Break;
         }
     };
+}
+
+pub fn walk_ast<V: Visitor>(v: &mut V, source: &SourceAST) -> VisitorCF {
+    for i in &source.items {
+        visit!(v.visit_item(i));
+    }
+    VisitorCF::Continue
 }
 
 pub fn walk_item<V: Visitor>(v: &mut V, item: &Item) -> VisitorCF {
@@ -111,7 +110,7 @@ pub fn walk_use<V: Visitor>(_v: &mut V, _u: &UseDef) -> VisitorCF {
     VisitorCF::Continue
 }
 
-pub fn walk_fn<V: Visitor>(v: &mut V, f: &FnDef, ctxt: FnCtxt) -> VisitorCF {
+pub fn walk_fn<V: Visitor>(v: &mut V, f: &FnDef) -> VisitorCF {
     if let Some(g) = &f.generics {
         visit!(v.visit_generics(g));
     }
@@ -133,11 +132,29 @@ pub fn walk_concrete_generics<V: Visitor>(v: &mut V, c: &ConcreteGenerics) -> Vi
     VisitorCF::Continue
 }
 
-pub fn walk_struct_def<V: Visitor>(_v: &mut V, _s: &StructDef) -> VisitorCF {
+pub fn walk_struct_def<V: Visitor>(v: &mut V, s: &StructDef) -> VisitorCF {
+    for f in &s.fields {
+        visit!(v.visit_field_def(&f))
+    }
     VisitorCF::Continue
 }
 
-pub fn walk_enum_def<V: Visitor>(_v: &mut V, _s: &EnumDef) -> VisitorCF {
+pub fn walk_enum_def<V: Visitor>(v: &mut V, e: &EnumDef) -> VisitorCF {
+    for var in &e.variants {
+        visit!(v.visit_variant_def(var));
+    }
+    VisitorCF::Continue
+}
+
+pub fn walk_variant_def<V: Visitor>(v: &mut V, var: &VariantDef) -> VisitorCF {
+    for f in &var.fields {
+        visit!(v.visit_field_def(&f))
+    }
+    VisitorCF::Continue
+}
+
+pub fn walk_field_def<V: Visitor>(v: &mut V, f: &FieldDef) -> VisitorCF {
+    visit!(v.visit_ty(&f.ty));
     VisitorCF::Continue
 }
 

@@ -242,6 +242,8 @@ dependencies = [
  "ecsl_ast",
  "ecsl_diagnostics",
  "ecsl_error",
+ "ecsl_index",
+ "ecsl_parse",
 ]
 
 [[package]]
