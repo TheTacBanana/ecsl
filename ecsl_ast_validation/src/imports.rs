@@ -1,8 +1,8 @@
 use std::{collections::BTreeSet, path::PathBuf};
 
 use ecsl_ast::{
-    item::{UseDef, UsePath},
-    visit::{Visitor, VisitorCF},
+    item::{Item, ItemKind, UseDef, UsePath},
+    visit::{walk_item, Visitor, VisitorCF},
     SymbolId,
 };
 use ecsl_error::{ext::EcslErrorExt, EcslError, ErrorLevel};
@@ -51,6 +51,13 @@ impl ImportCollector<'_> {
 }
 
 impl Visitor for ImportCollector<'_> {
+    fn visit_item(&mut self, i: &Item) -> VisitorCF {
+        match &i.kind {
+            ItemKind::Use(_) => walk_item(self, i),
+            _ => VisitorCF::Continue,
+        }
+    }
+
     fn visit_use(&mut self, u: &UseDef) -> VisitorCF {
         let mut queue = vec![(PathBuf::new(), &*u.path)];
         while let Some((mut buf, path)) = queue.pop() {
