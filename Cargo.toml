@@ -9,10 +9,12 @@ members = [
     "ecsl_error",
     "ecsl_ast",
     "ecsl_ast_derive",
+    "ecsl_ast_validation",
     "ecsl_index",
     "ecsl_parse",
     "ecsl_assembler",
-    "ecsl_lexer", "ecsl_ast_validation",
+    "ecsl_imports",
+    "ecsl_lexer",
     ]
 
 resolver = "1"

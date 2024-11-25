@@ -1,8 +1,8 @@
-use crate::{ecs::EntityTy, SymbolId, P};
+use crate::{ecs::EntityTy, P};
 
 use cfgrammar::Span;
 use ecsl_ast_derive::AST;
-
+use ecsl_index::SymbolID;
 
 #[derive(Debug, Clone, AST)]
 pub struct Ty {
@@ -19,7 +19,7 @@ impl Ty {
 #[derive(Debug, Clone, AST)]
 pub enum TyKind {
     /// Identifier
-    Ident(SymbolId, Option<ConcreteGenerics>),
+    Ident(SymbolID, Option<ConcreteGenerics>),
 
     /// Array with associated size constant
     // Includes span of constant
@@ -39,7 +39,6 @@ pub enum TyKind {
     Ptr(Mutable, P<Ty>),
 
     // ECS Features
-
     /// An Entity Type with encoded type info about the attatched components
     /// `Entity`
     /// `Entity<foo: Foo, bar: Bar>`
@@ -68,17 +67,17 @@ pub enum Mutable {
 #[derive(Debug, Clone, AST)]
 pub struct Generics {
     pub span: Span,
-    pub params: Vec<GenericParam>
+    pub params: Vec<GenericParam>,
 }
 
 #[derive(Debug, Clone, AST)]
 pub struct GenericParam {
     pub span: Span,
-    pub ident: SymbolId,
+    pub ident: SymbolID,
 }
 
 #[derive(Debug, Clone, AST)]
 pub struct ConcreteGenerics {
     pub span: Span,
-    pub params: Vec<Ty>
+    pub params: Vec<Ty>,
 }

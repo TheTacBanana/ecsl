@@ -41,8 +41,18 @@ macro_rules! generate_index_type {
     };
 }
 
-generate_index_type!(CrateID);
+generate_index_type!(SymbolID);
 generate_index_type!(SourceFileID);
+generate_index_type!(CrateID);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GlobalID(pub SymbolID, pub SourceFileID, pub CrateID);
+
+impl GlobalID {
+    pub fn new(s: SymbolID, f: SourceFileID, c: CrateID) -> Self {
+        GlobalID(s, f, c)
+    }
+}
 
 #[derive(Debug, Clone, Copy)]
 pub struct LineNumberColumn {

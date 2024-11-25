@@ -1,8 +1,8 @@
 use std::{cell::RefCell, rc::Rc};
 
-use ecsl_ast::{SourceAST, SymbolId};
+use ecsl_ast::SourceAST;
 use ecsl_error::{ext::EcslErrorExt, EcslError, ErrorLevel};
-use ecsl_index::SourceFileID;
+use ecsl_index::{SourceFileID, SymbolID};
 use lazy_static::lazy_static;
 use lrlex::{
     lrlex_mod, DefaultLexeme, DefaultLexerTypes, LRLexError, LRNonStreamingLexer,
@@ -93,9 +93,9 @@ fn rewrite_parse_error(
 pub trait GenerateIdentExt {
     fn file_id(&self) -> SourceFileID;
 
-    fn definition(&self, span: Span, kind: SymbolKind) -> SymbolId;
+    fn definition(&self, span: Span, kind: SymbolKind) -> SymbolID;
 
-    fn usage(&self, span: Span, kind: SymbolKind) -> SymbolId;
+    fn usage(&self, span: Span, kind: SymbolKind) -> SymbolID;
 }
 
 impl GenerateIdentExt for Rc<RefCell<PartialSymbolTable<'_, '_>>> {
@@ -103,14 +103,14 @@ impl GenerateIdentExt for Rc<RefCell<PartialSymbolTable<'_, '_>>> {
         self.borrow().file
     }
 
-    fn definition(&self, span: Span, kind: SymbolKind) -> SymbolId {
+    fn definition(&self, span: Span, kind: SymbolKind) -> SymbolID {
         let mut s = self.borrow_mut();
         let symbol_string = s.lexer.span_str(span).to_string();
         let id = s.define_symbol(symbol_string, span, kind);
         id
     }
 
-    fn usage(&self, span: Span, kind: SymbolKind) -> SymbolId {
+    fn usage(&self, span: Span, kind: SymbolKind) -> SymbolID {
         let mut s = self.borrow_mut();
         let symbol_string = s.lexer.span_str(span).to_string();
         let id = s.use_symbol(symbol_string, span, kind);

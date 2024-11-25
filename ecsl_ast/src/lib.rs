@@ -24,8 +24,6 @@ pub mod parse {
 
 pub type P<T> = Box<T>;
 
-generate_index_type!(SymbolId);
-
 #[derive(Debug, AST)]
 pub struct SourceAST {
     pub file: SourceFileID,

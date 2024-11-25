@@ -1,17 +1,18 @@
 use cfgrammar::Span;
 use ecsl_ast_derive::AST;
+use ecsl_index::SymbolID;
 
 use crate::{
     stmt::Block,
     ty::{Generics, Mutable, Ty},
-    SymbolId, P,
+    P,
 };
 
 #[derive(Debug, Clone, AST)]
 pub struct FnDef {
     pub span: Span,
     pub kind: FnKind,
-    pub ident: SymbolId,
+    pub ident: SymbolID,
     pub generics: Option<Generics>,
     pub params: Vec<Param>,
     pub ret: RetTy,
@@ -55,7 +56,7 @@ impl Param {
 pub enum ParamKind {
     SelfValue(Mutable),
     SelfReference(Mutable),
-    Normal(Mutable, SymbolId, P<Ty>), //TODO: Find a better name
+    Normal(Mutable, SymbolID, P<Ty>), //TODO: Find a better name
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

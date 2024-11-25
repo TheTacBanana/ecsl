@@ -2,10 +2,11 @@ use crate::{
     callable::FnDef,
     data::{EnumDef, StructDef},
     ty::{Generics, Ty},
-    SymbolId, P,
+    P,
 };
 use cfgrammar::Span;
 use ecsl_ast_derive::AST;
+use ecsl_index::SymbolID;
 
 #[derive(Debug, Clone, AST)]
 pub struct Item {
@@ -46,9 +47,9 @@ pub struct UseDef {
 #[derive(Debug, Clone, AST)]
 pub enum UsePath {
     Super(Span, P<UsePath>),
-    Single(Span, SymbolId, P<UsePath>),
+    Single(Span, SymbolID, P<UsePath>),
     Multiple(Span, Vec<UsePath>),
-    Item(Span, SymbolId),
+    Item(Span, SymbolID),
 }
 
 #[derive(Debug, Clone, AST)]

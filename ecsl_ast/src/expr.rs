@@ -1,10 +1,11 @@
 use cfgrammar::Span;
 use ecsl_ast_derive::AST;
+use ecsl_index::SymbolID;
 
 use crate::{
     ecs::{QueryExpr, Schedule},
     ty::{ConcreteGenerics, Mutable, Ty},
-    SymbolId, P,
+    P,
 };
 
 #[derive(Debug, Clone, AST)]
@@ -23,7 +24,7 @@ impl Expr {
 pub enum ExprKind {
     /// Assign expression to ident
     /// `ident = *expr*`
-    Assign(SymbolId, P<Expr>),
+    Assign(SymbolID, P<Expr>),
 
     /// Create a reference to an expression
     /// `&foo &mut bar`
@@ -40,7 +41,7 @@ pub enum ExprKind {
     Array(Vec<Expr>),
     /// Locally accesible symbol
     /// `foo` `bar`
-    Ident(SymbolId),
+    Ident(SymbolID),
     /// Self in method
     /// `self`
     MethodSelf,
@@ -51,7 +52,7 @@ pub enum ExprKind {
     /// Struct `Foo { bar : 1 }`
     Struct(P<Ty>, Vec<FieldExpr>),
     /// Enum `Foo::Bar { baz : 2 }`
-    Enum(P<Ty>, SymbolId, Vec<FieldExpr>),
+    Enum(P<Ty>, SymbolID, Vec<FieldExpr>),
 
     Range(P<Expr>, P<Expr>, RangeType),
 
@@ -60,14 +61,14 @@ pub enum ExprKind {
     Cast(P<Expr>, P<Ty>),
     /// Field Access
     /// `foo.bar`
-    Field(P<Expr>, SymbolId),
+    Field(P<Expr>, SymbolID),
     /// Function call
     /// Called On, Function Ident, Args
     /// `x.foo(1, 2)`
     Function(
         Option<P<Expr>>,
         Option<ConcreteGenerics>,
-        SymbolId,
+        SymbolID,
         Vec<Expr>,
     ),
 
@@ -123,7 +124,7 @@ pub enum UnOpKind {
 #[derive(Debug, Clone, AST)]
 pub struct FieldExpr {
     pub span: Span,
-    pub ident: SymbolId,
+    pub ident: SymbolID,
     pub expr: P<Expr>,
 }
 

@@ -9,3 +9,4 @@ ecsl_diagnostics = { path = "../ecsl_diagnostics" }
 ecsl_error = { path = "../ecsl_error" }
 ecsl_parse = { path = "../ecsl_parse" }
 ecsl_index = { path = "../ecsl_index" }
+ecsl_imports = { path = "../ecsl_imports" }

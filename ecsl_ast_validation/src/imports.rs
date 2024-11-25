@@ -3,24 +3,17 @@ use std::{collections::BTreeSet, path::PathBuf};
 use ecsl_ast::{
     item::{Item, ItemKind, UseDef, UsePath},
     visit::{walk_item, Visitor, VisitorCF},
-    SymbolId,
 };
 use ecsl_error::{ext::EcslErrorExt, EcslError, ErrorLevel};
-use ecsl_index::SourceFileID;
+use ecsl_imports::ImportPath;
+use ecsl_index::SymbolID;
 use ecsl_parse::table::SymbolTable;
 
 pub struct ImportCollector<'a> {
     pub errors: Vec<EcslError>,
     pub table: &'a SymbolTable,
-    pub imported_symbols: BTreeSet<SymbolId>,
-    pub imported_items: Vec<ItemPath>,
-}
-
-#[derive(Debug, Clone)]
-pub struct ItemPath {
-    pub relative_path: PathBuf,
-    pub symbol: SymbolId,
-    pub import_from: SourceFileID,
+    pub imported_symbols: BTreeSet<SymbolID>,
+    pub imported_items: Vec<ImportPath>,
 }
 
 #[derive(Debug, Clone)]
@@ -72,7 +65,7 @@ impl Visitor for ImportCollector<'_> {
                     queue.push((buf, &next));
                 }
                 UsePath::Item(span, id) => {
-                    self.imported_items.push(ItemPath {
+                    self.imported_items.push(ImportPath {
                         relative_path: buf,
                         symbol: *id,
                         import_from: self.table.file,

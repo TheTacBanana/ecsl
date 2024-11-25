@@ -1,7 +1,8 @@
 use cfgrammar::Span;
 use ecsl_ast_derive::AST;
+use ecsl_index::SymbolID;
 
-use crate::{expr::Expr, ty::Ty, SymbolId, P};
+use crate::{expr::Expr, ty::Ty, P};
 
 #[derive(Debug, Clone, AST)]
 pub struct EntityTy {
@@ -11,7 +12,7 @@ pub struct EntityTy {
 #[derive(Debug, Clone, AST)]
 pub struct EntityAttribute {
     pub span: Span,
-    pub ident: SymbolId,
+    pub ident: SymbolID,
     pub ty: P<Ty>,
 }
 
