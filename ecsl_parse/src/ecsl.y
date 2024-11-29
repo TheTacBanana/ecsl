@@ -108,6 +108,12 @@ File -> Result<SourceAST, ()>:
             items: $1?
         })
     }
+    | {
+        Ok(SourceAST {
+            file: table.file_id(),
+            items: Vec::new()
+        })
+    }
     ;
 
 ItemList -> Result<Vec<Item>, ()>:
