@@ -242,9 +242,9 @@ dependencies = [
  "ecsl_ast",
  "ecsl_diagnostics",
  "ecsl_error",
- "ecsl_imports",
  "ecsl_index",
  "ecsl_parse",
+ "ecsl_ty",
 ]
 
 [[package]]
@@ -277,6 +277,7 @@ dependencies = [
  "ecsl_index",
  "ecsl_parse",
  "glob",
+ "rayon",
 ]
 
 [[package]]
@@ -298,6 +299,7 @@ dependencies = [
  "ecsl_diagnostics",
  "ecsl_error",
  "ecsl_parse",
+ "ecsl_ty",
  "rayon",
 ]
 
@@ -307,13 +309,6 @@ version = "0.1.0"
 dependencies = [
  "ansi_term",
  "cfgrammar",
- "ecsl_index",
-]
-
-[[package]]
-name = "ecsl_imports"
-version = "0.1.0"
-dependencies = [
  "ecsl_index",
 ]
 
@@ -346,6 +341,17 @@ dependencies = [
  "lazy_static",
  "lrlex",
  "lrpar",
+]
+
+[[package]]
+name = "ecsl_ty"
+version = "0.1.0"
+dependencies = [
+ "cfgrammar",
+ "ecsl_ast",
+ "ecsl_error",
+ "ecsl_index",
+ "ecsl_parse",
 ]
 
 [[package]]

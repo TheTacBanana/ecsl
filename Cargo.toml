@@ -13,8 +13,8 @@ members = [
     "ecsl_index",
     "ecsl_parse",
     "ecsl_assembler",
-    "ecsl_imports",
     "ecsl_lexer",
+    "ecsl_ty",
     ]
 
 resolver = "1"

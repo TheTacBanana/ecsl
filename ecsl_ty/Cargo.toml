@@ -1,0 +1,11 @@
+[package]
+name = "ecsl_ty"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ecsl_ast = { version = "0.1.0", path = "../ecsl_ast" }
+ecsl_error = { version = "0.1.0", path = "../ecsl_error" }
+ecsl_index = { path = "../ecsl_index" }
+ecsl_parse = { version = "0.1.0", path = "../ecsl_parse" }
+cfgrammar.workspace = true

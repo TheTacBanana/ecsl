@@ -24,20 +24,22 @@ impl FnDef {
         FnHeader {
             span: self.span,
             kind: self.kind,
-            generics: self.generics.as_ref().map(|g| g.params.len()),
-            params: self.params.len(),
-            ret: matches!(self.ret, RetTy::Ty(_)),
+            ident: self.ident,
+            generics: self.generics.clone(),
+            params: self.params.clone(),
+            ret: self.ret.clone(),
         }
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct FnHeader {
     pub span: Span,
     pub kind: FnKind,
-    pub generics: Option<usize>,
-    pub params: usize,
-    pub ret: bool,
+    pub ident: SymbolID,
+    pub generics: Option<Generics>,
+    pub params: Vec<Param>,
+    pub ret: RetTy,
 }
 
 #[derive(Debug, Clone, AST)]

@@ -1,9 +1,10 @@
 use ecsl_ast::{
     expr::{Expr, ExprKind},
+    item::{Item, ItemKind},
     parse::{FnDef, FnHeader, FnKind, ParamKind},
     stmt::{Block, Stmt, StmtKind},
     ty::{Ty, TyKind},
-    visit::{walk_block, walk_expr, walk_fn, walk_stmt, walk_ty, FnCtxt, Visitor, VisitorCF},
+    visit::*,
 };
 use ecsl_error::{ext::EcslErrorExt, EcslError, ErrorLevel};
 
@@ -23,8 +24,8 @@ pub enum FnValidationError {
 impl std::fmt::Display for FnValidationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let s = match self {
-            FnValidationError::IncorrectSelfPosition => "Usage of self in incorrect position",
-            FnValidationError::SelfUseInFreeFunction => "Usage of self in free function",
+            FnValidationError::IncorrectSelfPosition => "Usage of 'self' in incorrect position",
+            FnValidationError::SelfUseInFreeFunction => "Usage of 'self' in free function",
             FnValidationError::IllegalAssignmentPosition => {
                 "Usage of assignment in illegal position"
             }
@@ -182,5 +183,12 @@ impl Visitor for FnValidator {
         }
 
         walk_ty(self, t)
+    }
+
+    fn visit_item(&mut self, i: &Item) -> VisitorCF {
+        match &i.kind {
+            ItemKind::Fn(_) | ItemKind::Impl(_) => walk_item(self, i),
+            _ => VisitorCF::Continue,
+        }
     }
 }

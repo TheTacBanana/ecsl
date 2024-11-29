@@ -1,7 +1,0 @@
-[package]
-name = "ecsl_imports"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-ecsl_index = { path = "../ecsl_index" }
