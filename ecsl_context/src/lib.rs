@@ -1,26 +1,26 @@
+use ecsl_config::{package::PackageInfo, EcslRootConfig};
+use ecsl_diagnostics::Diagnostics;
+use ecsl_error::{ext::EcslErrorExt, EcslError, EcslResult, ErrorLevel};
+use ecsl_index::{CrateID, SourceFileID};
+use ecsl_parse::source::SourceFile;
+use glob::glob;
+use rayon::prelude::*;
 use std::{
     collections::{BTreeMap, HashMap},
     path::PathBuf,
 };
 
-use ecsl_config::{package::PackageInfo, EcslRootConfig};
-use ecsl_diagnostics::Diagnostics;
-use ecsl_error::{ext::EcslErrorExt, EcslError, EcslResult, ErrorLevel};
-// use ecsl_source::SourceFile;
-use ecsl_index::{CrateID, SourceFileID};
-
-use ecsl_parse::source::SourceFile;
-use glob::glob;
-
-// #[derive(Debug)]
 pub struct Context {
-    config: EcslRootConfig,
-    sources: Vec<SourceFile>,
-    crate_map: BTreeMap<CrateID, SourceCollection>,
+    pub config: EcslRootConfig,
+    pub sources: BTreeMap<SourceFileID, SourceFile>,
+}
+
+pub struct AssocContext<T> {
+    pub assoc: BTreeMap<SourceFileID, T>,
 }
 
 impl Context {
-    pub fn new(path: PathBuf, diag: &mut Diagnostics) -> EcslResult<Self> {
+    pub fn new(path: PathBuf, diag: &mut Diagnostics) -> EcslResult<(Context, AssocContext<()>)> {
         let config = EcslRootConfig::new_root_config(&path)?;
 
         if let Some(cycle_causer) = config.cycle {
@@ -52,8 +52,7 @@ impl Context {
 
         let mut context = Context {
             config,
-            sources: Vec::new(),
-            crate_map: BTreeMap::new(),
+            sources: BTreeMap::new(),
         };
 
         {
@@ -66,7 +65,10 @@ impl Context {
             context.config.packages = packages;
         }
 
-        Ok(context)
+        let assoc = context.sources.iter().map(|(id, _)| (*id, ())).collect();
+        let assoc = AssocContext { assoc };
+
+        Ok((context, assoc))
     }
 
     fn read_src_dir(&mut self, package_info: &PackageInfo, id: CrateID, diag: &mut Diagnostics) {
@@ -84,35 +86,78 @@ impl Context {
                 file_map.insert(relative_path, file_id);
             }
         }
-
-        let source_collection = SourceCollection {
-            crate_id: id,
-            root: package_info.path.clone(),
-            file_map,
-        };
-
-        self.crate_map.insert(id, source_collection);
     }
 
     fn create_source_file(&mut self, full_path: PathBuf, _diag: &mut Diagnostics) -> SourceFileID {
-        let next_id = self.sources.len();
-        let source = SourceFile::from_path(full_path, SourceFileID::new(next_id));
-        self.sources.push(source);
-        SourceFileID::new(next_id)
+        let next_id = SourceFileID::new(self.sources.len());
+        let source = SourceFile::from_path(full_path, next_id);
+        self.sources.insert(next_id, source);
+        next_id
     }
 
-    pub fn get_source(&self, id: SourceFileID) -> Option<&SourceFile> {
-        self.sources.get(id.inner())
-    }
-
-    pub fn source_files(&self) -> &Vec<SourceFile> {
-        &self.sources
-    }
+    // fn get_
 }
 
-#[derive(Debug)]
-pub struct SourceCollection {
-    pub crate_id: CrateID,
-    pub root: PathBuf,
-    pub file_map: HashMap<PathBuf, SourceFileID>,
+pub trait MapAssocExt<T: Send> {
+    fn par_map_assoc<U: Send>(
+        self,
+        f: impl Fn(&SourceFile, T) -> Option<U> + Send + Sync,
+    ) -> Result<AssocContext<U>, ()>;
+
+    fn par_map_assoc_with<U: Send, W: Send + Sync>(
+        self,
+        w: &W,
+        f: impl Fn(&W, &SourceFile, T) -> Option<U> + Send + Sync,
+    ) -> Result<AssocContext<U>, ()>;
+}
+
+impl<T: Send> MapAssocExt<T> for (&Context, AssocContext<T>) {
+    fn par_map_assoc<U: Send>(
+        self,
+        f: impl Fn(&SourceFile, T) -> Option<U> + Send + Sync,
+    ) -> Result<AssocContext<U>, ()> {
+        let len = self.1.assoc.len();
+
+        let out = self
+            .1
+            .assoc
+            .into_par_iter()
+            .filter_map(|(k, v)| {
+                let src = self.0.sources.get(&k).unwrap();
+                let result = f(src, v);
+                result.map(|r| (k, r))
+            })
+            .collect::<BTreeMap<SourceFileID, U>>();
+
+        if out.len() != len {
+            return Err(());
+        }
+
+        Ok(AssocContext { assoc: out })
+    }
+
+    fn par_map_assoc_with<U: Send, W: Send + Sync>(
+        self,
+        w: &W,
+        f: impl Fn(&W, &SourceFile, T) -> Option<U> + Send + Sync,
+    ) -> Result<AssocContext<U>, ()> {
+        let len = self.1.assoc.len();
+
+        let out = self
+            .1
+            .assoc
+            .into_par_iter()
+            .filter_map(|(k, v)| {
+                let src = self.0.sources.get(&k).unwrap();
+                let result = f(w, src, v);
+                result.map(|r| (k, r))
+            })
+            .collect::<BTreeMap<SourceFileID, U>>();
+
+        if out.len() != len {
+            return Err(());
+        }
+
+        Ok(AssocContext { assoc: out })
+    }
 }

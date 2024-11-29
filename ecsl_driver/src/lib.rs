@@ -1,13 +1,12 @@
-use std::collections::BTreeMap;
-
 use anyhow::Result;
 use ecsl_assembler::Assembler;
 use ecsl_ast_validation::validate_ast;
+use ecsl_context::{Context, MapAssocExt};
+use ecsl_diagnostics::Diagnostics;
 use ecsl_error::ext::EcslErrorExt;
 use ecsl_parse::parse_file;
-
-use ecsl_context::Context;
-use ecsl_diagnostics::Diagnostics;
+use ecsl_ty::{LocalTyCtxtExt, TyCtxt};
+use std::{collections::BTreeMap, sync::Arc};
 
 pub struct Driver;
 
@@ -17,8 +16,7 @@ impl Driver {
 
         // Create the context and load all dependencies of the target program
         let path = std::env::current_dir().unwrap();
-        let ctx = Context::new(path.clone(), &mut diag);
-        let ctx = match ctx {
+        let (ctxt, assoc) = match Context::new(path.clone(), &mut diag) {
             Ok(ctx) => ctx,
             Err(e) => {
                 diag.push_error(e);
@@ -26,41 +24,49 @@ impl Driver {
                 return Ok(());
             }
         };
-        let mut diag = diag.finish_stage()?;
+        let diag = diag.finish_stage()?;
 
-        // Parse all source files
-        let mut parsed = BTreeMap::new();
-        for s in ctx.source_files() {
-            let lexer = s.lexer();
-            let result = parse_file(&s, &lexer);
+        // Create lexers externally due to lifetimes
+        let mut lexers = BTreeMap::new();
+        for (id, src) in &ctxt.sources {
+            let lexer = src.lexer();
+            lexers.insert(id, lexer);
+        }
+
+        // Parse all files
+        let assoc = (&ctxt, assoc).par_map_assoc_with(&diag, |diag, src, _| {
+            let lexer = lexers.get(&src.id).unwrap();
+
+            let result = parse_file(&src, &lexer);
 
             if result.ast.is_none() || result.errs.len() > 0 {
                 for e in result.errs {
                     diag.push_error(e);
                 }
+                return None;
             }
 
-            if let Some(ast) = result.ast {
-                parsed.insert(ast.file, (lexer, ast, result.table));
-            }
-        }
+            Some((Arc::new(result.ast.unwrap()), Arc::new(result.table)))
+        })?;
+        let diag = diag.finish_stage()?;
 
-        let mut diag = diag.finish_stage()?;
+        // Perform AST validation
+        let ty_ctxt = Arc::new(TyCtxt::new());
+        let assoc =
+            (&ctxt, assoc).par_map_assoc(|src, (ast, table)| {
+                let lexer = lexers.get(&src.id).unwrap();
 
-        // Validate all ASTs
-        for source in ctx.source_files() {
-            let (lexer, ast, table) = parsed.get(&source.id).unwrap();
+                let local_ctxt = ty_ctxt.new_local_ctxt(src.id, table.clone());
 
-            let errs = validate_ast(&ast, table);
-            for err in errs {
-                diag.push_error(
-                    err.with_path(|_| source.path.clone().unwrap())
-                        .with_snippet(|e| {
-                            source.get_snippet(e.get_span().unwrap(), e.level(), lexer)
-                        }),
-                );
-            }
-        }
+                let errs = validate_ast(&ast, local_ctxt.clone());
+                for err in errs {
+                    diag.push_error(err.with_path(|_| src.path.clone().unwrap()).with_snippet(
+                        |e| src.get_snippet(e.get_span().unwrap(), e.level(), &lexer),
+                    ));
+                }
+
+                Some((ast, table, local_ctxt))
+            });
 
         let mut _diag = diag.finish_stage()?;
 

@@ -10,6 +10,6 @@ ecsl_assembler = { path = "../ecsl_assembler" }
 ecsl_error = { path = "../ecsl_error" }
 ecsl_parse = { path = "../ecsl_parse" }
 ecsl_ast_validation = { path = "../ecsl_ast_validation" }
+ecsl_ty = { version = "0.1.0", path = "../ecsl_ty" }
 anyhow = "1.0.86"
 rayon = "1.10.0"
-ecsl_ty = { version = "0.1.0", path = "../ecsl_ty" }

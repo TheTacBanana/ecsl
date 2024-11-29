@@ -1,4 +1,4 @@
-use std::vec;
+use std::{sync::RwLock, vec};
 
 use std::io::Write;
 
@@ -6,13 +6,13 @@ use ansi_term::Colour::Red;
 use ecsl_error::{EcslError, ErrorLevel};
 
 pub struct Diagnostics {
-    stages: Vec<Vec<EcslError>>,
+    stages: Vec<RwLock<Vec<EcslError>>>,
 }
 
 impl Diagnostics {
     pub fn new() -> Self {
         Self {
-            stages: vec![Vec::new()],
+            stages: vec![Default::default()],
         }
     }
 
@@ -21,6 +21,8 @@ impl Diagnostics {
             .stages
             .last()
             .unwrap()
+            .write()
+            .unwrap()
             .iter()
             .any(|e| e.level() == ErrorLevel::Error);
 
@@ -28,13 +30,18 @@ impl Diagnostics {
             self.ok().unwrap();
             Err(())
         } else {
-            self.stages.push(Vec::new());
+            self.stages.push(Default::default());
             Ok(self)
         }
     }
 
-    pub fn push_error(&mut self, error: EcslError) {
-        self.stages.last_mut().unwrap().push(error.into());
+    pub fn push_error(&self, error: EcslError) {
+        self.stages
+            .last()
+            .unwrap()
+            .write()
+            .unwrap()
+            .push(error.into());
     }
 
     fn ok(self) -> std::io::Result<()> {
@@ -43,7 +50,7 @@ impl Diagnostics {
 
         let mut total_fatal = 0;
         for stage in self.stages {
-            for err in stage {
+            for err in stage.write().unwrap().iter() {
                 if err.level() == ErrorLevel::Error {
                     total_fatal += 1;
                 }
