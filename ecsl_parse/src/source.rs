@@ -45,9 +45,16 @@ impl SourceFile {
         let new_start = i32::max(err_span.start() as i32 - (sc - 1) as i32, 0) as usize;
         let full_span = Span::new(new_start, err_span.end());
 
-        let line = (sl, lexer.span_lines_str(full_span).to_string());
+        let mut lines = Vec::new();
+        for (i, line) in lexer
+            .span_lines_str(full_span)
+            .split_inclusive('\n')
+            .enumerate()
+        {
+            lines.push((sl + i, line.to_string()));
+        }
 
-        Snippet::from_source_span(level, full_span, err_span, vec![line], lnc).unwrap()
+        Snippet::from_source_span(level, full_span, err_span, lines, lnc).unwrap()
 
         //TODO: Multiline snippets
 
@@ -70,15 +77,5 @@ impl SourceFile {
         // let full_span = Span::new(new_start, new_end);
 
         // println!("{}")
-
-        // let mut lines = Vec::new();
-        // for (i, line) in lexer
-        //     .span_lines_str(full_span)
-        //     .split_inclusive('\n')
-        //     .take(3)
-        //     .enumerate()
-        // {
-        //     lines.push((sl + i, line.to_string()));
-        // }
     }
 }

@@ -75,7 +75,7 @@ impl<'a, 'b> PartialSymbolTable<'a, 'b> {
 
     pub fn define_symbol(&mut self, name: String, span: Span, kind: SymbolKind) -> SymbolID {
         let (id, entry) = self.create_entry(name);
-        entry.add_usage(kind, span);
+        entry.add_definition(kind, span);
         id
     }
 
