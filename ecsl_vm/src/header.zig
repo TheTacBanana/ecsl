@@ -15,9 +15,9 @@ pub const ProgramHeader = packed struct {
     section_header: u64,
 };
 
-pub const SectionHeader = packed struct {
+pub const SectionHeader = struct {
     length: u32,
-    pointers: []SectionPointer,
+    pointers: []const SectionPointer,
 };
 
 pub const SectionPointer = packed struct {
@@ -56,7 +56,6 @@ pub fn read_program_header(file: *const std.fs.File) ProgramHeaderError!ProgramH
 
     const major: u32 = reader.readIntBig(u32) catch return error.FileError;
     const minor: u32 = reader.readIntBig(u32) catch return error.FileError;
-
     const file_type: FileType = @enumFromInt(reader.readIntBig(u32) catch return error.FileError);
     const entry_point: u64 = reader.readIntBig(u64) catch return error.FileError;
     const section_header: u64 = reader.readIntBig(u64) catch return error.FileError;
@@ -68,5 +67,37 @@ pub fn read_program_header(file: *const std.fs.File) ProgramHeaderError!ProgramH
         .file_type = file_type,
         .entry_point = entry_point,
         .section_header = section_header,
+    };
+}
+
+pub const SectionHeaderError = error{
+    FileError,
+    AllocError,
+    InvalidSectionHeaderAddress,
+};
+
+pub fn read_section_header(a: std.mem.Allocator, file: *const std.fs.File, header: *const ProgramHeader) SectionHeaderError!SectionHeader {
+    file.seekTo(header.section_header) catch return error.InvalidSectionHeaderAddress;
+
+    const reader = file.reader();
+
+    const length: u32 = reader.readIntBig(u32) catch return error.FileError;
+    const pointers = a.alloc(SectionPointer, length) catch return error.AllocError;
+
+    for (0..length) |i| {
+        const section_type: SectionType = @enumFromInt(reader.readIntBig(u32) catch return error.FileError);
+        const section_length: u32 = reader.readIntBig(u32) catch return error.FileError;
+        const address: u64 = reader.readIntBig(u64) catch return error.FileError;
+
+        pointers[i] = SectionPointer{
+            .ty = section_type,
+            .length = section_length,
+            .address = address,
+        };
+    }
+
+    return SectionHeader{
+        .length = length,
+        .pointers = pointers,
     };
 }

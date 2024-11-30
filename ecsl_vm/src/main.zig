@@ -33,8 +33,8 @@ pub fn main() !void {
     defer file.close();
 
     // Read Program Header
-    const program_header = header.read_program_header(&file) catch |err| {
-        switch (err) {
+    const program_header = header.read_program_header(&file) catch |e| {
+        switch (e) {
             error.FileError => std.log.err("A File Error occured", .{}),
             error.MagicBytesMissing => std.log.err("Magic Bytes Missing, likely incorrect file type", .{}),
         }
@@ -50,4 +50,14 @@ pub fn main() !void {
         std.log.err("File Minor version exceeds VM Minor version, (VM) {d} vs (File) {d}", .{ vm.minor, program_header.minor });
         return;
     }
+
+    // Read Section Header
+    _ = header.read_section_header(allocator, &file, &program_header) catch |e| {
+        switch (e) {
+            error.AllocError => std.log.err("An Allocation Error occured", .{}),
+            error.FileError => std.log.err("A File Error occured", .{}),
+            error.InvalidSectionHeaderAddress => std.log.err("Section Header address exceeds file length", .{}),
+        }
+        return;
+    };
 }
