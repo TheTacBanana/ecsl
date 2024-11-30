@@ -24,21 +24,21 @@ const FileType = enum(u32) { Unknown, Executable };
 
 const SectionType = enum(u32) { Unknown, ComponentDefinitions, SystemDependencies, Executable, Data };
 
-pub fn read_program_header(file: *const std.fs.File) anyerror!?ProgramHeader {
-    try file.seekTo(0);
+pub fn read_program_header(file: *const std.fs.File) error{ FileError, MagicBytesMissing }!ProgramHeader {
+    file.seekTo(0) catch return error.FileError;
 
     const reader = file.reader();
 
-    const magic_bytes: u32 = try reader.readIntLittle(u32);
+    const magic_bytes: u32 = reader.readIntLittle(u32) catch return error.FileError;
     if (magic_bytes != 1280525125) {
         return error.MagicBytesMissing;
     }
 
-    const minor: u32 = try reader.readIntBig(u32);
-    const major: u32 = try reader.readIntBig(u32);
-    const file_type: FileType = @enumFromInt(try reader.readIntBig(u32));
-    const entry_point: u64 = try reader.readIntBig(u64);
-    const section_header: u64 = try reader.readIntBig(u64);
+    const minor: u32 = reader.readIntBig(u32) catch return error.FileError;
+    const major: u32 = reader.readIntBig(u32) catch return error.FileError;
+    const file_type: FileType = @enumFromInt(reader.readIntBig(u32) catch return error.FileError);
+    const entry_point: u64 = reader.readIntBig(u64) catch return error.FileError;
+    const section_header: u64 = reader.readIntBig(u64) catch return error.FileError;
 
     return ProgramHeader{
         .magic_bytes = magic_bytes,

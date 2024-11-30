@@ -4,22 +4,38 @@ const header = @import("header.zig");
 pub fn main() !void {
     const allocator = std.heap.page_allocator;
 
+    // Allocate args
     const args = try std.process.argsAlloc(allocator);
     defer std.process.argsFree(allocator, args);
 
+    // Switch on arguments
     if (args.len <= 1) {
-        std.debug.print("Please provide an executable\n", .{});
+        std.log.err("Please provide an executable", .{});
         return;
     } else if (args.len > 2) {
-        std.debug.print("Multiple executables not supported\n", .{});
+        std.log.err("Multiple executables not supported", .{});
         return;
     }
 
+    // Get File Name
     const file_name = args[1];
-    std.debug.print("Executing {s}\n", .{file_name});
+    std.log.info("Executing {s}", .{file_name});
 
-    const file = try open_file(file_name);
-    const program_header = try header.read_program_header(&file) orelse return;
+    // Open File
+    const file = std.fs.cwd().openFile(file_name, .{}) catch {
+        std.log.err("Could not open file", .{});
+        return;
+    };
+    defer file.close();
+
+    // Read Program Header
+    const program_header = header.read_program_header(&file) catch |err| {
+        switch (err) {
+            error.FileError => std.log.err("A File Error occured", .{}),
+            error.MagicBytesMissing => std.log.err("Magic Bytes Missing, incorrect file type", .{}),
+        }
+        return;
+    };
 
     std.debug.print("{d}\n", .{program_header.magic_bytes});
     std.debug.print("{d}\n", .{program_header.major});
@@ -27,9 +43,4 @@ pub fn main() !void {
     std.debug.print("{s}\n", .{@tagName(program_header.file_type)});
     std.debug.print("{d}\n", .{program_header.entry_point});
     std.debug.print("{d}\n", .{program_header.section_header});
-}
-
-pub fn open_file(file_name: []const u8) std.fs.File.OpenError!std.fs.File {
-    const file = try std.fs.cwd().openFile(file_name, .{});
-    return file;
 }
