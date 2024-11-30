@@ -1,5 +1,6 @@
 const std = @import("std");
 const header = @import("header.zig");
+const vm = @import("vm.zig");
 
 pub fn main() !void {
     const allocator = std.heap.page_allocator;
@@ -17,6 +18,9 @@ pub fn main() !void {
         return;
     }
 
+    // Log Version
+    std.log.info("ECSL Virtual Machine v{d}.{d}", .{ vm.major, vm.minor });
+
     // Get File Name
     const file_name = args[1];
     std.log.info("Executing {s}", .{file_name});
@@ -32,15 +36,18 @@ pub fn main() !void {
     const program_header = header.read_program_header(&file) catch |err| {
         switch (err) {
             error.FileError => std.log.err("A File Error occured", .{}),
-            error.MagicBytesMissing => std.log.err("Magic Bytes Missing, incorrect file type", .{}),
+            error.MagicBytesMissing => std.log.err("Magic Bytes Missing, likely incorrect file type", .{}),
         }
         return;
     };
 
-    std.debug.print("{d}\n", .{program_header.magic_bytes});
-    std.debug.print("{d}\n", .{program_header.major});
-    std.debug.print("{d}\n", .{program_header.minor});
-    std.debug.print("{s}\n", .{@tagName(program_header.file_type)});
-    std.debug.print("{d}\n", .{program_header.entry_point});
-    std.debug.print("{d}\n", .{program_header.section_header});
+    // Compare Major Minor Versions
+    if (vm.major != program_header.major) {
+        std.log.err("Major versions mismatched, (VM) {d} vs (File) {d}", .{ vm.major, program_header.major });
+        return;
+    }
+    if (vm.minor < program_header.minor) {
+        std.log.err("File Minor version exceeds VM Minor version, (VM) {d} vs (File) {d}", .{ vm.minor, program_header.minor });
+        return;
+    }
 }

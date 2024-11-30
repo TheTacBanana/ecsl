@@ -1,11 +1,12 @@
 const std = @import("std");
+const vm = @import("vm.zig");
 
-const Header = struct {
+pub const Header = struct {
     program: ProgramHeader,
     section: SectionHeader,
 };
 
-const ProgramHeader = packed struct {
+pub const ProgramHeader = packed struct {
     magic_bytes: u32,
     major: u32,
     minor: u32,
@@ -14,17 +15,36 @@ const ProgramHeader = packed struct {
     section_header: u64,
 };
 
-const SectionHeader = struct {
+pub const SectionHeader = packed struct {
     length: u32,
+    pointers: []SectionPointer,
 };
 
-const SectionPointer = struct { ty: SectionType, length: u32, address: u64 };
+pub const SectionPointer = packed struct {
+    ty: SectionType,
+    length: u32,
+    address: u64,
+};
 
-const FileType = enum(u32) { Unknown, Executable };
+pub const FileType = enum(u32) {
+    Unknown,
+    Executable,
+};
 
-const SectionType = enum(u32) { Unknown, ComponentDefinitions, SystemDependencies, Executable, Data };
+pub const SectionType = enum(u32) {
+    Unknown,
+    ComponentDefinitions,
+    SystemDependencies,
+    Executable,
+    Data,
+};
 
-pub fn read_program_header(file: *const std.fs.File) error{ FileError, MagicBytesMissing }!ProgramHeader {
+pub const ProgramHeaderError = error{
+    FileError,
+    MagicBytesMissing,
+};
+
+pub fn read_program_header(file: *const std.fs.File) ProgramHeaderError!ProgramHeader {
     file.seekTo(0) catch return error.FileError;
 
     const reader = file.reader();
@@ -34,8 +54,9 @@ pub fn read_program_header(file: *const std.fs.File) error{ FileError, MagicByte
         return error.MagicBytesMissing;
     }
 
-    const minor: u32 = reader.readIntBig(u32) catch return error.FileError;
     const major: u32 = reader.readIntBig(u32) catch return error.FileError;
+    const minor: u32 = reader.readIntBig(u32) catch return error.FileError;
+
     const file_type: FileType = @enumFromInt(reader.readIntBig(u32) catch return error.FileError);
     const entry_point: u64 = reader.readIntBig(u64) catch return error.FileError;
     const section_header: u64 = reader.readIntBig(u64) catch return error.FileError;
