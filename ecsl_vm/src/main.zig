@@ -52,7 +52,7 @@ pub fn main() !void {
     }
 
     // Read Section Header
-    _ = header.read_section_header(allocator, &file, &program_header) catch |e| {
+    const section_header = header.read_section_header(allocator, &file, &program_header) catch |e| {
         switch (e) {
             error.AllocError => std.log.err("An Allocation Error occured", .{}),
             error.FileError => std.log.err("A File Error occured", .{}),
@@ -60,4 +60,19 @@ pub fn main() !void {
         }
         return;
     };
+
+    // Complete Header and Initialize the VM
+    const file_header = header.Header{
+        .program = program_header,
+        .section = section_header,
+    };
+    const ecsl_vm = vm.init_vm(allocator, &file, file_header) catch |e| {
+        switch (e) {
+            error.FileError => std.log.err("A File Error occured", .{}),
+            error.AllocError => std.log.err("An Allocation Error occured", .{}),
+        }
+        return;
+    };
+
+    _ = ecsl_vm;
 }

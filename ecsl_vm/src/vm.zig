@@ -13,13 +13,15 @@ const EcslVM = struct {
 };
 
 pub fn init_vm(a: std.mem.Allocator, f: *const std.fs.File, h: header.Header) error{ FileError, AllocError }!EcslVM {
+    std.log.info("Creating Virtual Machine", .{});
+
     const file_stat = f.stat() catch return error.FileError;
     const size = file_stat.size;
 
     var stack = a.alloc(u8, size + 1000000) catch return error.AllocError;
 
     f.seekTo(0) catch return error.FileError;
-    f.readAll(&stack) catch return error.FileError;
+    _ = f.readAll(stack) catch return error.FileError;
 
     return EcslVM{
         .allocator = a,

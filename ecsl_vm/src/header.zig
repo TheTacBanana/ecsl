@@ -45,6 +45,8 @@ pub const ProgramHeaderError = error{
 };
 
 pub fn read_program_header(file: *const std.fs.File) ProgramHeaderError!ProgramHeader {
+    std.log.info("Reading Program Header", .{});
+
     file.seekTo(0) catch return error.FileError;
 
     const reader = file.reader();
@@ -77,6 +79,8 @@ pub const SectionHeaderError = error{
 };
 
 pub fn read_section_header(a: std.mem.Allocator, file: *const std.fs.File, header: *const ProgramHeader) SectionHeaderError!SectionHeader {
+    std.log.info("Reading Section Header", .{});
+
     file.seekTo(header.section_header) catch return error.InvalidSectionHeaderAddress;
 
     const reader = file.reader();
