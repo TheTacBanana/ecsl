@@ -1,32 +1,50 @@
 const std = @import("std");
 const header = @import("header.zig");
+const thread = @import("thread.zig");
 
 pub const major: u32 = 1;
-pub const minor: u32 = 1;
+pub const minor: u32 = 0;
 
-const EcslVM = struct {
+pub const EcslVM = struct {
     allocator: std.mem.Allocator,
     header: header.Header,
+    binary: []u8,
+    stack_size: u64,
+    threads: std.ArrayList(thread.ProgramThread),
 
-    min_stack: u64,
-    file_and_stack: []u8,
+    pub fn next_thread_id(self: *const EcslVM) usize {
+        return self.threads.items.len;
+    }
+
+    pub fn create_thread(self: *EcslVM) error{AllocError}!u64 {
+        var new_thread = thread.new_thread(self.allocator, self) catch return error.AllocError;
+        self.threads.append(new_thread) catch return error.AllocError;
+        return new_thread.id;
+    }
+
+    pub fn get_thread(self: *EcslVM, id: usize) *thread.ProgramThread {
+        return &self.threads.items[id];
+    }
 };
 
-pub fn init_vm(a: std.mem.Allocator, f: *const std.fs.File, h: header.Header) error{ FileError, AllocError }!EcslVM {
+pub fn init_vm(a: std.mem.Allocator, f: *const std.fs.File, h: header.Header, stack_size: u64) error{ FileError, AllocError }!EcslVM {
     std.log.info("Creating Virtual Machine", .{});
 
     const file_stat = f.stat() catch return error.FileError;
     const size = file_stat.size;
 
-    var stack = a.alloc(u8, size + 1000000) catch return error.AllocError;
+    var binary = a.alloc(u8, size) catch return error.AllocError;
 
     f.seekTo(0) catch return error.FileError;
-    _ = f.readAll(stack) catch return error.FileError;
+    _ = f.readAll(binary) catch return error.FileError;
+
+    const threads = std.ArrayList(thread.ProgramThread).init(a);
 
     return EcslVM{
         .allocator = a,
         .header = h,
-        .min_stack = size,
-        .file_and_stack = stack,
+        .binary = binary,
+        .stack_size = stack_size,
+        .threads = threads,
     };
 }

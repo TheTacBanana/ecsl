@@ -44,6 +44,7 @@ pub const ProgramHeaderError = error{
     MagicBytesMissing,
 };
 
+// Read the program header from the start of the file
 pub fn read_program_header(file: *const std.fs.File) ProgramHeaderError!ProgramHeader {
     std.log.info("Reading Program Header", .{});
 
@@ -78,6 +79,7 @@ pub const SectionHeaderError = error{
     InvalidSectionHeaderAddress,
 };
 
+// Read the section header from the end of the file
 pub fn read_section_header(a: std.mem.Allocator, file: *const std.fs.File, header: *const ProgramHeader) SectionHeaderError!SectionHeader {
     std.log.info("Reading Section Header", .{});
 

@@ -66,7 +66,7 @@ pub fn main() !void {
         .program = program_header,
         .section = section_header,
     };
-    const ecsl_vm = vm.init_vm(allocator, &file, file_header) catch |e| {
+    var ecsl_vm = vm.init_vm(allocator, &file, file_header, 1000000) catch |e| {
         switch (e) {
             error.FileError => std.log.err("A File Error occured", .{}),
             error.AllocError => std.log.err("An Allocation Error occured", .{}),
@@ -74,5 +74,14 @@ pub fn main() !void {
         return;
     };
 
-    _ = ecsl_vm;
+    // Create Initial Main Thread
+    const thread_id = ecsl_vm.create_thread() catch |e| {
+        switch (e) {
+            error.AllocError => std.log.err("An Allocation Error occured", .{}),
+        }
+        return;
+    };
+    std.log.info("Created thread with id {d}", .{thread_id});
+
+    ecsl_vm.get_thread(thread_id).execute_from(file_header.program.entry_point);
 }
