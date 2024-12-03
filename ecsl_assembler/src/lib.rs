@@ -22,7 +22,7 @@ impl Assembler {
     pub fn new() -> Self {
         Self {
             major_version: 1,
-            minor_version: 1,
+            minor_version: 0,
             file_type: FileType::Executable,
             const_data: Vec::new(),
             sections: Vec::new(),

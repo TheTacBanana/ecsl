@@ -52,16 +52,17 @@ pub fn read_program_header(file: *const std.fs.File) ProgramHeaderError!ProgramH
 
     const reader = file.reader();
 
-    const magic_bytes: u32 = reader.readIntLittle(u32) catch return error.FileError;
+    const big = std.builtin.Endian.big;
+    const magic_bytes: u32 = reader.readInt(u32, std.builtin.Endian.little) catch return error.FileError;
     if (magic_bytes != 1280525125) {
         return error.MagicBytesMissing;
     }
 
-    const major: u32 = reader.readIntBig(u32) catch return error.FileError;
-    const minor: u32 = reader.readIntBig(u32) catch return error.FileError;
-    const file_type: FileType = @enumFromInt(reader.readIntBig(u32) catch return error.FileError);
-    const entry_point: u64 = reader.readIntBig(u64) catch return error.FileError;
-    const section_header: u64 = reader.readIntBig(u64) catch return error.FileError;
+    const major: u32 = reader.readInt(u32, big) catch return error.FileError;
+    const minor: u32 = reader.readInt(u32, big) catch return error.FileError;
+    const file_type: FileType = @enumFromInt(reader.readInt(u32, big) catch return error.FileError);
+    const entry_point: u64 = reader.readInt(u64, big) catch return error.FileError;
+    const section_header: u64 = reader.readInt(u64, big) catch return error.FileError;
 
     return ProgramHeader{
         .magic_bytes = magic_bytes,
@@ -87,13 +88,14 @@ pub fn read_section_header(a: std.mem.Allocator, file: *const std.fs.File, heade
 
     const reader = file.reader();
 
-    const length: u32 = reader.readIntBig(u32) catch return error.FileError;
+    const big = std.builtin.Endian.big;
+    const length: u32 = reader.readInt(u32, big) catch return error.FileError;
     const pointers = a.alloc(SectionPointer, length) catch return error.AllocError;
 
     for (0..length) |i| {
-        const section_type: SectionType = @enumFromInt(reader.readIntBig(u32) catch return error.FileError);
-        const section_length: u32 = reader.readIntBig(u32) catch return error.FileError;
-        const address: u64 = reader.readIntBig(u64) catch return error.FileError;
+        const section_type: SectionType = @enumFromInt(reader.readInt(u32, big) catch return error.FileError);
+        const section_length: u32 = reader.readInt(u32, big) catch return error.FileError;
+        const address: u64 = reader.readInt(u64, big) catch return error.FileError;
 
         pointers[i] = SectionPointer{
             .ty = section_type,

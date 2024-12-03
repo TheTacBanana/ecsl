@@ -1,7 +1,8 @@
 { pkgs ? import <nixpkgs> {} }:
-pkgs.mkShell {
-  buildInputs = [
-    pkgs.cmake
-    pkgs.gcc
-  ];
+  pkgs.mkShell {
+    nativeBuildInputs = with pkgs.buildPackages; [
+      rustup
+      gcc
+      zig_0_12
+     ];
 }

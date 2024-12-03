@@ -61,12 +61,19 @@ pub fn main() !void {
         return;
     };
 
+    // Create Thread Safe Allocator
+    var ts_allocator = std.heap.ThreadSafeAllocator{
+        .child_allocator = allocator,
+    };
+
+    const vm_allocator = ts_allocator.allocator();
+
     // Complete Header and Initialize the VM
     const file_header = header.Header{
         .program = program_header,
         .section = section_header,
     };
-    var ecsl_vm = vm.init_vm(allocator, &file, file_header, 1000000) catch |e| {
+    var ecsl_vm = vm.init_vm(vm_allocator, &file, file_header, 1000000) catch |e| {
         switch (e) {
             error.FileError => std.log.err("A File Error occured", .{}),
             error.AllocError => std.log.err("An Allocation Error occured", .{}),
@@ -78,10 +85,9 @@ pub fn main() !void {
     const thread_id = ecsl_vm.create_thread() catch |e| {
         switch (e) {
             error.AllocError => std.log.err("An Allocation Error occured", .{}),
+            error.OutOfMemory => std.log.err("Out of Memory", .{}),
         }
         return;
     };
     std.log.info("Created thread with id {d}", .{thread_id});
-
-    ecsl_vm.get_thread(thread_id).execute_from(file_header.program.entry_point);
 }

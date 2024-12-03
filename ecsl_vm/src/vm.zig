@@ -16,10 +16,10 @@ pub const EcslVM = struct {
         return self.threads.items.len;
     }
 
-    pub fn create_thread(self: *EcslVM) error{AllocError}!u64 {
-        var new_thread = thread.new_thread(self.allocator, self) catch return error.AllocError;
-        self.threads.append(new_thread) catch return error.AllocError;
-        return new_thread.id;
+    pub fn create_thread(self: *EcslVM) !u64 {
+        const connector = try thread.ProgramThread.new(self);
+        try self.threads.append(connector);
+        return connector.id;
     }
 
     pub fn get_thread(self: *EcslVM, id: usize) *thread.ProgramThread {
@@ -33,7 +33,7 @@ pub fn init_vm(a: std.mem.Allocator, f: *const std.fs.File, h: header.Header, st
     const file_stat = f.stat() catch return error.FileError;
     const size = file_stat.size;
 
-    var binary = a.alloc(u8, size) catch return error.AllocError;
+    const binary = a.alloc(u8, size) catch return error.AllocError;
 
     f.seekTo(0) catch return error.FileError;
     _ = f.readAll(binary) catch return error.FileError;
