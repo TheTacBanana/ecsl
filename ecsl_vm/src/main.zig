@@ -90,4 +90,24 @@ pub fn main() !void {
         return;
     };
     std.log.info("Created thread with id {d}", .{thread_id});
+
+    var lib = try std.DynLib.open("/home/banana/Dev/ecsl/libfoo.so");
+    const symbol = lib.inner.lookupAddress("", "b").?;
+
+    const ffi = @import("ffi");
+    var func: ffi.Function = undefined;
+    var params = [_]*ffi.Type{ffi.types.sint32};
+
+    const i: i32 = 41;
+    var func_args = [_]*anyopaque{@ptrCast(@constCast(&i))};
+
+    try func.prepare(ffi.Abi.default, params.len, params[0..params.len], ffi.types.sint32);
+
+    const p: *const fn () c_int = @ptrFromInt(symbol);
+    std.log.debug("{}", .{p});
+
+    var result: ffi.uarg = undefined;
+    func.call(p, func_args[0..func_args.len], &result);
+
+    std.log.debug("{}", .{result});
 }
