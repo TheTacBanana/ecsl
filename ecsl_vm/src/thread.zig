@@ -1,5 +1,6 @@
 const std = @import("std");
 const vm = @import("vm.zig");
+const Opcode = @import("opcode.zig").Opcode;
 
 pub const ProgramThread = struct {
     vm_ptr: *const vm.EcslVM,
@@ -15,6 +16,16 @@ pub const ProgramThread = struct {
             .stack = stack,
             .pc = 0,
         };
+    }
+
+    pub fn execute_from_address(self: *ProgramThread, new_pc: u64) error{InvalidInstruction}!void {
+        self.pc = new_pc;
+
+        const op = try Opcode.from_byte(self.vm_ptr.binary[self.pc]);
+
+        std.log.debug("{}", .{op});
+
+        // while (true) {}
     }
 };
 
