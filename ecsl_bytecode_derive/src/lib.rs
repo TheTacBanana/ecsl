@@ -1,10 +1,9 @@
 extern crate proc_macro;
-extern crate syn;
-// #[macro_use]
 extern crate quote;
+extern crate syn;
 
 use proc_macro2::TokenStream;
-use quote::quote;
+use quote::{format_ident, quote};
 use std::io::Write;
 use syn::{parse_macro_input, Data, DataEnum, DeriveInput};
 
@@ -18,17 +17,16 @@ pub fn bytecode_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStrea
         panic!("Only enums supported")
     };
 
-    let opcode_enum = generate_opcode_enum(&e);
-    // let conversion_impl = generate_conversion_impl(&e);
+    let generated = generate(&e).into();
+    zig_opcode_generation(&e).unwrap();
 
-    zig_opcode_generation(&e);
-
-    opcode_enum.into()
+    generated
 }
 
-fn generate_opcode_enum(e: &DataEnum) -> TokenStream {
+fn generate(e: &DataEnum) -> TokenStream {
     let mut variant_names = Vec::new();
     let mut variant_match_arms = Vec::new();
+    let mut to_bytes = Vec::new();
 
     for variant in e.variants.iter() {
         let ident = variant.ident.clone();
@@ -39,6 +37,27 @@ fn generate_opcode_enum(e: &DataEnum) -> TokenStream {
         variant_match_arms.push(quote! {
             #ident => #operand_len
         });
+
+        let ident = variant.ident.clone();
+        let mut fields = Vec::new();
+        let mut write_bytes = Vec::new();
+        for i in 0..variant.fields.len() {
+            let field_ident = format_ident!("f{}", i);
+            fields.push(field_ident.clone());
+            write_bytes.push(quote! {
+                bytes.extend_from_slice(&#field_ident.to_le_bytes());
+            });
+        }
+
+        if variant.fields.len() == 0 {
+            to_bytes.push(quote! {
+                #ident => { #(#write_bytes)* }
+            });
+        } else {
+            to_bytes.push(quote! {
+                #ident (#(#fields),*) => { #(#write_bytes)* }
+            });
+        }
     }
 
     quote! {
@@ -54,29 +73,25 @@ fn generate_opcode_enum(e: &DataEnum) -> TokenStream {
                 }
             }
         }
+
+        impl Bytecode {
+            fn discriminant(&self) -> u8 {
+                unsafe { *(self as *const Self as *const u8) }
+            }
+
+            pub fn to_bytes(self) -> Vec<u8> {
+                let mut bytes = Vec::new();
+                bytes.push(self.discriminant());
+                match self {
+                    #(Bytecode::#to_bytes),*
+                }
+                return bytes;
+            }
+        }
     }
 }
 
-// fn generate_conversion_impl(e: &DataEnum) -> TokenStream {
-//     let mut variant_names = Vec::new();
-//     // let mut variant_match_arms = Vec::new();
-
-//     for variant in e.variants.iter() {
-//         let ident = variant.ident.clone();
-//         variant_names.push(ident);
-
-//     }
-
-//     quote! {
-//         impl BytecodeInstruction {
-//             pub fn convert(self) -> Bytecode {
-
-//             }
-//         }
-//     }
-// }
-
-fn zig_opcode_generation(e: &DataEnum) {
+fn zig_opcode_generation(e: &DataEnum) -> std::io::Result<()> {
     let mut variant_names = String::new();
     let mut match_arms = String::new();
 
@@ -168,8 +183,8 @@ pub const Opcode = enum(u8) {{
         match_arms.trim_end(),
     );
 
-    std::fs::File::create(format!("{PATH_TO_VM_SRC}/opcode.zig"))
-        .unwrap()
-        .write_all(operations_zig.as_bytes())
-        .unwrap();
+    std::fs::File::create(format!("{PATH_TO_VM_SRC}/opcode.zig"))?
+        .write(operations_zig.as_bytes())?;
+
+    Ok(())
 }
