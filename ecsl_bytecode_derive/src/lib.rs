@@ -1,12 +1,12 @@
 extern crate proc_macro;
 extern crate syn;
-#[macro_use]
+// #[macro_use]
 extern crate quote;
 
 use proc_macro2::TokenStream;
 use quote::quote;
 use std::io::Write;
-use syn::{parse_macro_input, Data, DataEnum, DeriveInput, Expr, Lit, LitStr};
+use syn::{parse_macro_input, Data, DataEnum, DeriveInput};
 
 const PATH_TO_VM_SRC: &str = "./ecsl_vm/src/";
 
@@ -64,12 +64,22 @@ fn zig_opcode_generation(e: &DataEnum) {
         {
             let mut docs = String::new();
             for c in &variant.attrs {
-                if c.path().is_ident("doc") {
-                    let Ok(args): Result<syn::LitStr, syn::Error> = c.parse_args() else {
-                        continue;
-                    };
-                    docs.push_str(&format!("{}\n\t\t\t", args.value()));
-                }
+                let expr = match c.meta {
+                    syn::Meta::NameValue(ref name_value) if name_value.path.is_ident("doc") => {
+                        &name_value.value
+                    }
+                    _ => continue,
+                };
+
+                let lit = match expr {
+                    syn::Expr::Lit(syn::ExprLit {
+                        lit: syn::Lit::Str(s),
+                        ..
+                    }) => s.value(),
+                    _ => continue,
+                };
+
+                docs.push_str(&format!("///{}\n\t", lit));
             }
             variant_names.push_str(&format!("{}{},\n\t", docs, variant.ident.to_string()));
         }
@@ -92,9 +102,7 @@ fn zig_opcode_generation(e: &DataEnum) {
                 let mut fields = String::new();
                 for field in &variant.fields {
                     let field_ty = match &field.ty {
-                        syn::Type::Path(p) => {
-                            p.path.get_ident().unwrap().to_string()
-                        },
+                        syn::Type::Path(p) => p.path.get_ident().unwrap().to_string(),
                         _ => panic!("Unsupported Ty"),
                     };
 
