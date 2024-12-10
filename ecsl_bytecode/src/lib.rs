@@ -1,25 +1,12 @@
 use ecsl_bytecode_derive::Bytecode;
 
-
-pub type Address = u64;
-
-#[derive(Debug)]
-pub enum Immediate {
-    Int(i32),
-    Float(f32),
-}
-
-#[derive(Debug)]
-pub enum ImmediateLong {
-    Long(i64),
-    Address(Address),
-}
-
 #[derive(Debug, Bytecode)]
 pub enum Bytecode {
     /// No Op
+    #[execute("{}")]
     NOP,
     /// Halt the program
+    #[execute("return thread.ExecutionStatus.HaltProgram")]
     HALT,
 
     /// Pop the top byte of the stack
@@ -31,13 +18,13 @@ pub enum Bytecode {
     /// Duplicate the top value
     DUP,
     /// Push the immediate value
-    PSHI(Immediate),
+    PSHI(u32),
     /// Push the long immediate value
-    PSHIL(ImmediateLong),
+    PSHIL(u64),
     /// Load N bytes from the address onto the stack
-    LD(Address, Immediate),
+    LD(u64, u64),
     /// Store the top N bytes from the stack at the address
-    ST(Address, Immediate),
+    ST(u64, u64),
 
     /// Compare 2 Bytes and push the result (Integer)
     CMPB,
@@ -46,19 +33,19 @@ pub enum Bytecode {
     /// Compare 2 Longs and push the result (Integer)
     CMPL,
     /// Unconditional Jump
-    JMP(Address),
+    JMP(u64),
     /// Jump Greater than or Equal to
-    JGE(Address),
+    JGE(u64),
     /// Jump Greater Than
-    JGT(Address),
+    JGT(u64),
     /// Jump Less than or Equal to
-    JLE(Address),
+    JLE(u64),
     /// Jump Less than
-    JLT(Address),
+    JLT(u64),
     /// Jump Equal to 0
-    JEZ(Address),
+    JEZ(u64),
     /// Jump Not 0
-    JNZ(Address),
+    JNZ(u64),
 
     /// Add the top 2 bytes of the stack and push the result
     ADDB,
@@ -115,8 +102,10 @@ pub enum Bytecode {
     /// Bitwise Negation (Byte)
     NEG,
     /// Bitwise AND (Byte)
+    #[execute("ins._and(t,)")]
     AND,
     /// Bitwise OR (Byte)
+    #[execute("ins._or(t,)")]
     OR,
     /// Bitwise XOR (Byte)
     XOR

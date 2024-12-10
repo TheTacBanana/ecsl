@@ -6,12 +6,12 @@ extern crate quote;
 use proc_macro2::TokenStream;
 use quote::quote;
 use std::io::Write;
-use syn::{parse_macro_input, Data, DataEnum, DeriveInput, Expr, Lit};
+use syn::{parse_macro_input, Data, DataEnum, DeriveInput, Expr, Lit, LitStr};
 
 const PATH_TO_VM_SRC: &str = "./ecsl_vm/src/";
 
-#[proc_macro_derive(Bytecode)]
-pub fn ast_attribute(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+#[proc_macro_derive(Bytecode, attributes(execute))]
+pub fn bytecode_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let ast = parse_macro_input!(input as DeriveInput);
 
     let Data::Enum(e) = ast.data else {
@@ -58,41 +58,84 @@ fn generate_opcode_enum(e: &DataEnum) -> TokenStream {
 
 fn zig_opcode_generation(e: &DataEnum) {
     let mut variant_names = String::new();
+    let mut match_arms = String::new();
 
     for variant in e.variants.iter() {
-        let mut docs = String::new();
-        for c in &variant.attrs {
-            match &c.meta {
-                syn::Meta::NameValue(pair) if pair.path.segments[0].ident == "doc" => {
-                    let Expr::Lit(l) = &pair.value else {
+        {
+            let mut docs = String::new();
+            for c in &variant.attrs {
+                if c.path().is_ident("doc") {
+                    let Ok(args): Result<syn::LitStr, syn::Error> = c.parse_args() else {
                         continue;
                     };
-                    let Lit::Str(token) = &l.lit else {
-                        continue;
+                    docs.push_str(&format!("{}\n\t\t\t", args.value()));
+                }
+            }
+            variant_names.push_str(&format!("{}{},\n\t", docs, variant.ident.to_string()));
+        }
+
+        {
+            let mut execute_string = (|| {
+                for c in &variant.attrs {
+                    if c.path().is_ident("execute") {
+                        let Ok(args): Result<syn::LitStr, syn::Error> = c.parse_args() else {
+                            continue;
+                        };
+                        return Some(args.value());
+                    }
+                }
+                return None;
+            })();
+
+            if execute_string.is_none() {
+                let method_name = variant.ident.to_string().to_lowercase();
+                let mut fields = String::new();
+                for field in &variant.fields {
+                    let field_ty = match &field.ty {
+                        syn::Type::Path(p) => {
+                            p.path.get_ident().unwrap().to_string()
+                        },
+                        _ => panic!("Unsupported Ty"),
                     };
 
-                    docs.push_str(&format!("///{}\n\t", token.value()));
+                    fields.push_str(&format!(", t.next_immediate({})", field_ty));
                 }
-                _ => (),
+
+                execute_string = Some(format!("ins.{}(t{})", method_name, fields));
             }
+
+            match_arms.push_str(&format!(
+                "Opcode.{} => {},\n\t\t\t",
+                variant.ident.to_string(),
+                execute_string.unwrap()
+            ));
         }
-        variant_names.push_str(&format!("{}{},\n\t", docs, variant.ident.to_string()));
     }
 
     let operations_zig = format!(
         r#"const std = @import("std");
 const ins = @import("instruction.zig");
+const thread = @import("thread.zig");
 
 pub const Opcode = enum(u8) {{
     {}
 
+    /// Convert a byte into an Opcode
     pub fn from_byte(b: u8) error{{InvalidInstruction}}!Opcode {{
         return std.meta.intToEnum(Opcode, b) catch return error.InvalidInstruction;
+    }}
+
+    /// Execute an Opcode
+    pub fn execute(t: *thread.ProgramThread, op: Opcode) thread.ExecutionStatus {{
+        switch (op) {{
+            {}
+        }}
     }}
 }};
 
 "#,
-        variant_names.trim_end()
+        variant_names.trim_end(),
+        match_arms.trim_end(),
     );
 
     std::fs::File::create(format!("{PATH_TO_VM_SRC}/opcode.zig"))

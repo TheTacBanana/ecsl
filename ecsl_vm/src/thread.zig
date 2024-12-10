@@ -3,19 +3,19 @@ const vm = @import("vm.zig");
 const Opcode = @import("opcode.zig").Opcode;
 const ins = @import("instruction.zig");
 
+pub const ExecutionStatus = enum {
+    Success,
+    ProgramPanic,
+    HaltProgram,
+    InvalidInstruction,
+};
+
 pub const ProgramThread = struct {
     vm_ptr: *const vm.EcslVM,
     id: usize,
     stack: []u8,
     pc: u64,
     sp: u64,
-
-    pub const ExecutionStatus = enum {
-        Success,
-        ProgramPanic,
-        HaltProgram,
-        InvalidInstruction,
-    };
 
     pub fn new(v: *const vm.EcslVM) error{AllocError}!ProgramThread {
         const stack = v.allocator.alloc(u8, v.stack_size) catch return error.AllocError;
@@ -78,14 +78,10 @@ pub const ProgramThread = struct {
     pub fn execute_from_address(self: *ProgramThread, new_pc: u64) ExecutionStatus {
         self.pc = new_pc;
 
-        const op = self.next_opcode() catch return ExecutionStatus.InvalidInstruction;
         while (true) {
-            switch (op) {
-                Opcode.NOP => {},
-                Opcode.HALT => return ExecutionStatus.HaltProgram,
-                Opcode.PSHI => ins.pshi(self, self.next_immediate(u32)),
-                Opcode.ADDI => ins.addi(self, self.next_immediate(i32), self.next_immediate(i32)),
-            }
+            const op = self.next_opcode() catch return ExecutionStatus.InvalidInstruction;
+            const result = Opcode.execute(self, op);
+            _ = result;
         }
 
         return ExecutionStatus.Successs;
