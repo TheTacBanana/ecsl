@@ -4,3 +4,6 @@
 # Zig Target
 zig-cache/
 zig-out/
+
+# Opcode Zig File
+ecsl_vm/src/opcode.zig
