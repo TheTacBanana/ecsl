@@ -1,3 +1,5 @@
+use ecsl_bytecode_derive::Bytecode;
+
 
 pub type Address = u64;
 
@@ -13,7 +15,7 @@ pub enum ImmediateLong {
     Address(Address),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Bytecode)]
 pub enum Bytecode {
     // No Op
     NOP,
