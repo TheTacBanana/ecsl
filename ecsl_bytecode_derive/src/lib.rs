@@ -18,11 +18,12 @@ pub fn bytecode_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStrea
         panic!("Only enums supported")
     };
 
-    let out = generate_opcode_enum(&e);
+    let opcode_enum = generate_opcode_enum(&e);
+    // let conversion_impl = generate_conversion_impl(&e);
 
     zig_opcode_generation(&e);
 
-    out.into()
+    opcode_enum.into()
 }
 
 fn generate_opcode_enum(e: &DataEnum) -> TokenStream {
@@ -55,6 +56,25 @@ fn generate_opcode_enum(e: &DataEnum) -> TokenStream {
         }
     }
 }
+
+// fn generate_conversion_impl(e: &DataEnum) -> TokenStream {
+//     let mut variant_names = Vec::new();
+//     // let mut variant_match_arms = Vec::new();
+
+//     for variant in e.variants.iter() {
+//         let ident = variant.ident.clone();
+//         variant_names.push(ident);
+
+//     }
+
+//     quote! {
+//         impl BytecodeInstruction {
+//             pub fn convert(self) -> Bytecode {
+
+//             }
+//         }
+//     }
+// }
 
 fn zig_opcode_generation(e: &DataEnum) {
     let mut variant_names = String::new();
@@ -138,6 +158,8 @@ pub const Opcode = enum(u8) {{
         switch (op) {{
             {}
         }}
+
+        return thread.ExecutionStatus.Success;
     }}
 }};
 
