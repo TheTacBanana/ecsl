@@ -2,6 +2,8 @@ const std = @import("std");
 const header = @import("header.zig");
 const vm = @import("vm.zig");
 
+pub const log_level: std.log.Level = .info;
+
 pub fn main() anyerror!void {
     const allocator = std.heap.page_allocator;
 
@@ -92,25 +94,6 @@ pub fn main() anyerror!void {
     std.log.info("Created thread with id {d}", .{thread_id});
 
     const thread_ptr = ecsl_vm.get_thread(thread_id);
-    try thread_ptr.execute_from_address(program_header.entry_point);
-
-    // var lib = try std.DynLib.open("/home/banana/Dev/ecsl/libfoo.so");
-    // const symbol = lib.inner.lookupAddress("", "b").?;
-
-    // const ffi = @import("ffi");
-    // var func: ffi.Function = undefined;
-    // var params = [_]*ffi.Type{ffi.types.sint32};
-
-    // const i: i32 = 41;
-    // var func_args = [_]*anyopaque{@ptrCast(@constCast(&i))};
-
-    // try func.prepare(ffi.Abi.default, params.len, params[0..params.len], ffi.types.sint32);
-
-    // const p: *const fn () c_int = @ptrFromInt(symbol);
-    // std.log.debug("{}", .{p});
-
-    // var result: ffi.uarg = undefined;
-    // func.call(p, func_args[0..func_args.len], &result);
-
-    // std.log.debug("{}", .{result});
+    const return_status = thread_ptr.execute_from_address(program_header.entry_point);
+    std.log.info("{s}", .{@tagName(return_status)});
 }

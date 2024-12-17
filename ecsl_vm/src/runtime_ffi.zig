@@ -39,14 +39,7 @@ pub const RuntimeFfi = struct {
         return s;
     }
 
-    // pub fn load_lib(self: *RuntimeFfi, lib: *const []u8) ?*std.DynLib {
-
-    //     // self.
-    // }
-
     fn load_directory(self: *RuntimeFfi, abs_path: []const u8) RuntimeFfiError!void {
-        std.log.debug("Searching {s}", .{abs_path});
-
         var dir = std.fs.cwd().openDir(
             abs_path,
             .{ .iterate = true },
@@ -65,7 +58,9 @@ pub const RuntimeFfi = struct {
         }
 
         for (file_list.items, 0..) |file, index| {
-            std.log.debug("{d} : {s}", .{ index, file });
+            _ = file;
+            _ = index;
+            // std.log.debug("{d} : {s}", .{ index, file });
         }
     }
 };
