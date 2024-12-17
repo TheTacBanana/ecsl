@@ -1,8 +1,60 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const header = @import("header.zig");
 const vm = @import("vm.zig");
 
-pub const log_level: std.log.Level = .info;
+pub const std_options: std.Options = .{
+    .log_level = switch (builtin.mode) {
+        .Debug => .debug,
+        .ReleaseSafe, .ReleaseFast, .ReleaseSmall => .info,
+    },
+    .logFn = customLog,
+};
+
+pub fn customLog(
+    comptime message_level: std.log.Level,
+    comptime scope: @Type(.EnumLiteral),
+    comptime format: []const u8,
+    args: anytype,
+) void {
+    _ = scope;
+
+    switch (message_level) {
+        .err, .warn => {
+            const prefix = comptime message_level.asText();
+            const stderr = std.io.getStdErr().writer();
+            var bw = std.io.bufferedWriter(stderr);
+            const writer = bw.writer();
+
+            std.debug.getStderrMutex().lock();
+            defer std.debug.getStderrMutex().unlock();
+            nosuspend {
+                writer.print("\x1b[31m" ++ prefix ++ "\x1b[0m: " ++ format ++ "\n", args) catch return;
+                bw.flush() catch return;
+            }
+        },
+        .info => {
+            const stdout = std.io.getStdOut().writer();
+            var bw = std.io.bufferedWriter(stdout);
+            const writer = bw.writer();
+
+            nosuspend {
+                writer.print(format ++ "\n", args) catch return;
+                bw.flush() catch return;
+            }
+        },
+        .debug => {
+            const stdout = std.io.getStdOut().writer();
+            var bw = std.io.bufferedWriter(stdout);
+            const writer = bw.writer();
+
+            nosuspend {
+                writer.print("\x1b[34mdebug\x1b[0m: " ++ format ++ "\n", args) catch return;
+                bw.flush() catch return;
+            }
+        },
+    }
+}
 
 pub fn main() anyerror!void {
     const allocator = std.heap.page_allocator;
@@ -25,7 +77,7 @@ pub fn main() anyerror!void {
 
     // Get File Name
     const file_name = args[1];
-    std.log.info("Executing {s}", .{file_name});
+    std.log.info("Executing '{s}'", .{file_name});
 
     // Open File
     const file = std.fs.cwd().openFile(file_name, .{}) catch {
@@ -91,9 +143,9 @@ pub fn main() anyerror!void {
         }
         return;
     };
-    std.log.info("Created thread with id {d}", .{thread_id});
+    std.log.debug("Created thread with id {d}", .{thread_id});
 
     const thread_ptr = ecsl_vm.get_thread(thread_id);
     const return_status = thread_ptr.execute_from_address(program_header.entry_point);
-    std.log.info("{s}", .{@tagName(return_status)});
+    std.log.err("{s}", .{@tagName(return_status)});
 }

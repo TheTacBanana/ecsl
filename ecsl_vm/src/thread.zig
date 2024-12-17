@@ -96,12 +96,12 @@ pub const ProgramThread = struct {
         }
 
         // Dump Program Stack
-        std.debug.print("Program Thread {d} panicked with {s}:\n", .{ self.id, @errorName(err) });
+        std.log.err("Program Thread {d} panicked with {s}:", .{ self.id, @errorName(err) });
         var i: usize = self.call_stack.items.len;
         while (i > 0) {
             i -= 1;
             const frame = self.call_stack.pop();
-            std.debug.print("Func Address 0x{X} : ({d})\n", .{ frame.func_address, i });
+            std.log.err("at Func Address 0x{X} : ({d})", .{ frame.func_address, i });
         }
 
         self.state.status = ProgramStatus.ErrorOrPanic;

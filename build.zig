@@ -1,7 +1,8 @@
 const std = @import("std");
 
 pub fn build(b: *std.Build) void {
-    const optimize = .ReleaseFast;
+    // const optimize = .Debug;
+    const optimize = b.standardOptimizeOption(.{});
 
     const target = b.resolveTargetQuery(.{
         .cpu_arch = .x86_64,
