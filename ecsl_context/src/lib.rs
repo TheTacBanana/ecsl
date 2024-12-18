@@ -8,6 +8,7 @@ use rayon::prelude::*;
 use std::{
     collections::{BTreeMap, HashMap},
     path::PathBuf,
+    sync::Arc,
 };
 
 pub struct Context {
@@ -20,7 +21,7 @@ pub struct AssocContext<T> {
 }
 
 impl Context {
-    pub fn new(path: PathBuf, diag: &mut Diagnostics) -> EcslResult<(Context, AssocContext<()>)> {
+    pub fn new(path: PathBuf, diag: Arc<Diagnostics>) -> EcslResult<(Context, AssocContext<()>)> {
         let config = EcslRootConfig::new_root_config(&path)?;
 
         if let Some(cycle_causer) = config.cycle {
@@ -59,7 +60,7 @@ impl Context {
             let packages = std::mem::replace(&mut context.config.packages, Vec::new());
 
             for (i, conf) in packages.iter().enumerate() {
-                context.read_src_dir(conf, CrateID::new(i), diag);
+                context.read_src_dir(conf, CrateID::new(i), diag.clone());
             }
 
             context.config.packages = packages;
@@ -71,7 +72,7 @@ impl Context {
         Ok((context, assoc))
     }
 
-    fn read_src_dir(&mut self, package_info: &PackageInfo, id: CrateID, diag: &mut Diagnostics) {
+    fn read_src_dir(&mut self, package_info: &PackageInfo, id: CrateID, diag: Arc<Diagnostics>) {
         let mut root = package_info.path.clone();
         root.push("src/**/*.ecsl");
 
@@ -81,14 +82,14 @@ impl Context {
                 let relative_path =
                     PathBuf::from(full_path.strip_prefix(&package_info.path).unwrap());
 
-                let file_id = self.create_source_file(full_path, diag);
+                let file_id = self.create_source_file(full_path, diag.clone());
 
                 file_map.insert(relative_path, file_id);
             }
         }
     }
 
-    fn create_source_file(&mut self, full_path: PathBuf, _diag: &mut Diagnostics) -> SourceFileID {
+    fn create_source_file(&mut self, full_path: PathBuf, _diag: Arc<Diagnostics>) -> SourceFileID {
         let next_id = SourceFileID::new(self.sources.len());
         let source = SourceFile::from_path(full_path, next_id);
         self.sources.insert(next_id, source);

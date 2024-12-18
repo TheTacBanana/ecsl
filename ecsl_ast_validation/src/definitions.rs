@@ -49,8 +49,7 @@ impl Visitor for TypeDefCollector {
                 self.ty_ctxt.define_symbol(TypeDef::Function(f.to_header()));
             }
             FnCtxt::Impl => {
-                //TODO:
-                println!("Assoc Functions not yet implemented")
+                todo!("Assoc Functions not yet implemented") //TODO:
             }
         }
         VisitorCF::Continue

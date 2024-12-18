@@ -137,8 +137,6 @@ impl LocalTyCtxt {
     }
 
     pub fn import_symbol(&self, import: ImportPath) {
-        //TODO: Check for self/circular imports
-
         let symbol = import.symbol;
         if self.defined.read().unwrap().contains_key(&symbol) {
             let symbol = self.table.get_symbol(symbol).unwrap();
