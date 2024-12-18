@@ -1,5 +1,3 @@
-use ecsl_bytecode::Address;
-
 
 #[derive(Debug, Clone, Copy)]
 pub enum FileType {
@@ -10,7 +8,7 @@ pub enum FileType {
 pub struct SectionPointer {
     pub section_type: SectionType,
     pub length: u32,
-    pub address: Address,
+    pub address: u64,
 }
 
 #[derive(Debug, Clone, Copy)]

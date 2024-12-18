@@ -1,7 +1,8 @@
 use std::io::{prelude::*, SeekFrom};
 use std::{fs::File, path::PathBuf};
 
-use header::{FileType, SectionPointer};
+use ecsl_bytecode::Bytecode;
+use header::{FileType, SectionPointer, SectionType};
 
 pub mod header;
 
@@ -22,7 +23,7 @@ impl Assembler {
     pub fn new() -> Self {
         Self {
             major_version: 1,
-            minor_version: 1,
+            minor_version: 0,
             file_type: FileType::Executable,
             const_data: Vec::new(),
             sections: Vec::new(),
@@ -47,6 +48,7 @@ impl Assembler {
             //TODO: Write the component info
 
             //TODO: Write the bytecode
+            self.write_bytecode(&mut file)?;
 
             //TODO: Write the system info
 
@@ -87,6 +89,39 @@ impl Assembler {
         Ok(())
     }
 
+    fn write_bytecode(&mut self, file: &mut File) -> std::io::Result<()> {
+        let start_pos = self.offset_to_alignment(file)?;
+
+        let inst = vec![
+            Bytecode::PSHI(3),
+            Bytecode::PSHI(2),
+            Bytecode::ADDI,
+            Bytecode::HALT,
+        ];
+
+        let mut bytes = Vec::new();
+
+        for i in inst {
+            println!("{:?}", i);
+            bytes.extend(i.to_bytes());
+        }
+
+        file.write(&bytes)?;
+        let end_pos = file.seek(SeekFrom::End(0))?;
+
+        self.sections.push(SectionPointer {
+            section_type: SectionType::ExecutableCode,
+            length: (end_pos as u64 - start_pos) as u32,
+            address: start_pos,
+        });
+
+        file.seek(SeekFrom::Start(0x10))?;
+        file.write(&start_pos.to_be_bytes())?;
+        file.seek(SeekFrom::End(0))?;
+
+        Ok(())
+    }
+
     fn write_section_header(&mut self, file: &mut File) -> std::io::Result<()> {
         let start_pos = self.offset_to_alignment(file)?;
 
@@ -99,6 +134,7 @@ impl Assembler {
             address,
         } in &self.sections
         {
+            println!("{:?}", section_type);
             file.write(&(*section_type as u32).to_be_bytes())?;
             file.write(&length.to_be_bytes())?;
             file.write(&address.to_be_bytes())?;
