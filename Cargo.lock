@@ -251,8 +251,18 @@ dependencies = [
 name = "ecsl_bytecode"
 version = "0.1.0"
 dependencies = [
+ "ecsl_bytecode_derive",
  "strum",
  "strum_macros",
+]
+
+[[package]]
+name = "ecsl_bytecode_derive"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]

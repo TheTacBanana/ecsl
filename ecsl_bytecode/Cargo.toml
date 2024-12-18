@@ -4,5 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+ecsl_bytecode_derive = { path = "../ecsl_bytecode_derive" }
 strum = "0.26.3"
 strum_macros = "0.26.4"

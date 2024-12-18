@@ -1,0 +1,11 @@
+.{
+    .name = "ecslvm",
+    .version = "0.0.1",
+    .paths = .{""},
+    .dependencies = .{
+        .ffi = .{
+            .url = "https://github.com/vezel-dev/libffi/archive/refs/tags/v3.4.6-6.tar.gz",
+            .hash = "1220870d4bcd70fe7dc9b65f23006f0c4d6ed0a08575d9835b3c4e0341c1ad2ec95f",
+        },
+    },
+}
