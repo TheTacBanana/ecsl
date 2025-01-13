@@ -2,6 +2,7 @@
 /target
 
 # Zig Target
+.zig-cache/
 zig-cache/
 zig-out/
 
