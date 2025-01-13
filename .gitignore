@@ -1,5 +1,6 @@
 # Compiler Target
 /target
+Cargo.lock
 
 # Zig Target
 .zig-cache/
