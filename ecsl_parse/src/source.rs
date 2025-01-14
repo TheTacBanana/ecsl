@@ -2,32 +2,29 @@ use std::{fs::File, io::Read, path::PathBuf};
 
 use crate::{LexerTy, LEXER_DEF};
 use ecsl_error::{snippet::Snippet, ErrorLevel};
-use ecsl_index::{LineNumberColumn, SourceFileID};
+use ecsl_index::{CrateID, LineNumberColumn, SourceFileID};
 use lrpar::{NonStreamingLexer, Span};
 
 pub struct SourceFile {
     pub id: SourceFileID,
-    pub path: Option<PathBuf>,
+    pub cr: CrateID,
+
+    pub path: PathBuf,
     pub contents: String,
     pub file_size: usize,
 }
 
 impl SourceFile {
     /// Create a `SourceFile` from a `PathBuf`
-    pub fn from_path(path: PathBuf, id: SourceFileID) -> Self {
+    pub fn from_path(path: PathBuf, id: SourceFileID, cr: CrateID) -> Self {
         let mut file = File::open(&path).unwrap();
         let mut contents = String::new();
         let _ = file.read_to_string(&mut contents).unwrap();
 
-        let mut source = Self::from_string(contents, id);
-        source.path = Some(path);
-        source
-    }
-
-    pub fn from_string(contents: String, id: SourceFileID) -> Self {
         SourceFile {
             id,
-            path: None,
+            cr,
+            path,
             file_size: contents.len(),
             contents,
         }

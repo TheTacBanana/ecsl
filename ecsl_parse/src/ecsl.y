@@ -992,5 +992,4 @@ Literal -> Result<Expr, ()>:
 %%
 
 use ecsl_ast::parse::*;
-use ecsl_index::SymbolID;
 use crate::*;

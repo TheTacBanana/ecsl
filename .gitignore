@@ -1,5 +1,5 @@
 # Compiler Target
-/target
+target/
 Cargo.lock
 
 # Zig Target

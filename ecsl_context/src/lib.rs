@@ -1,9 +1,10 @@
-use ecsl_config::{package::PackageInfo, EcslRootConfig};
+use config::EcslConfig;
 use ecsl_diagnostics::Diagnostics;
 use ecsl_error::{ext::EcslErrorExt, EcslError, EcslResult, ErrorLevel};
 use ecsl_index::{CrateID, SourceFileID};
 use ecsl_parse::source::SourceFile;
 use glob::glob;
+use package::EcslPackage;
 use rayon::prelude::*;
 use std::{
     collections::{BTreeMap, HashMap},
@@ -11,21 +12,30 @@ use std::{
     sync::Arc,
 };
 
+pub mod bundle_toml;
+pub mod config;
+pub mod package;
+
 pub struct Context {
-    pub config: EcslRootConfig,
+    pub config: EcslConfig,
+
     pub sources: BTreeMap<SourceFileID, SourceFile>,
+
+    pub crates_names: HashMap<String, CrateID>,
 }
 
 pub struct AssocContext<T> {
     pub assoc: BTreeMap<SourceFileID, T>,
 }
 
+pub struct CrateCollection {}
+
 impl Context {
     pub fn new(path: PathBuf, diag: Arc<Diagnostics>) -> EcslResult<(Context, AssocContext<()>)> {
-        let config = EcslRootConfig::new_root_config(&path)?;
+        let mut config = EcslConfig::new_config(&path, diag.clone())?;
 
         if let Some(cycle_causer) = config.cycle {
-            let package_info = config.get_crate(cycle_causer).unwrap();
+            let package_info = &config.get_crate(cycle_causer).unwrap().info;
             diag.push_error(
                 EcslError::new(
                     ErrorLevel::Error,
@@ -35,32 +45,16 @@ impl Context {
             );
         }
 
-        if config.failed_packages.len() > 0 {
-            for (dependency, error) in &config.failed_packages {
-                let required_by = config.get_crate(dependency.required_by).unwrap();
-                diag.push_error(
-                    EcslError::new(
-                        ErrorLevel::Error,
-                        format!(
-                            "Dependency '{}' required by '{}' could not be resolved. {}",
-                            dependency.name, required_by.name, error
-                        ),
-                    )
-                    .with_path(|_| path.clone()),
-                )
-            }
-        }
-
         let mut context = Context {
             config,
             sources: BTreeMap::new(),
+            crates_names: HashMap::new(),
         };
 
         {
-            let packages = std::mem::replace(&mut context.config.packages, Vec::new());
-
-            for (i, conf) in packages.iter().enumerate() {
-                context.read_src_dir(conf, CrateID::new(i), diag.clone());
+            let packages = std::mem::replace(&mut context.config.packages, BTreeMap::new());
+            for (_, conf) in &packages {
+                context.read_package(conf);
             }
 
             context.config.packages = packages;
@@ -72,7 +66,8 @@ impl Context {
         Ok((context, assoc))
     }
 
-    fn read_src_dir(&mut self, package_info: &PackageInfo, id: CrateID, diag: Arc<Diagnostics>) {
+    fn read_package(&mut self, package: &EcslPackage) {
+        let package_info = &package.info;
         let mut root = package_info.path.clone();
         root.push("src/**/*.ecsl");
 
@@ -82,21 +77,19 @@ impl Context {
                 let relative_path =
                     PathBuf::from(full_path.strip_prefix(&package_info.path).unwrap());
 
-                let file_id = self.create_source_file(full_path, diag.clone());
+                let file_id = self.create_source_file(full_path, package.id);
 
                 file_map.insert(relative_path, file_id);
             }
         }
     }
 
-    fn create_source_file(&mut self, full_path: PathBuf, _diag: Arc<Diagnostics>) -> SourceFileID {
+    fn create_source_file(&mut self, full_path: PathBuf, cr: CrateID) -> SourceFileID {
         let next_id = SourceFileID::new(self.sources.len());
-        let source = SourceFile::from_path(full_path, next_id);
+        let source = SourceFile::from_path(full_path, next_id, cr);
         self.sources.insert(next_id, source);
         next_id
     }
-
-    // fn get_
 }
 
 pub trait MapAssocExt<T: Send> {

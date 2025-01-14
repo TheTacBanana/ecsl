@@ -56,7 +56,7 @@ pub fn parse_file(source: &SourceFile, lexer: &LexerTy) -> ParseResult {
 fn rewrite_lex_error(source: &SourceFile, lexer: &LexerTy, err: LRLexError) -> EcslError {
     let span = err.span();
     EcslError::new(ErrorLevel::Error, "Lexer Error")
-        .with_path(|_| source.path.clone().unwrap())
+        .with_path(|_| source.path.clone())
         .with_snippet(|e| source.get_snippet(span, e.level(), lexer))
 }
 
@@ -68,7 +68,7 @@ fn rewrite_parse_error(
 ) -> EcslError {
     let span = err.lexeme().span();
     let mut e_out = EcslError::new(ErrorLevel::Error, "Parser Error")
-        .with_path(|_| source.path.clone().unwrap())
+        .with_path(|_| source.path.clone())
         .with_snippet(|e| source.get_snippet(span, e.level(), lexer));
 
     // let notes = Vec::new();

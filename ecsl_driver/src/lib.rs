@@ -67,16 +67,16 @@ impl Driver {
 
                 let errs = validate_ast(&ast);
                 for err in errs {
-                    diag.push_error(err.with_path(|_| src.path.clone().unwrap()).with_snippet(
-                        |e| src.get_snippet(e.get_span().unwrap(), e.level(), &lexer),
-                    ));
+                    diag.push_error(err.with_path(|_| src.path.clone()).with_snippet(|e| {
+                        src.get_snippet(e.get_span().unwrap(), e.level(), &lexer)
+                    }));
                 }
 
                 let errs = ast_definitions(&ast, local_ctxt.clone());
                 for err in errs {
-                    diag.push_error(err.with_path(|_| src.path.clone().unwrap()).with_snippet(
-                        |e| src.get_snippet(e.get_span().unwrap(), e.level(), &lexer),
-                    ));
+                    diag.push_error(err.with_path(|_| src.path.clone()).with_snippet(|e| {
+                        src.get_snippet(e.get_span().unwrap(), e.level(), &lexer)
+                    }));
                 }
 
                 Some((ast, table, local_ctxt))

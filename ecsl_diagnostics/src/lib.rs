@@ -49,8 +49,8 @@ impl Diagnostics {
         let mut f = stdout.lock();
 
         let mut total_fatal = 0;
-        for stage in self.stages.read().unwrap().iter() {
-            for err in stage.iter() {
+        for stage in self.stages.write().unwrap().iter_mut() {
+            for err in stage.drain(..) {
                 if err.level() == ErrorLevel::Error {
                     total_fatal += 1;
                 }
