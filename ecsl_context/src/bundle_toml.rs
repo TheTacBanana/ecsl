@@ -1,4 +1,4 @@
-use std::{collections::HashMap, error::Error, fs::File, io::Read, path::PathBuf};
+use std::{collections::HashMap, fs::File, io::Read, path::PathBuf};
 
 use serde::Deserialize;
 
@@ -47,5 +47,3 @@ impl std::fmt::Display for BundleTomlError {
         write!(f, "{}", temp)
     }
 }
-
-impl Error for BundleTomlError {}

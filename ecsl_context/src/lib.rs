@@ -27,7 +27,10 @@ pub struct AssocContext<T> {
 }
 
 impl Context {
-    pub fn new(path: PathBuf, diag: Arc<Diagnostics>) -> EcslResult<(Context, AssocContext<()>)> {
+    pub fn new(
+        path: PathBuf,
+        diag: Arc<Diagnostics>,
+    ) -> EcslResult<(Arc<Context>, AssocContext<()>)> {
         let config = EcslConfig::new_config(&path, diag.clone())?;
 
         if let Some(cycle_causer) = config.cycle {
@@ -59,7 +62,7 @@ impl Context {
         let assoc = context.sources.iter().map(|(id, _)| (*id, ())).collect();
         let assoc = AssocContext { assoc };
 
-        Ok((context, assoc))
+        Ok((Arc::new(context), assoc))
     }
 
     fn read_package(&mut self, package: &EcslPackage) {
@@ -129,7 +132,7 @@ pub trait MapAssocExt<T: Send> {
     ) -> Result<AssocContext<U>, ()>;
 }
 
-impl<T: Send> MapAssocExt<T> for (&Context, AssocContext<T>) {
+impl<T: Send> MapAssocExt<T> for (&Arc<Context>, AssocContext<T>) {
     fn par_map_assoc<U: Send>(
         self,
         f: impl Fn(&SourceFile, T) -> Option<U> + Send + Sync,

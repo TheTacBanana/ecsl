@@ -6,6 +6,7 @@ use ecsl_ast::{
     ty::{Ty, TyKind},
     visit::*,
 };
+use ecsl_diagnostics::DiagConn;
 use ecsl_error::{ext::EcslErrorExt, EcslError, ErrorLevel};
 
 #[derive(Debug)]
@@ -48,15 +49,15 @@ pub enum AssignmentState {
 }
 
 pub struct FnValidator {
-    pub errors: Vec<EcslError>,
+    pub diag: DiagConn,
     pub fn_headers: Vec<FnHeader>,
     pub assignment_state: AssignmentState,
 }
 
 impl FnValidator {
-    pub fn new() -> Self {
+    pub fn new(diag: DiagConn) -> Self {
         FnValidator {
-            errors: Vec::new(),
+            diag,
             fn_headers: Vec::new(),
             assignment_state: AssignmentState::Allowed,
         }
@@ -69,39 +70,36 @@ impl Visitor for FnValidator {
         match ctxt {
             FnCtxt::Free => {
                 for p in &f.params {
-                    let err = match &p.kind {
+                    match &p.kind {
                         ParamKind::SelfValue(_) | ParamKind::SelfReference(_) => Some(
-                            EcslError::new(
-                                ErrorLevel::Error,
-                                FnValidationError::SelfUseInFreeFunction,
-                            )
-                            .with_span(|_| p.span)
-                            .with_note(|_| "Move function to impl block".to_string()),
+                            self.diag.push_error(
+                                EcslError::new(
+                                    ErrorLevel::Error,
+                                    FnValidationError::SelfUseInFreeFunction,
+                                )
+                                .with_note(|_| "Move function to impl block".to_string()),
+                            ),
                         ),
                         _ => None,
                     };
-                    if let Some(err) = err {
-                        self.errors.push(err);
-                    }
                 }
             }
             FnCtxt::Impl => {
                 let mut first = true;
                 for p in &f.params {
-                    let err = match (first, &p.kind) {
+                    match (first, &p.kind) {
                         (false, ParamKind::SelfValue(_) | ParamKind::SelfReference(_)) => Some(
-                            EcslError::new(
-                                ErrorLevel::Error,
-                                FnValidationError::IncorrectSelfPosition,
-                            )
-                            .with_span(|_| p.span)
-                            .with_note(|_| "Self can only be first parameter".to_string()),
+                            self.diag.push_error(
+                                EcslError::new(
+                                    ErrorLevel::Error,
+                                    FnValidationError::IncorrectSelfPosition,
+                                )
+                                .with_note(|_| "Self can only be first parameter".to_string()),
+                            ),
                         ),
                         _ => None,
                     };
-                    if let Some(err) = err {
-                        self.errors.push(err);
-                    }
+
                     first = false;
                 }
             }
@@ -121,7 +119,7 @@ impl Visitor for FnValidator {
             _ => None,
         };
         if let Some(err) = err {
-            self.errors.push(
+            self.diag.push_error(
                 EcslError::new(ErrorLevel::Error, err)
                     .with_span(|_| e.span)
                     .with_note(|_| "Try convert 'fn' to 'sys'".to_string()),
@@ -133,7 +131,7 @@ impl Visitor for FnValidator {
         self.assignment_state = match (&e.kind, cur_state) {
             (_, AssignmentState::Allowed) => AssignmentState::Illegal,
             (ExprKind::Assign(_, _), AssignmentState::Illegal) => {
-                self.errors.push(
+                self.diag.push_error(
                     EcslError::new(
                         ErrorLevel::Error,
                         FnValidationError::IllegalAssignmentPosition,
@@ -175,13 +173,12 @@ impl Visitor for FnValidator {
             _ => None,
         };
         if let Some(err) = err {
-            self.errors.push(
+            self.diag.push_error(
                 EcslError::new(ErrorLevel::Error, err)
                     .with_span(|_| t.span)
                     .with_note(|_| "Try convert 'fn' to 'sys'".to_string()),
             );
         }
-
         walk_ty(self, t)
     }
 

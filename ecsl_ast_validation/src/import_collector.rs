@@ -2,7 +2,8 @@ use ecsl_ast::{
     item::{Item, ItemKind, UseDef, UsePath},
     visit::{walk_item, Visitor, VisitorCF},
 };
-use ecsl_ty::{import::ImportPath, LocalTyCtxt};
+use ecsl_index::GlobalID;
+use ecsl_ty::{import::ImportPath, local::LocalTyCtxt};
 use std::{collections::VecDeque, path::PathBuf, sync::Arc};
 
 pub struct ImportCollector {
@@ -39,8 +40,7 @@ impl Visitor for ImportCollector {
                 UsePath::Item(span, id) => {
                     self.ty_ctxt.import_symbol(ImportPath {
                         path: buf,
-                        symbol: *id,
-                        source: self.ty_ctxt.file,
+                        from: GlobalID::new(*id, self.ty_ctxt.file),
                         span: *span,
                     });
                 }

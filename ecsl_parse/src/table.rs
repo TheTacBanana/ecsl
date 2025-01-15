@@ -89,7 +89,7 @@ impl<'a, 'b> PartialSymbolTable<'a, 'b> {
         let symbol_id: SymbolID;
         match self.symbol_map.entry(name.clone()) {
             Entry::Vacant(e) => {
-                symbol_id = SymbolID(self.symbols.len() as u32);
+                symbol_id = SymbolID::new(self.symbols.len());
                 e.insert(symbol_id);
                 self.symbols.push(Symbol {
                     name: name,

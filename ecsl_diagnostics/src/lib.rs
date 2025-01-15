@@ -1,12 +1,23 @@
-use std::{sync::RwLock, vec};
-
-use std::io::Write;
-
 use ansi_term::Colour::Red;
+use ecsl_error::ext::EcslErrorExt;
 use ecsl_error::{EcslError, ErrorLevel};
+use ecsl_index::SourceFileID;
+use std::io::Write;
+use std::sync::Arc;
+use std::{sync::RwLock, vec};
 
 pub struct Diagnostics {
     stages: RwLock<Vec<Vec<EcslError>>>,
+}
+
+#[derive(Clone)]
+pub struct DiagConn {
+    diag: Arc<Diagnostics>,
+    file: SourceFileID,
+}
+
+pub trait DiagnosticsExt {
+    fn new_connector(&self, file: SourceFileID) -> DiagConn;
 }
 
 impl Diagnostics {
@@ -16,7 +27,7 @@ impl Diagnostics {
         }
     }
 
-    pub fn finish_stage(&self) -> Result<(), ()> {
+    pub fn finish_stage(&self, f: impl Fn(&mut EcslError)) -> Result<(), ()> {
         let fatal = self
             .stages
             .read()
@@ -27,7 +38,7 @@ impl Diagnostics {
             .any(|e| e.level() == ErrorLevel::Error);
 
         if fatal {
-            self.ok().unwrap();
+            self.ok(f).unwrap();
             Err(())
         } else {
             self.stages.write().unwrap().push(Default::default());
@@ -44,22 +55,26 @@ impl Diagnostics {
             .push(error.into());
     }
 
-    fn ok(&self) -> std::io::Result<()> {
+    fn ok(&self, f: impl Fn(&mut EcslError)) -> std::io::Result<()> {
         let stdout = std::io::stdout();
-        let mut f = stdout.lock();
+        let mut lock = stdout.lock();
 
         let mut total_fatal = 0;
         for stage in self.stages.write().unwrap().iter_mut() {
             for err in stage.drain(..) {
+                let mut err = err;
                 if err.level() == ErrorLevel::Error {
                     total_fatal += 1;
                 }
-                writeln!(f, "{}", err)?;
+
+                f(&mut err);
+
+                writeln!(lock, "{}", err)?;
             }
         }
 
         writeln!(
-            f,
+            lock,
             "{}: Failed to compile due to {} error{}",
             Red.paint("Error"),
             total_fatal,
@@ -67,5 +82,21 @@ impl Diagnostics {
         )?;
 
         Ok(())
+    }
+}
+
+impl DiagConn {
+    pub fn push_error(&self, err: EcslError) {
+        let err = err.with_file(|_| self.file);
+        self.diag.push_error(err);
+    }
+}
+
+impl DiagnosticsExt for Arc<Diagnostics> {
+    fn new_connector(&self, file: SourceFileID) -> DiagConn {
+        DiagConn {
+            diag: self.clone(),
+            file,
+        }
     }
 }

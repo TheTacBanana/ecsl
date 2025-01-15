@@ -7,6 +7,7 @@ use serde::Deserialize;
 pub struct EcslPackage {
     pub id: CrateID,
     pub info: PackageInfo,
+    // pub ty: PackageType,
     pub dependencies: BTreeMap<String, CrateID>,
 }
 
@@ -42,13 +43,5 @@ impl std::fmt::Display for PackageInfo {
 pub enum PackageType {
     Bin,
     Lib,
-}
-
-impl PackageType {
-    pub const fn file_name(&self) -> &'static str {
-        match self {
-            PackageType::Bin => "main.ecsl",
-            PackageType::Lib => "lib.ecsl",
-        }
-    }
+    Unknown,
 }

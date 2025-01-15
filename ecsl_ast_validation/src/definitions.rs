@@ -2,24 +2,19 @@ use std::sync::Arc;
 
 use ecsl_ast::{
     data::{EnumDef, StructDef},
-    item::{Item, ItemKind},
+    item::{ImplBlock, Item, ItemKind},
     parse::FnDef,
     visit::{walk_item, FnCtxt, Visitor, VisitorCF}, // SymbolID,
 };
-use ecsl_error::EcslError;
-use ecsl_ty::{LocalTyCtxt, TypeDef};
+use ecsl_ty::{def::TypeDef, local::LocalTyCtxt};
 
 pub struct TypeDefCollector {
-    pub errors: Vec<EcslError>,
-    pub ty_ctxt: Arc<LocalTyCtxt>,
+    ty_ctxt: Arc<LocalTyCtxt>,
 }
 
 impl TypeDefCollector {
     pub fn new<'a>(ty_ctxt: Arc<LocalTyCtxt>) -> TypeDefCollector {
-        TypeDefCollector {
-            errors: Vec::new(),
-            ty_ctxt,
-        }
+        TypeDefCollector { ty_ctxt }
     }
 }
 
@@ -48,9 +43,26 @@ impl Visitor for TypeDefCollector {
             FnCtxt::Free => {
                 self.ty_ctxt.define_symbol(TypeDef::Function(f.to_header()));
             }
-            FnCtxt::Impl => {
-                todo!("Assoc Functions not yet implemented") //TODO:
-            }
+            _ => (),
+        }
+        VisitorCF::Continue
+    }
+
+    fn visit_impl(&mut self, i: &ImplBlock) -> VisitorCF {
+        // match i.ty.kind {
+        //     TyKind::Ident(symbol_id, concrete_generics) => todo!(),
+        //     TyKind::Array(ty, span) => todo!(),
+        //     TyKind::ArrayRef(mutable, ty) => todo!(),
+        //     TyKind::Ref(mutable, ty) => todo!(),
+        //     TyKind::Ptr(mutable, ty) => todo!(),
+        //     TyKind::Entity(entity_ty) => todo!(),
+        //     TyKind::Query => todo!(),
+        //     TyKind::System => todo!(),
+        //     TyKind::Schedule => todo!(),
+        // }
+
+        for f in &i.fn_defs {
+            // println!("{:?}", f)
         }
         VisitorCF::Continue
     }

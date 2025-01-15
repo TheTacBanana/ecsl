@@ -1,6 +1,5 @@
-use std::{cell::RefCell, rc::Rc};
-
 use ecsl_ast::SourceAST;
+use ecsl_diagnostics::DiagConn;
 use ecsl_error::{ext::EcslErrorExt, EcslError, ErrorLevel};
 use ecsl_index::{SourceFileID, SymbolID};
 use lazy_static::lazy_static;
@@ -10,6 +9,7 @@ use lrlex::{
 };
 use lrpar::{lrpar_mod, LexError, LexParseError, Lexeme, NonStreamingLexer, ParseError, Span};
 use source::SourceFile;
+use std::{cell::RefCell, rc::Rc};
 use table::{PartialSymbolTable, SymbolKind, SymbolTable};
 
 pub mod source;
@@ -28,10 +28,9 @@ lazy_static! {
 pub struct ParseResult {
     pub ast: Option<SourceAST>,
     pub table: SymbolTable,
-    pub errs: Vec<EcslError>,
 }
 
-pub fn parse_file(source: &SourceFile, lexer: &LexerTy) -> ParseResult {
+pub fn parse_file(source: &SourceFile, lexer: &LexerTy, diag: DiagConn) -> ParseResult {
     let table = Rc::new(RefCell::new(PartialSymbolTable::new(source.id, &lexer)));
     let (ast, mut errs) = ecsl_y::parse(lexer, table.clone());
     let table = (*table).clone().into_inner().finish();
@@ -39,37 +38,28 @@ pub fn parse_file(source: &SourceFile, lexer: &LexerTy) -> ParseResult {
     let errs = errs
         .drain(..)
         .map(|e| match e {
-            LexParseError::LexError(lex_error) => rewrite_lex_error(source, lexer, lex_error),
-            LexParseError::ParseError(parse_error) => {
-                rewrite_parse_error(source, lexer, parse_error)
-            }
+            LexParseError::LexError(lex_error) => rewrite_lex_error(lex_error),
+            LexParseError::ParseError(parse_error) => rewrite_parse_error(lexer, parse_error),
         })
-        .collect();
+        .collect::<Vec<_>>();
+    for e in errs {
+        diag.push_error(e);
+    }
 
     ParseResult {
         ast: ast.unwrap_or(Err(())).ok(),
         table,
-        errs,
     }
 }
 
-fn rewrite_lex_error(source: &SourceFile, lexer: &LexerTy, err: LRLexError) -> EcslError {
-    let span = err.span();
-    EcslError::new(ErrorLevel::Error, "Lexer Error")
-        .with_path(|_| source.path.clone())
-        .with_snippet(|e| source.get_snippet(span, e.level(), lexer))
+fn rewrite_lex_error(err: LRLexError) -> EcslError {
+    EcslError::new(ErrorLevel::Error, "Lexer Error").with_span(|_| err.span())
 }
 
 //TODO: Improve representation of repair sequences
-fn rewrite_parse_error(
-    source: &SourceFile,
-    lexer: &LexerTy,
-    err: ParseError<DefaultLexeme, u32>,
-) -> EcslError {
-    let span = err.lexeme().span();
-    let mut e_out = EcslError::new(ErrorLevel::Error, "Parser Error")
-        .with_path(|_| source.path.clone())
-        .with_snippet(|e| source.get_snippet(span, e.level(), lexer));
+fn rewrite_parse_error(lexer: &LexerTy, err: ParseError<DefaultLexeme, u32>) -> EcslError {
+    let mut e_out =
+        EcslError::new(ErrorLevel::Error, "Parser Error").with_span(|_| err.lexeme().span());
 
     // let notes = Vec::new();
     if let Some(repair_seq) = err.repairs().iter().next() {
