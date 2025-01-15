@@ -1,6 +1,6 @@
 use anyhow::Result;
 use ecsl_assembler::Assembler;
-use ecsl_ast_validation::{ast_definitions, validate_ast};
+use ecsl_ast_validation::{ast_definitions, validate_ast, validate_imports};
 use ecsl_context::{Context, MapAssocExt};
 use ecsl_diagnostics::Diagnostics;
 use ecsl_error::ext::EcslErrorExt;
@@ -35,7 +35,7 @@ impl Driver {
 
         // Create lexers externally due to lifetimes
         let mut lexers = BTreeMap::new();
-        for (id, src) in &ctxt.sources {
+        for (id, src) in ctxt.sources() {
             let lexer = src.lexer();
             lexers.insert(id, lexer);
         }
@@ -86,9 +86,8 @@ impl Driver {
         let assoc = (&ctxt, assoc).par_map_assoc(|src, (ast, table, local_ctxt)| {
             // let lexer = lexers.get(&src.id).unwrap();
 
-            for i in local_ctxt.imported.read().unwrap().iter() {
-                println!("{:?}", i);
-            }
+            let errs = validate_imports(src, &ctxt, local_ctxt.clone());
+            // todo!()
 
             Some((ast, table, local_ctxt))
         })?;

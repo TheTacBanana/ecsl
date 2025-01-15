@@ -18,21 +18,17 @@ pub mod package;
 
 pub struct Context {
     pub config: EcslConfig,
-
-    pub sources: BTreeMap<SourceFileID, SourceFile>,
-
-    pub crates_names: HashMap<String, CrateID>,
+    sources: BTreeMap<SourceFileID, SourceFile>,
+    source_paths: HashMap<PathBuf, SourceFileID>,
 }
 
 pub struct AssocContext<T> {
     pub assoc: BTreeMap<SourceFileID, T>,
 }
 
-pub struct CrateCollection {}
-
 impl Context {
     pub fn new(path: PathBuf, diag: Arc<Diagnostics>) -> EcslResult<(Context, AssocContext<()>)> {
-        let mut config = EcslConfig::new_config(&path, diag.clone())?;
+        let config = EcslConfig::new_config(&path, diag.clone())?;
 
         if let Some(cycle_causer) = config.cycle {
             let package_info = &config.get_crate(cycle_causer).unwrap().info;
@@ -48,7 +44,7 @@ impl Context {
         let mut context = Context {
             config,
             sources: BTreeMap::new(),
-            crates_names: HashMap::new(),
+            source_paths: HashMap::new(),
         };
 
         {
@@ -86,9 +82,37 @@ impl Context {
 
     fn create_source_file(&mut self, full_path: PathBuf, cr: CrateID) -> SourceFileID {
         let next_id = SourceFileID::new(self.sources.len());
-        let source = SourceFile::from_path(full_path, next_id, cr);
+        let source = SourceFile::from_path(full_path.clone(), next_id, cr);
         self.sources.insert(next_id, source);
+        self.source_paths.insert(full_path, next_id);
         next_id
+    }
+
+    pub fn config(&self) -> &EcslConfig {
+        &self.config
+    }
+
+    pub fn sources(&self) -> impl Iterator<Item = (&SourceFileID, &SourceFile)> {
+        self.sources.iter()
+    }
+
+    pub fn get_source_file(&self, id: SourceFileID) -> Option<&SourceFile> {
+        self.sources.get(&id)
+    }
+
+    pub fn get_source_file_package(&self, id: SourceFileID) -> Option<&EcslPackage> {
+        let source = self.sources.get(&id)?;
+        self.config.packages.get(&source.cr)
+    }
+
+    pub fn get_source_file_in_crate(&self, path: &PathBuf, cr: CrateID) -> Option<SourceFileID> {
+        let id = self.source_paths.get(path)?;
+        let source_file = self.sources.get(&id)?;
+        if source_file.cr == cr {
+            Some(*id)
+        } else {
+            None
+        }
     }
 }
 

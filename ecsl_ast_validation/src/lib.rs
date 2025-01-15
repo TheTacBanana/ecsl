@@ -2,15 +2,16 @@ use std::sync::Arc;
 
 use definitions::TypeDefCollector;
 use ecsl_ast::{visit::Visitor, SourceAST};
+use ecsl_context::Context;
 use ecsl_error::EcslError;
+use ecsl_parse::source::SourceFile;
 use ecsl_ty::LocalTyCtxt;
-use fnvalidator::FnValidator;
-use imports::ImportCollector;
+use fn_validator::FnValidator;
+use import_collector::ImportCollector;
 
 pub mod definitions;
-pub mod fnvalidator;
-pub mod imports;
-pub mod locals;
+pub mod fn_validator;
+pub mod import_collector;
 
 pub fn validate_ast(ast: &SourceAST) -> Vec<EcslError> {
     let mut fn_validator = FnValidator::new();
@@ -32,10 +33,26 @@ pub fn ast_definitions(ast: &SourceAST, ty_ctxt: Arc<LocalTyCtxt>) -> Vec<EcslEr
     errors
 }
 
-pub fn validate_imports(ty_ctxt: Arc<LocalTyCtxt>) -> Vec<EcslError> {
+pub fn validate_imports(
+    source: &SourceFile,
+    ctxt: &Context,
+    ty_ctxt: Arc<LocalTyCtxt>,
+) -> Vec<EcslError> {
     let mut errors = Vec::new();
 
-    todo!();
+    for (id, import) in ty_ctxt.imported.read().unwrap().iter() {
+        let mut p = source.path.clone();
+        p.pop();
+        p.push(import.path.clone());
+        p.set_extension("ecsl");
+        let p = std::path::absolute(p).unwrap();
+
+        let import = ctxt.get_source_file_in_crate(&p, source.cr);
+
+        println!("{:?} {:?}", p, import);
+    }
+
+    // todo!();
 
     errors
 }
