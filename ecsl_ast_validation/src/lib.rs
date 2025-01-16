@@ -1,14 +1,17 @@
-use std::{ffi::OsStr, path::PathBuf, sync::Arc};
-
 use definitions::TypeDefCollector;
 use ecsl_ast::{visit::Visitor, SourceAST};
 use ecsl_context::Context;
 use ecsl_diagnostics::DiagConn;
 use ecsl_error::{ext::EcslErrorExt, EcslError, ErrorLevel};
+use ecsl_index::GlobalID;
 use ecsl_parse::source::SourceFile;
-use ecsl_ty::{import::Import, local::LocalTyCtxt};
+use ecsl_ty::{
+    import::{Import, MappedImport},
+    local::LocalTyCtxt,
+};
 use fn_validator::FnValidator;
 use import_collector::ImportCollector;
+use std::{path::PathBuf, sync::Arc};
 
 pub mod definitions;
 pub mod fn_validator;
@@ -28,11 +31,9 @@ pub fn ast_definitions(ast: &SourceAST, ty_ctxt: Arc<LocalTyCtxt>) {
 }
 
 pub fn validate_imports(source: &SourceFile, ctxt: &Context, ty_ctxt: Arc<LocalTyCtxt>) {
-    for (_, import) in ty_ctxt.imported.read().unwrap().iter() {
-        println!("{:?}", import);
-
+    for (_, imported) in ty_ctxt.imported.write().unwrap().iter_mut() {
         let package = ctxt.get_source_file_package(source.id).unwrap();
-        let Import::Unresolved(import) = import else {
+        let Import::Unresolved(import) = imported else {
             panic!()
         };
 
@@ -66,6 +67,24 @@ pub fn validate_imports(source: &SourceFile, ctxt: &Context, ty_ctxt: Arc<LocalT
 
             source_file
         };
-        println!("Import symbol from {imported_from}");
+
+        let sources = ty_ctxt.global.sources.read().unwrap();
+        let import_source = sources.get(&imported_from).unwrap();
+
+        let symbol_name = &ty_ctxt.table.get_symbol(import.from.symbol()).unwrap().name;
+        let mapped_symbol = import_source.table.get_symbol_from_string(&symbol_name);
+
+        *imported = if let Some(mapped_symbol) = mapped_symbol {
+            Import::Resolved(MappedImport {
+                from: import.from,
+                to: GlobalID::new(mapped_symbol, imported_from),
+            })
+        } else {
+            ty_ctxt.diag.push_error(
+                EcslError::new(ErrorLevel::Error, &format!("Cannot find '{}'", symbol_name))
+                    .with_span(|_| import.span),
+            );
+            Import::Unknown
+        }
     }
 }

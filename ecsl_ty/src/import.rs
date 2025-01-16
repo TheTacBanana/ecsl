@@ -21,12 +21,6 @@ pub struct ImportPath {
 
 #[derive(Debug, Clone)]
 pub struct MappedImport {
-    from: GlobalID,
-    to: GlobalID,
+    pub from: GlobalID,
+    pub to: GlobalID,
 }
-
-// impl ImportPath {
-//     pub fn to_unresolved(&self) -> &ImportPath {
-//         self.
-//     }
-// }

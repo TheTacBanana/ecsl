@@ -3,7 +3,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use ecsl_diagnostics::{DiagConn, Diagnostics};
+use ecsl_diagnostics::DiagConn;
 use ecsl_error::{ext::EcslErrorExt, EcslError, ErrorLevel};
 use ecsl_index::{SourceFileID, SymbolID};
 use ecsl_parse::table::SymbolTable;
@@ -113,22 +113,4 @@ impl LocalTyCtxt {
             lock.insert(symbol, Import::Unresolved(import));
         }
     }
-
-    pub fn resolve_imports(&self) {
-        let mut lock = self.imported.write().unwrap();
-
-        for (symbol, import) in lock.iter_mut() {
-            match &import {
-                Import::Unresolved(path) => {
-                    todo!()
-                    // import_path./
-                }
-                _ => (),
-            }
-        }
-    }
-
-    // pub fn use_symbol(&self, f: impl FnMut()) {
-
-    // }
 }

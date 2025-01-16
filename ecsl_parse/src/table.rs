@@ -14,9 +14,9 @@ pub struct PartialSymbolTable<'a, 'b> {
 
 #[derive(Clone)]
 pub struct SymbolTable {
-    pub file: SourceFileID,
-    pub symbols: Vec<Symbol>,
-    pub symbol_map: HashMap<String, SymbolID>,
+    file: SourceFileID,
+    symbols: Vec<Symbol>,
+    symbol_map: HashMap<String, SymbolID>,
 }
 
 #[derive(Debug, Clone)]
@@ -114,11 +114,19 @@ impl<'a, 'b> PartialSymbolTable<'a, 'b> {
 }
 
 impl SymbolTable {
+    pub fn file(&self) -> SourceFileID {
+        self.file
+    }
+
     pub fn get_symbol(&self, id: SymbolID) -> Option<&Symbol> {
         self.symbols.get(id.inner())
     }
 
     pub fn get_symbol_mut(&mut self, id: SymbolID) -> Option<&mut Symbol> {
         self.symbols.get_mut(id.inner())
+    }
+
+    pub fn get_symbol_from_string(&self, s: &String) -> Option<SymbolID> {
+        self.symbol_map.get(s).cloned()
     }
 }

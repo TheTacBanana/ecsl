@@ -7,10 +7,7 @@ use ecsl_diagnostics::DiagConn;
 use ecsl_error::{EcslError, EcslResult, ErrorLevel};
 use ecsl_index::CrateID;
 use petgraph::{algo, prelude::GraphMap, Directed};
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    path::PathBuf,
-};
+use std::{collections::BTreeMap, path::PathBuf};
 
 #[derive(Debug)]
 pub struct EcslConfig {
