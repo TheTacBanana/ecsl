@@ -2,7 +2,6 @@ use ecsl_index::SourceFileID;
 use local::LocalTyCtxt;
 use std::{
     collections::BTreeMap,
-    path::PathBuf,
     sync::{Arc, RwLock},
 };
 

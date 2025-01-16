@@ -23,7 +23,7 @@ impl Driver {
     fn inner(diag: Arc<Diagnostics>) -> Result<(), ()> {
         // Create the context and load all dependencies of the target program
         let path = std::env::current_dir().unwrap();
-        let (ctxt, assoc) = match Context::new(path.clone(), diag.clone()) {
+        let (ctxt, assoc) = match Context::new(path.clone(), diag.empty_conn()) {
             Ok(ctx) => ctx,
             Err(e) => {
                 diag.push_error(e);
@@ -53,38 +53,44 @@ impl Driver {
         };
 
         // Parse all files
-        let assoc = (&ctxt, assoc).par_map_assoc_with(&diag, |diag, src, _| {
-            let lexer = lexers.get(&src.id).unwrap();
-            let diag = diag.new_connector(src.id);
+        let assoc = (&ctxt, assoc).par_map_assoc(
+            |src, _| {
+                let lexer = lexers.get(&src.id).unwrap();
+                let diag = diag.new_conn(src.id);
 
-            let result = parse_file(&src, &lexer, diag.clone());
-            if result.ast.is_none() {
-                return None;
-            }
+                let result = parse_file(&src, &lexer, diag.clone());
+                if result.ast.is_none() {
+                    return None;
+                }
 
-            Some((diag, Arc::new(result.ast.unwrap()), Arc::new(result.table)))
-        })?;
-        diag.finish_stage(lexer_func)?;
+                Some((diag, Arc::new(result.ast.unwrap()), Arc::new(result.table)))
+            },
+            || diag.finish_stage(lexer_func),
+        )?;
 
         // Perform AST validation and collect definitions and imports
         let ty_ctxt = Arc::new(TyCtxt::new());
-        let assoc = (&ctxt, assoc).par_map_assoc(|src, (diag, ast, table)| {
-            let local_ctxt = ty_ctxt.new_local_ctxt(src.id, table.clone(), diag.clone());
+        let assoc = (&ctxt, assoc).par_map_assoc(
+            |src, (diag, ast, table)| {
+                let local_ctxt = ty_ctxt.new_local_ctxt(src.id, table.clone(), diag.clone());
 
-            validate_ast(&ast, diag.clone());
-            ast_definitions(&ast, local_ctxt.clone());
+                validate_ast(&ast, diag.clone());
+                ast_definitions(&ast, local_ctxt.clone());
 
-            Some((diag, ast, table, local_ctxt))
-        })?;
+                Some((diag, ast, table, local_ctxt))
+            },
+            || Ok(()),
+        )?;
 
         // Verify imports
-        let assoc = (&ctxt, assoc).par_map_assoc(|src, (_, ast, table, local_ctxt)| {
-            validate_imports(src, &ctxt, local_ctxt.clone());
-            // todo!()
+        let assoc = (&ctxt, assoc).par_map_assoc(
+            |src, (_, ast, table, local_ctxt)| {
+                validate_imports(src, &ctxt, local_ctxt.clone());
 
-            Some((ast, table, local_ctxt))
-        })?;
-        diag.finish_stage(lexer_func)?;
+                Some((ast, table, local_ctxt))
+            },
+            || diag.finish_stage(lexer_func),
+        )?;
 
         let assembler = Assembler::new();
         assembler.output(path.clone()).unwrap();

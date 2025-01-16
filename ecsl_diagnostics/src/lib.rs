@@ -13,11 +13,12 @@ pub struct Diagnostics {
 #[derive(Clone)]
 pub struct DiagConn {
     diag: Arc<Diagnostics>,
-    file: SourceFileID,
+    file: Option<SourceFileID>,
 }
 
 pub trait DiagnosticsExt {
-    fn new_connector(&self, file: SourceFileID) -> DiagConn;
+    fn new_conn(&self, file: SourceFileID) -> DiagConn;
+    fn empty_conn(&self) -> DiagConn;
 }
 
 impl Diagnostics {
@@ -87,16 +88,27 @@ impl Diagnostics {
 
 impl DiagConn {
     pub fn push_error(&self, err: EcslError) {
-        let err = err.with_file(|_| self.file);
-        self.diag.push_error(err);
+        if let Some(file) = self.file {
+            let err = err.with_file(|_| file);
+            self.diag.push_error(err);
+        } else {
+            self.diag.push_error(err);
+        }
     }
 }
 
 impl DiagnosticsExt for Arc<Diagnostics> {
-    fn new_connector(&self, file: SourceFileID) -> DiagConn {
+    fn new_conn(&self, file: SourceFileID) -> DiagConn {
         DiagConn {
             diag: self.clone(),
-            file,
+            file: Some(file),
+        }
+    }
+
+    fn empty_conn(&self) -> DiagConn {
+        DiagConn {
+            diag: self.clone(),
+            file: None,
         }
     }
 }

@@ -5,10 +5,61 @@ use serde::Deserialize;
 
 #[derive(Debug)]
 pub struct EcslPackage {
-    pub id: CrateID,
-    pub info: PackageInfo,
-    // pub ty: PackageType,
-    pub dependencies: BTreeMap<String, CrateID>,
+    cr: CrateID,
+    info: PackageInfo,
+    dependencies: BTreeMap<String, CrateID>,
+}
+
+impl EcslPackage {
+    pub fn new(cr: CrateID, info: PackageInfo) -> Self {
+        Self {
+            cr,
+            info,
+            dependencies: BTreeMap::new(),
+        }
+    }
+
+    pub fn add_dependency(&mut self, s: String, cr: CrateID) {
+        self.dependencies.insert(s, cr);
+    }
+
+    pub fn dependencies(&mut self) -> impl Iterator<Item = (&String, &CrateID)> {
+        self.dependencies.iter()
+    }
+
+    pub fn get_dependency<'a>(&self, dep: impl Into<&'a str>) -> Option<CrateID> {
+        let s = dep.into().to_string();
+        self.dependencies.get(&s).cloned()
+    }
+
+    pub fn id(&self) -> CrateID {
+        self.cr
+    }
+
+    pub fn info(&self) -> &PackageInfo {
+        &self.info
+    }
+
+    pub fn name(&self) -> &str {
+        &self.info.name
+    }
+
+    pub fn bundle_toml_path(&self) -> PathBuf {
+        self.info.path.clone()
+    }
+
+    pub fn src_path(&self) -> PathBuf {
+        let mut src = self.info.path.clone();
+        src.push("src");
+        src
+    }
+
+    pub fn file_path(&self, file_path: &PathBuf) -> PathBuf {
+        let mut file = self.src_path();
+        file.push(file_path);
+        file.set_extension("ecsl");
+        file
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

@@ -112,6 +112,10 @@ impl std::fmt::Display for EcslError {
                     note
                 )?;
             }
+        } else {
+            for note in &self.notes {
+                writeln!(f, " {} {}", HIGHLIGHT_COLOUR.paint("= Note:"), note)?
+            }
         }
 
         Ok(())
