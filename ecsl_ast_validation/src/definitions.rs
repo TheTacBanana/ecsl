@@ -4,9 +4,9 @@ use ecsl_ast::{
     data::{EnumDef, StructDef},
     item::{ImplBlock, Item, ItemKind},
     parse::FnDef,
-    visit::{walk_item, FnCtxt, Visitor, VisitorCF}, // SymbolID,
+    visit::{walk_item, FnCtxt, Visitor, VisitorCF},
 };
-use ecsl_ty::{def::TypeDef, local::LocalTyCtxt};
+use ecsl_ty::{def::Definition, local::LocalTyCtxt};
 
 pub struct TypeDefCollector {
     ty_ctxt: Arc<LocalTyCtxt>,
@@ -29,19 +29,19 @@ impl Visitor for TypeDefCollector {
     }
 
     fn visit_struct_def(&mut self, s: &StructDef) -> VisitorCF {
-        self.ty_ctxt.define_symbol(TypeDef::Struct(s.clone()));
+        self.ty_ctxt.define_symbol(Definition::Struct(s.clone()));
         VisitorCF::Continue
     }
 
     fn visit_enum_def(&mut self, e: &EnumDef) -> VisitorCF {
-        self.ty_ctxt.define_symbol(TypeDef::Enum(e.clone()));
+        self.ty_ctxt.define_symbol(Definition::Enum(e.clone()));
         VisitorCF::Continue
     }
 
     fn visit_fn(&mut self, f: &FnDef, ctxt: FnCtxt) -> VisitorCF {
         match ctxt {
             FnCtxt::Free => {
-                self.ty_ctxt.define_symbol(TypeDef::Function(f.to_header()));
+                self.ty_ctxt.define_symbol(Definition::Function(f.clone()));
             }
             _ => (),
         }

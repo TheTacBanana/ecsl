@@ -133,7 +133,7 @@ Item -> Result<Item, ()>:
     | FnDef { Ok(Item::new($span, ItemKind::Fn(P::new($1?)))) }
     | 'STRUCT' Component 'IDENT' Generics FieldDefs {
         Ok(Item::new($span, ItemKind::Struct(P::new(StructDef {
-            span: $span,
+            span: $3.map_err(|_| ())?.span(),
             kind: $2?,
             ident: table.definition($3.map_err(|_| ())?.span(), SymbolKind::Struct($2?)),
             generics: $4?,
@@ -142,7 +142,7 @@ Item -> Result<Item, ()>:
     }
     | 'ENUM' Component 'IDENT' Generics VariantDefs {
         Ok(Item::new($span, ItemKind::Enum(P::new(EnumDef {
-            span: $span,
+            span: $3.map_err(|_| ())?.span(),
             kind: $2?,
             ident: table.definition($3.map_err(|_| ())?.span(), SymbolKind::Enum($2?)),
             generics: $4?,
@@ -174,7 +174,7 @@ FnDefList -> Result<Vec<FnDef>, ()>:
 FnDef -> Result<FnDef, ()>:
     FnKind 'IDENT' Generics 'LBRACKET' FnArgs 'RBRACKET' ReturnTy Block {
         Ok(FnDef {
-            span: $span,
+            span: $2.map_err(|_| ())?.span(),
             kind: $1?,
             ident: table.definition($2.map_err(|_| ())?.span(), SymbolKind::Function($1?)),
             generics: $3?,

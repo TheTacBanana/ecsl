@@ -1,31 +1,31 @@
 use cfgrammar::Span;
 use ecsl_ast::{
     data::{EnumDef, StructDef},
-    parse::FnHeader,
+    parse::FnDef,
 };
 use ecsl_index::SymbolID;
 
 #[derive(Debug)]
-pub enum TypeDef {
+pub enum Definition {
     Struct(StructDef),
     Enum(EnumDef),
-    Function(FnHeader),
+    Function(FnDef),
 }
 
-impl TypeDef {
+impl Definition {
     pub fn ident(&self) -> SymbolID {
         match self {
-            TypeDef::Struct(s) => s.ident,
-            TypeDef::Enum(e) => e.ident,
-            TypeDef::Function(f) => f.ident,
+            Definition::Struct(s) => s.ident,
+            Definition::Enum(e) => e.ident,
+            Definition::Function(f) => f.ident,
         }
     }
 
     pub fn span(&self) -> Span {
         match self {
-            TypeDef::Struct(s) => s.span,
-            TypeDef::Enum(e) => e.span,
-            TypeDef::Function(f) => f.span,
+            Definition::Struct(s) => s.span,
+            Definition::Enum(e) => e.span,
+            Definition::Function(f) => f.span,
         }
     }
 }

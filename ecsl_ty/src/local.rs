@@ -10,7 +10,7 @@ use ecsl_parse::table::SymbolTable;
 
 use crate::{
     assoc::ImplBlock,
-    def::TypeDef,
+    def::Definition,
     import::{Import, ImportPath},
     ImportError, TyCtxt,
 };
@@ -21,8 +21,10 @@ pub struct LocalTyCtxt {
     pub global: Arc<TyCtxt>,
     pub diag: DiagConn,
 
-    pub defined: RwLock<BTreeMap<SymbolID, TypeDef>>,
+    /// Import Mappings
     pub imported: RwLock<BTreeMap<SymbolID, Import>>,
+
+    pub defined: RwLock<BTreeMap<SymbolID, Definition>>,
     pub impl_blocks: RwLock<BTreeMap<SymbolID, ImplBlock>>,
 }
 
@@ -57,7 +59,7 @@ impl LocalTyCtxtExt for Arc<TyCtxt> {
 }
 
 impl LocalTyCtxt {
-    pub fn define_symbol(&self, def: TypeDef) {
+    pub fn define_symbol(&self, def: Definition) {
         let symbol = def.ident();
         if self.defined.read().unwrap().contains_key(&symbol) {
             let symbol = self.table.get_symbol(symbol).unwrap();
