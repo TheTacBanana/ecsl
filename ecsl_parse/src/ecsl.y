@@ -16,6 +16,7 @@
 %epp 'ENUM' 'enum'
 %epp 'COMP' 'comp'
 %epp 'IMPL' 'impl'
+%epp 'HASH' '#'
 
 %epp 'FN' 'fn'
 %epp 'SYS' 'sys'
@@ -131,22 +132,24 @@ Item -> Result<Item, ()>:
         }))))
     }
     | FnDef { Ok(Item::new($span, ItemKind::Fn(P::new($1?)))) }
-    | 'STRUCT' Component 'IDENT' Generics FieldDefs {
+    | Attributes 'STRUCT' Component 'IDENT' Generics FieldDefs {
         Ok(Item::new($span, ItemKind::Struct(P::new(StructDef {
-            span: $3.map_err(|_| ())?.span(),
-            kind: $2?,
-            ident: table.definition($3.map_err(|_| ())?.span(), SymbolKind::Struct($2?)),
-            generics: $4?,
-            fields: $5?,
+            span: $4.map_err(|_| ())?.span(),
+            kind: $3?,
+            ident: table.definition($4.map_err(|_| ())?.span(), SymbolKind::Struct($3?)),
+            attributes: $1?,
+            generics: $5?,
+            fields: $6?,
         }))))
     }
-    | 'ENUM' Component 'IDENT' Generics VariantDefs {
+    | Attributes 'ENUM' Component 'IDENT' Generics VariantDefs {
         Ok(Item::new($span, ItemKind::Enum(P::new(EnumDef {
-            span: $3.map_err(|_| ())?.span(),
-            kind: $2?,
-            ident: table.definition($3.map_err(|_| ())?.span(), SymbolKind::Enum($2?)),
-            generics: $4?,
-            variants: $5?,
+            span: $4.map_err(|_| ())?.span(),
+            kind: $3?,
+            ident: table.definition($4.map_err(|_| ())?.span(), SymbolKind::Enum($3?)),
+            attributes: $1?,
+            generics: $5?,
+            variants: $6?,
         }))))
     }
     | 'IMPL' Generics Ty ImplBlockContents {
@@ -232,6 +235,28 @@ Component -> Result<DataKind, ()>:
     'COMP' { Ok(DataKind::Component) }
     | { Ok(DataKind::Normal) }
     ;
+
+Attributes -> Result<Option<Attributes>, ()>:
+    'HASH' 'LSQUARE' AttributeList TrailingComma 'RSQUARE' {
+        Ok(Some(Attributes::from_vec($3?)))
+     }
+    | 'HASH' 'LSQUARE' 'RSQUARE' { Ok(None)}
+    | {Ok(None)}
+    ;
+
+AttributeList -> Result<Vec<Attribute>, ()>:
+    Attribute { Ok(vec![$1?]) }
+    | AttributeList 'COMMA' Attribute {
+        flatten($1, $3)
+    }
+    ;
+
+Attribute -> Result<Attribute, ()>:
+    'IDENT' {
+        Ok(Attribute::Marker(table.string($span)))
+    }
+    ;
+
 
 ConcreteGenerics -> Result<Option<ConcreteGenerics>, ()>:
     'LT' TyList TrailingComma 'GT' {

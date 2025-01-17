@@ -3,6 +3,7 @@ use ecsl_ast_derive::AST;
 use ecsl_index::SymbolID;
 
 use crate::{
+    parse::Attributes,
     ty::{Generics, Ty},
     P,
 };
@@ -12,6 +13,7 @@ pub struct StructDef {
     pub span: Span,
     pub kind: DataKind,
     pub ident: SymbolID,
+    pub attributes: Option<Attributes>,
     pub generics: Option<Generics>,
     pub fields: Vec<FieldDef>,
 }
@@ -21,6 +23,7 @@ pub struct EnumDef {
     pub span: Span,
     pub kind: DataKind,
     pub ident: SymbolID,
+    pub attributes: Option<Attributes>,
     pub generics: Option<Generics>,
     pub variants: Vec<VariantDef>,
 }

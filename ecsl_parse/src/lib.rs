@@ -85,6 +85,8 @@ pub trait GenerateIdentExt {
 
     fn definition(&self, span: Span, kind: SymbolKind) -> SymbolID;
 
+    fn string(&self, span: Span) -> String;
+
     fn usage(&self, span: Span, kind: SymbolKind) -> SymbolID;
 }
 
@@ -98,6 +100,11 @@ impl GenerateIdentExt for Rc<RefCell<PartialSymbolTable<'_, '_>>> {
         let symbol_string = s.lexer.span_str(span).to_string();
         let id = s.define_symbol(symbol_string, span, kind);
         id
+    }
+
+    fn string(&self, span: Span) -> String {
+        let s = self.borrow_mut();
+        s.lexer.span_str(span).to_string()
     }
 
     fn usage(&self, span: Span, kind: SymbolKind) -> SymbolID {
