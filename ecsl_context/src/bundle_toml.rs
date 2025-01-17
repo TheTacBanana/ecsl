@@ -1,8 +1,6 @@
-use std::{collections::HashMap, fs::File, io::Read, path::PathBuf};
-
-use serde::Deserialize;
-
 use crate::package::PackageInfo;
+use serde::Deserialize;
+use std::{collections::HashMap, fs::File, io::Read, path::PathBuf};
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct BundleToml {
@@ -42,7 +40,9 @@ impl std::fmt::Display for BundleTomlError {
         let temp: &str = match self {
             BundleTomlError::MissingBundleToml(p) => &format!("Could not open {:?}", p),
             BundleTomlError::FileReadError(e) => &format!("{e}"),
-            BundleTomlError::MalformedFormat(e) => &format!("{}", e.message()),
+            BundleTomlError::MalformedFormat(e) => {
+                &format!("Invalid Bundle.toml format: '{}'", e.message())
+            }
         };
         write!(f, "{}", temp)
     }

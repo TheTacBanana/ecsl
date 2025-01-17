@@ -27,8 +27,12 @@ pub struct AssocContext<T> {
 }
 
 impl Context {
-    pub fn new(path: PathBuf, diag: DiagConn) -> EcslResult<(Arc<Context>, AssocContext<()>)> {
-        let config = EcslConfig::new_config(&path, diag.clone())?;
+    pub fn new(
+        path: PathBuf,
+        std_path: PathBuf,
+        diag: DiagConn,
+    ) -> EcslResult<(Arc<Context>, AssocContext<()>)> {
+        let config = EcslConfig::new_config(&path, &std_path, diag.clone())?;
 
         if let Some(cycle_causer) = config.cycle {
             let package = config.get_crate(cycle_causer).unwrap();

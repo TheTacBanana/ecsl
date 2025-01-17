@@ -6,24 +6,24 @@ use ecsl_diagnostics::{Diagnostics, DiagnosticsExt};
 use ecsl_error::{ext::EcslErrorExt, EcslError};
 use ecsl_parse::parse_file;
 use ecsl_ty::{local::LocalTyCtxtExt, TyCtxt};
-use std::{collections::BTreeMap, sync::Arc};
+use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
 
 pub struct Driver;
 
 impl Driver {
-    pub fn run() -> Result<(), ()> {
+    pub fn run(std_path: PathBuf) -> Result<(), ()> {
         let diag = Arc::new(Diagnostics::new());
 
-        _ = Driver::inner(diag.clone());
+        _ = Driver::inner(std_path, diag.clone());
         diag.finish_stage(|_| ())?;
 
         Ok(())
     }
 
-    fn inner(diag: Arc<Diagnostics>) -> Result<(), ()> {
+    fn inner(std_path: PathBuf, diag: Arc<Diagnostics>) -> Result<(), ()> {
         // Create the context and load all dependencies of the target program
         let path = std::env::current_dir().unwrap();
-        let (ctxt, assoc) = match Context::new(path.clone(), diag.empty_conn()) {
+        let (ctxt, assoc) = match Context::new(path.clone(), std_path, diag.empty_conn()) {
             Ok(ctx) => ctx,
             Err(e) => {
                 diag.push_error(e);

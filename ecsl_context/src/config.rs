@@ -4,7 +4,7 @@ use crate::{
 };
 use bimap::BiHashMap;
 use ecsl_diagnostics::DiagConn;
-use ecsl_error::{EcslError, EcslResult, ErrorLevel};
+use ecsl_error::{ext::EcslErrorExt, EcslError, EcslResult, ErrorLevel};
 use ecsl_index::CrateID;
 use petgraph::{algo, prelude::GraphMap, Directed};
 use std::{collections::BTreeMap, path::PathBuf};
@@ -14,6 +14,10 @@ pub struct EcslConfig {
     pub abs_paths: BiHashMap<PathBuf, CrateID>,
     pub packages: BTreeMap<CrateID, EcslPackage>,
 
+    pub root_id: CrateID,
+    pub std_path: PathBuf,
+    pub std_id: CrateID,
+
     dependency_queue: Vec<PackageDependency>,
 
     pub cycle: Option<CrateID>,
@@ -22,20 +26,43 @@ pub struct EcslConfig {
 impl EcslConfig {
     pub const CONFIG_FILE: &'static str = "Bundle.toml";
 
-    pub fn new_config(path: &PathBuf, diag: DiagConn) -> EcslResult<EcslConfig> {
-        let root_bundle_toml = Self::load_bundle_toml(path)?;
-
+    pub fn new_config(
+        path: &PathBuf,
+        std_path: &PathBuf,
+        diag: DiagConn,
+    ) -> EcslResult<EcslConfig> {
         let mut config = EcslConfig {
             abs_paths: BiHashMap::new(),
             packages: BTreeMap::new(),
+            std_id: CrateID::ZERO,
+            root_id: CrateID::ZERO,
+            std_path: std_path.clone(),
             dependency_queue: Vec::new(),
             cycle: None,
         };
-        config.include_bundle_toml(root_bundle_toml, diag.clone());
+
+        // Load std lib
+        {
+            config.std_id = match Self::load_bundle_toml(std_path) {
+                Ok(bundle_toml) => config.include_bundle_toml(bundle_toml, diag.clone()),
+                Err(err) => {
+                    return Err(err.with_note(|_| "Failed to load standard library".to_string()));
+                }
+            };
+            config.std_path = config.std_path.canonicalize().unwrap();
+        }
+
+        // Load Root of project
+        {
+            let root_bundle_toml = Self::load_bundle_toml(path)?;
+            config.root_id = config.include_bundle_toml(root_bundle_toml, diag.clone());
+        }
 
         // Graph used to detect dependency cycles
         let mut graph = GraphMap::<CrateID, (), Directed>::new();
-        graph.add_node(CrateID::new(0));
+        graph.add_node(config.root_id);
+        graph.add_node(config.std_id);
+        graph.add_edge(config.root_id, config.std_id, ());
 
         // Traverse all dependencies building a graph
         while let Some(dep) = config.dependency_queue.pop() {
@@ -62,6 +89,8 @@ impl EcslConfig {
             config.cycle = Some(cycle.node_id());
         }
 
+        println!("{config:?}");
+
         Ok(config)
     }
 
@@ -71,13 +100,24 @@ impl EcslConfig {
 
         BundleToml::deserialize(&bundle_toml_path)
             .map_err(|e| EcslError::new(ErrorLevel::Error, e.to_string()))
+            .with_path(|_| path.clone())
     }
 
-    fn include_bundle_toml(&mut self, bundle_toml: BundleToml, diag: DiagConn) -> CrateID {
+    fn include_bundle_toml(&mut self, mut bundle_toml: BundleToml, diag: DiagConn) -> CrateID {
         let package_id = self.crate_id_from_path(&bundle_toml.package.path);
         let mut package = EcslPackage::new(package_id, bundle_toml.package.clone());
 
-        for (name, path) in bundle_toml.dependencies {
+        let mut dependencies = bundle_toml
+            .dependencies
+            .drain()
+            .collect::<Vec<(String, PathBuf)>>();
+
+        // Add std as a dependency for all crates
+        if package_id != self.std_id {
+            dependencies.push(("std".to_string(), self.std_path.clone()));
+        }
+
+        for (name, path) in dependencies {
             let dependency_path = if path.is_relative() {
                 let mut p = bundle_toml.package.path.clone();
                 p.push(path.clone());
@@ -89,6 +129,17 @@ impl EcslConfig {
             match dependency_path.canonicalize() {
                 Ok(path) => {
                     let dep_id = self.crate_id_from_path(&path);
+                    if package.has_dependency(dep_id) {
+                        diag.push_error(
+                            EcslError::new(
+                                ErrorLevel::Error,
+                                &format!("Dependency {:?} is used multiple times", path),
+                            )
+                            .with_path(|_| bundle_toml.package.path.clone()),
+                        );
+                        continue;
+                    }
+
                     package.add_dependency(name.clone(), dep_id);
 
                     self.dependency_queue.push(PackageDependency {

@@ -1,6 +1,7 @@
 use crate::{
     callable::FnDef,
     data::{EnumDef, StructDef},
+    parse::Attributes,
     ty::{Generics, Ty},
     P,
 };
@@ -41,6 +42,7 @@ pub enum ItemKind {
 #[derive(Debug, Clone, AST)]
 pub struct UseDef {
     pub span: Span,
+    pub attributes: Option<Attributes>,
     pub path: P<UsePath>,
 }
 

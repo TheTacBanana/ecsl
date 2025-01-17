@@ -25,6 +25,10 @@ impl Visitor for ImportCollector {
     }
 
     fn visit_use(&mut self, u: &UseDef) -> VisitorCF {
+        // if let Some(attributes) = &u.attributes {
+        //     self.ty_ctxt.
+        // }
+
         let mut queue = VecDeque::from(vec![(PathBuf::new(), &*u.path)]);
         while let Some((mut buf, path)) = queue.pop_front() {
             match path {

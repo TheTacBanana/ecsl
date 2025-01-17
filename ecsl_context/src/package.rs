@@ -1,5 +1,6 @@
 use std::{collections::BTreeMap, path::PathBuf};
 
+use bimap::BiHashMap;
 use ecsl_index::CrateID;
 use serde::Deserialize;
 
@@ -7,7 +8,7 @@ use serde::Deserialize;
 pub struct EcslPackage {
     cr: CrateID,
     info: PackageInfo,
-    dependencies: BTreeMap<String, CrateID>,
+    dependencies: BiHashMap<String, CrateID>,
 }
 
 impl EcslPackage {
@@ -15,12 +16,16 @@ impl EcslPackage {
         Self {
             cr,
             info,
-            dependencies: BTreeMap::new(),
+            dependencies: BiHashMap::new(),
         }
     }
 
     pub fn add_dependency(&mut self, s: String, cr: CrateID) {
         self.dependencies.insert(s, cr);
+    }
+
+    pub fn has_dependency(&self, cr: CrateID) -> bool {
+        self.dependencies.contains_right(&cr)
     }
 
     pub fn dependencies(&mut self) -> impl Iterator<Item = (&String, &CrateID)> {
@@ -29,7 +34,7 @@ impl EcslPackage {
 
     pub fn get_dependency<'a>(&self, dep: impl Into<&'a str>) -> Option<CrateID> {
         let s = dep.into().to_string();
-        self.dependencies.get(&s).cloned()
+        self.dependencies.get_by_left(&s).cloned()
     }
 
     pub fn id(&self) -> CrateID {

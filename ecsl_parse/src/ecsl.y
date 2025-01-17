@@ -125,10 +125,11 @@ ItemList -> Result<Vec<Item>, ()>:
     ;
 
 Item -> Result<Item, ()>:
-    'USE' UsePath 'SEMI' {
+    Attributes 'USE' UsePath 'SEMI' {
         Ok(Item::new($span, ItemKind::Use(P::new(UseDef {
             span: $span,
-            path: P::new($2?),
+            attributes: $1?,
+            path: P::new($3?),
         }))))
     }
     | FnDef { Ok(Item::new($span, ItemKind::Fn(P::new($1?)))) }

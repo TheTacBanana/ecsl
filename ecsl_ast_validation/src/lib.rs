@@ -16,6 +16,7 @@ use std::{path::PathBuf, sync::Arc};
 pub mod definitions;
 pub mod fn_validator;
 pub mod import_collector;
+pub mod prelude;
 
 pub fn validate_ast(ast: &SourceAST, diag: DiagConn) {
     let mut fn_validator = FnValidator::new(diag);
