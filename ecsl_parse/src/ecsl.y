@@ -255,8 +255,13 @@ Attribute -> Result<Attribute, ()>:
     'IDENT' {
         Ok(Attribute::Marker(table.string($span)))
     }
+    | 'IDENT' 'LBRACKET' INT 'RBRACKET'{
+        Ok(Attribute::Value(
+            table.string($1.map_err(|_| ())?.span()),
+            table.string($3.map_err(|_| ())?.span()).parse().map_err(|_| ())?)
+        )
+    }
     ;
-
 
 ConcreteGenerics -> Result<Option<ConcreteGenerics>, ()>:
     'LT' TyList TrailingComma 'GT' {

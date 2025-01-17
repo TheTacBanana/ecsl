@@ -1,3 +1,4 @@
+#[copy, builtin(4)]
 struct int;
 
 impl int {
@@ -9,3 +10,6 @@ impl int {
         }
     }
 }
+
+#[copy, builtin(4)]
+struct float;

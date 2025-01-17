@@ -8,6 +8,7 @@ pub struct Attributes {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Attribute {
     Marker(String),
+    Value(String, u32),
 }
 
 impl Attributes {
