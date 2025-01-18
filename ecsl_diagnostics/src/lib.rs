@@ -29,17 +29,32 @@ impl Diagnostics {
     }
 
     pub fn finish_stage(&self, f: impl Fn(&mut EcslError)) -> Result<(), ()> {
-        let fatal = self
-            .stages
-            .read()
-            .unwrap()
-            .last()
-            .unwrap()
-            .iter()
-            .any(|e| e.level() == ErrorLevel::Error);
+        let stdout = std::io::stdout();
+        let mut lock = stdout.lock();
 
-        if fatal {
-            self.ok(f).unwrap();
+        let mut total_fatal = 0;
+        for stage in self.stages.write().unwrap().iter_mut() {
+            for err in stage.drain(..) {
+                let mut err = err;
+                if err.level() == ErrorLevel::Error {
+                    total_fatal += 1;
+                }
+
+                f(&mut err);
+
+                writeln!(lock, "{}", err).unwrap();
+            }
+        }
+
+        if total_fatal > 0 {
+            writeln!(
+                lock,
+                "{}: Failed to compile due to {} error{}",
+                Red.paint("Error"),
+                total_fatal,
+                if total_fatal > 1 { "s" } else { "" }
+            )
+            .unwrap();
             Err(())
         } else {
             self.stages.write().unwrap().push(Default::default());
@@ -54,35 +69,6 @@ impl Diagnostics {
             .last_mut()
             .unwrap()
             .push(error.into());
-    }
-
-    fn ok(&self, f: impl Fn(&mut EcslError)) -> std::io::Result<()> {
-        let stdout = std::io::stdout();
-        let mut lock = stdout.lock();
-
-        let mut total_fatal = 0;
-        for stage in self.stages.write().unwrap().iter_mut() {
-            for err in stage.drain(..) {
-                let mut err = err;
-                if err.level() == ErrorLevel::Error {
-                    total_fatal += 1;
-                }
-
-                f(&mut err);
-
-                writeln!(lock, "{}", err)?;
-            }
-        }
-
-        writeln!(
-            lock,
-            "{}: Failed to compile due to {} error{}",
-            Red.paint("Error"),
-            total_fatal,
-            if total_fatal > 1 { "s" } else { "" }
-        )?;
-
-        Ok(())
     }
 }
 
