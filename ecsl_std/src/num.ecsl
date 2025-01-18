@@ -1,4 +1,4 @@
-#[copy, builtin(4)]
+#[copy, builtin(4), allow_casing]
 struct int;
 
 impl int {
@@ -11,5 +11,5 @@ impl int {
     }
 }
 
-#[copy, builtin(4)]
+#[copy, builtin(4), allow_casing]
 struct float;

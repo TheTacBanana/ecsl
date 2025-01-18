@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use ecsl_ast::{
     data::{EnumDef, StructDef},
     item::{ImplBlock, Item, ItemKind},
@@ -7,6 +5,7 @@ use ecsl_ast::{
     visit::{walk_item, FnCtxt, Visitor, VisitorCF},
 };
 use ecsl_ty::{def::Definition, local::LocalTyCtxt};
+use std::sync::Arc;
 
 pub struct TypeDefCollector {
     ty_ctxt: Arc<LocalTyCtxt>,

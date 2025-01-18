@@ -1,10 +1,9 @@
 use ecsl_ast::{
     item::{Item, ItemKind, UseDef, UsePath},
-    parse::Attribute,
+    parse::{Attribute, AttributeMarker},
     visit::{walk_item, Visitor, VisitorCF},
 };
 use ecsl_context::Context;
-use ecsl_error::{ext::EcslErrorExt, EcslError, ErrorLevel};
 use ecsl_index::GlobalID;
 use ecsl_ty::{import::ImportPath, local::LocalTyCtxt};
 use std::{collections::VecDeque, path::PathBuf, sync::Arc};
@@ -29,20 +28,11 @@ impl<'a> Visitor for ImportCollector<'a> {
     }
 
     fn visit_use(&mut self, u: &UseDef) -> VisitorCF {
-        if let Some(attributes) = &u.attributes {
-            if attributes.has_attribute(&Attribute::Marker("prelude".to_string())) {
-                if self.ctxt.in_std(self.ty_ctxt.file) {
-                    return VisitorCF::Continue;
-                } else {
-                    self.ty_ctxt.diag.push_error(
-                        EcslError::new(
-                            ErrorLevel::Error,
-                            "Cannot use prelude attribute outside of std",
-                        )
-                        .with_span(|_| u.span),
-                    );
-                }
-            }
+        if u.attributes
+            .has_attribute(&Attribute::Marker(AttributeMarker::Prelude))
+            && self.ctxt.in_std(self.ty_ctxt.file)
+        {
+            return VisitorCF::Continue;
         }
 
         let mut queue = VecDeque::from(vec![(PathBuf::new(), &*u.path)]);

@@ -1,6 +1,6 @@
 use ecsl_ast::{
     item::{UseDef, UsePath},
-    parse::Attribute,
+    parse::{Attribute, AttributeMarker},
     visit::{Visitor, VisitorCF},
 };
 use ecsl_index::SourceFileID;
@@ -25,13 +25,12 @@ impl Prelude {
 
 impl Visitor for Prelude {
     fn visit_use(&mut self, u: &UseDef) -> VisitorCF {
-        let Some(attr) = &u.attributes else {
-            return VisitorCF::Continue;
-        };
-
-        if attr.has_attribute(&Attribute::Marker("prelude".to_string())) {
+        if u.attributes
+            .has_attribute(&Attribute::Marker(AttributeMarker::Prelude))
+        {
             let mut u = u.clone();
-            u.attributes = None;
+            u.attributes
+                .remove_attribute(&Attribute::Marker(AttributeMarker::Prelude));
             self.imports.push(u);
         }
 

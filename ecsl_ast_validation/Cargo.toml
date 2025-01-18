@@ -12,3 +12,4 @@ ecsl_index = { path = "../ecsl_index" }
 ecsl_ty = { path = "../ecsl_ty" }
 ecsl_context = { path = "../ecsl_context" }
 lrpar.workspace = true
+convert_case = "0.7.1"

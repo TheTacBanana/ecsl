@@ -1,7 +1,8 @@
 use anyhow::Result;
 use ecsl_assembler::Assembler;
 use ecsl_ast_validation::{
-    ast_definitions, collect_prelude, include_prelude, validate_ast, validate_imports,
+    ast_definitions, casing_warnings, collect_prelude, include_prelude, validate_ast,
+    validate_imports,
 };
 use ecsl_context::{Context, MapAssocExt};
 use ecsl_diagnostics::{Diagnostics, DiagnosticsExt};
@@ -100,6 +101,7 @@ impl Driver {
 
                 validate_ast(&ast, diag.clone());
                 ast_definitions(&ast, ctxt, local_ctxt.clone());
+                casing_warnings(&ast, diag.clone(), table.clone());
 
                 Some((diag, ast, table, local_ctxt))
             },

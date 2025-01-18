@@ -1,6 +1,7 @@
+use casing::CasingWarnings;
 use definitions::TypeDefCollector;
 use ecsl_ast::{
-    item::{Item, ItemKind, UsePath},
+    item::{Item, ItemKind},
     visit::Visitor,
     SourceAST,
 };
@@ -18,6 +19,7 @@ use import_collector::ImportCollector;
 use prelude::{rewrite_use_path, Prelude};
 use std::{path::PathBuf, sync::Arc};
 
+pub mod casing;
 pub mod definitions;
 pub mod fn_validator;
 pub mod import_collector;
@@ -118,4 +120,9 @@ pub fn validate_imports(source: &SourceFile, ctxt: &Context, ty_ctxt: Arc<LocalT
             Import::Unknown
         }
     }
+}
+
+pub fn casing_warnings(ast: &SourceAST, diag: DiagConn, table: Arc<SymbolTable>) {
+    let mut casing = CasingWarnings::new(diag, table);
+    casing.visit_ast(&ast);
 }

@@ -1,5 +1,5 @@
 #[prelude]
 use {
     std::option::Option,
-    std::num::int
+    std::num::{int, float}
 };
