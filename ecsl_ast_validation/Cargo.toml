@@ -11,3 +11,4 @@ ecsl_parse = { path = "../ecsl_parse" }
 ecsl_index = { path = "../ecsl_index" }
 ecsl_ty = { path = "../ecsl_ty" }
 ecsl_context = { path = "../ecsl_context" }
+lrpar.workspace = true

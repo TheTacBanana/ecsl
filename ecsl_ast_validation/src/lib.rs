@@ -1,16 +1,21 @@
 use definitions::TypeDefCollector;
-use ecsl_ast::{visit::Visitor, SourceAST};
+use ecsl_ast::{
+    item::{Item, ItemKind, UsePath},
+    visit::Visitor,
+    SourceAST,
+};
 use ecsl_context::Context;
 use ecsl_diagnostics::DiagConn;
 use ecsl_error::{ext::EcslErrorExt, EcslError, ErrorLevel};
-use ecsl_index::GlobalID;
-use ecsl_parse::source::SourceFile;
+use ecsl_index::{GlobalID, SourceFileID};
+use ecsl_parse::{source::SourceFile, table::SymbolTable, LexerTy};
 use ecsl_ty::{
     import::{Import, MappedImport},
     local::LocalTyCtxt,
 };
 use fn_validator::FnValidator;
 use import_collector::ImportCollector;
+use prelude::{rewrite_use_path, Prelude};
 use std::{path::PathBuf, sync::Arc};
 
 pub mod definitions;
@@ -18,16 +23,41 @@ pub mod fn_validator;
 pub mod import_collector;
 pub mod prelude;
 
+pub fn collect_prelude(ast: &SourceAST, id: SourceFileID) -> Prelude {
+    let mut prelude = Prelude::new(id);
+    prelude.visit_ast(&ast);
+    prelude
+}
+
+pub fn include_prelude(
+    prelude: &Prelude,
+    ast: &mut SourceAST,
+    table: Arc<SymbolTable>,
+    lexer: &LexerTy,
+) {
+    let mut imports = prelude.imports.clone();
+
+    for import in imports.iter_mut() {
+        rewrite_use_path(&mut import.path, &table, lexer);
+    }
+
+    ast.items.extend(
+        imports
+            .drain(..)
+            .map(|u| Item::new(u.span, ItemKind::Use(Box::new(u)))),
+    );
+}
+
 pub fn validate_ast(ast: &SourceAST, diag: DiagConn) {
     let mut fn_validator = FnValidator::new(diag);
     fn_validator.visit_ast(ast);
 }
 
-pub fn ast_definitions(ast: &SourceAST, ty_ctxt: Arc<LocalTyCtxt>) {
+pub fn ast_definitions(ast: &SourceAST, ctxt: &Context, ty_ctxt: Arc<LocalTyCtxt>) {
     let mut definitions = TypeDefCollector::new(ty_ctxt.clone());
     definitions.visit_ast(ast);
 
-    let mut imports = ImportCollector::new(ty_ctxt.clone());
+    let mut imports = ImportCollector::new(ctxt, ty_ctxt.clone());
     imports.visit_ast(ast);
 }
 

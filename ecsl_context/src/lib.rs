@@ -16,6 +16,7 @@ pub mod bundle_toml;
 pub mod config;
 pub mod package;
 
+#[derive(Debug)]
 pub struct Context {
     config: EcslConfig,
     sources: BTreeMap<SourceFileID, SourceFile>,
@@ -31,7 +32,7 @@ impl Context {
         path: PathBuf,
         std_path: PathBuf,
         diag: DiagConn,
-    ) -> EcslResult<(Arc<Context>, AssocContext<()>)> {
+    ) -> EcslResult<(Context, AssocContext<()>)> {
         let config = EcslConfig::new_config(&path, &std_path, diag.clone())?;
 
         if let Some(cycle_causer) = config.cycle {
@@ -63,7 +64,7 @@ impl Context {
         let assoc = context.sources.iter().map(|(id, _)| (*id, ())).collect();
         let assoc = AssocContext { assoc };
 
-        Ok((Arc::new(context), assoc))
+        Ok((context, assoc))
     }
 
     fn read_package(&mut self, package: &EcslPackage) {
@@ -153,8 +154,14 @@ impl Context {
             Err(ImportPathError::NotInSameCrate)
         }
     }
+
+    pub fn in_std(&self, id: SourceFileID) -> bool {
+        self.get_source_file(id)
+            .is_some_and(|s| s.cr == self.config.std_id)
+    }
 }
 
+#[derive(Debug, Clone, Copy)]
 pub enum ImportPathError {
     MissingCrate,
     PathError,
@@ -177,7 +184,7 @@ impl std::fmt::Display for ImportPathError {
 pub trait MapAssocExt<T: Send> {
     fn par_map_assoc<U: Send>(
         self,
-        f: impl Fn(&SourceFile, T) -> Option<U> + Send + Sync,
+        f: impl Fn(&Context, &SourceFile, T) -> Option<U> + Send + Sync,
         a: impl FnOnce() -> Result<(), ()>,
     ) -> Result<AssocContext<U>, ()>;
 
@@ -188,10 +195,10 @@ pub trait MapAssocExt<T: Send> {
     ) -> Result<AssocContext<U>, ()>;
 }
 
-impl<T: Send> MapAssocExt<T> for (&Arc<Context>, AssocContext<T>) {
+impl<T: Send> MapAssocExt<T> for (&Context, AssocContext<T>) {
     fn par_map_assoc<U: Send>(
         self,
-        f: impl Fn(&SourceFile, T) -> Option<U> + Send + Sync,
+        f: impl Fn(&Context, &SourceFile, T) -> Option<U> + Send + Sync,
         a: impl FnOnce() -> Result<(), ()>,
     ) -> Result<AssocContext<U>, ()> {
         let len = self.1.assoc.len();
@@ -202,7 +209,7 @@ impl<T: Send> MapAssocExt<T> for (&Arc<Context>, AssocContext<T>) {
             .into_par_iter()
             .filter_map(|(k, v)| {
                 let src = self.0.sources.get(&k).unwrap();
-                let result = f(src, v);
+                let result = f(self.0, src, v);
                 result.map(|r| (k, r))
             })
             .collect::<BTreeMap<SourceFileID, U>>();

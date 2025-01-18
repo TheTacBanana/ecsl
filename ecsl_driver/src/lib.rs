@@ -1,6 +1,8 @@
 use anyhow::Result;
 use ecsl_assembler::Assembler;
-use ecsl_ast_validation::{ast_definitions, validate_ast, validate_imports};
+use ecsl_ast_validation::{
+    ast_definitions, collect_prelude, include_prelude, validate_ast, validate_imports,
+};
 use ecsl_context::{Context, MapAssocExt};
 use ecsl_diagnostics::{Diagnostics, DiagnosticsExt};
 use ecsl_error::{ext::EcslErrorExt, EcslError};
@@ -23,7 +25,7 @@ impl Driver {
     fn inner(std_path: PathBuf, diag: Arc<Diagnostics>) -> Result<(), ()> {
         // Create the context and load all dependencies of the target program
         let path = std::env::current_dir().unwrap();
-        let (ctxt, assoc) = match Context::new(path.clone(), std_path, diag.empty_conn()) {
+        let (context, assoc) = match Context::new(path.clone(), std_path, diag.empty_conn()) {
             Ok(ctx) => ctx,
             Err(e) => {
                 diag.push_error(e);
@@ -35,7 +37,7 @@ impl Driver {
 
         // Create lexers externally due to lifetimes
         let mut lexers = BTreeMap::new();
-        for (id, src) in ctxt.sources() {
+        for (id, src) in context.sources() {
             let lexer = src.lexer();
             lexers.insert(id, lexer);
         }
@@ -43,7 +45,7 @@ impl Driver {
         // Closure to map errors with spans to a path and snippet
         let lexer_func = |err: &mut EcslError| {
             if let (Some(span), Some(file)) = (err.get_span(), err.get_file()) {
-                let source = ctxt.get_source_file(file).unwrap();
+                let source = context.get_source_file(file).unwrap();
                 let lexer = lexers.get(&file).unwrap();
                 let level = err.level();
 
@@ -53,8 +55,8 @@ impl Driver {
         };
 
         // Parse all files
-        let assoc = (&ctxt, assoc).par_map_assoc(
-            |src, _| {
+        let assoc = (&context, assoc).par_map_assoc(
+            |_, src, _| {
                 let lexer = lexers.get(&src.id).unwrap();
                 let diag = diag.new_conn(src.id);
 
@@ -63,19 +65,41 @@ impl Driver {
                     return None;
                 }
 
-                Some((diag, Arc::new(result.ast.unwrap()), Arc::new(result.table)))
+                Some((diag, result.ast.unwrap(), Arc::new(result.table)))
             },
             || diag.finish_stage(lexer_func),
         )?;
 
+        // Process the std prelude
+        let prelude = {
+            let std_lib = context
+                .get_source_file_from_crate(&"lib".into(), context.config().std_id)
+                .unwrap();
+            let ast = &assoc.assoc.get(&std_lib).unwrap().1;
+            collect_prelude(&ast, std_lib)
+        };
+
+        // Include the std prelude in all files outside of std
+        let assoc = (&context, assoc).par_map_assoc(
+            |ctxt, src, (diag, mut ast, table)| {
+                if !ctxt.in_std(src.id) {
+                    let lexer = lexers.get(&prelude.id).unwrap();
+                    include_prelude(&prelude, &mut ast, table.clone(), lexer);
+                }
+
+                Some((diag, ast, table))
+            },
+            || Ok(()),
+        )?;
+
         // Perform AST validation and collect definitions and imports
         let ty_ctxt = Arc::new(TyCtxt::new());
-        let assoc = (&ctxt, assoc).par_map_assoc(
-            |src, (diag, ast, table)| {
+        let assoc = (&context, assoc).par_map_assoc(
+            |ctxt, src, (diag, ast, table)| {
                 let local_ctxt = ty_ctxt.new_local_ctxt(src.id, table.clone(), diag.clone());
 
                 validate_ast(&ast, diag.clone());
-                ast_definitions(&ast, local_ctxt.clone());
+                ast_definitions(&ast, ctxt, local_ctxt.clone());
 
                 Some((diag, ast, table, local_ctxt))
             },
@@ -83,8 +107,8 @@ impl Driver {
         )?;
 
         // Verify imports
-        let assoc = (&ctxt, assoc).par_map_assoc(
-            |src, (_, ast, table, local_ctxt)| {
+        let assoc = (&context, assoc).par_map_assoc(
+            |ctxt, src, (_, ast, table, local_ctxt)| {
                 validate_imports(src, &ctxt, local_ctxt.clone());
 
                 Some((ast, table, local_ctxt))

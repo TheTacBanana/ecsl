@@ -1,18 +1,16 @@
-use std::{
-    collections::BTreeMap,
-    sync::{Arc, RwLock},
-};
-
-use ecsl_diagnostics::DiagConn;
-use ecsl_error::{ext::EcslErrorExt, EcslError, ErrorLevel};
-use ecsl_index::{SourceFileID, SymbolID};
-use ecsl_parse::table::SymbolTable;
-
 use crate::{
     assoc::ImplBlock,
     def::Definition,
     import::{Import, ImportPath},
     ImportError, TyCtxt,
+};
+use ecsl_diagnostics::DiagConn;
+use ecsl_error::{ext::EcslErrorExt, EcslError, ErrorLevel};
+use ecsl_index::{SourceFileID, SymbolID};
+use ecsl_parse::table::SymbolTable;
+use std::{
+    collections::BTreeMap,
+    sync::{Arc, RwLock},
 };
 
 pub struct LocalTyCtxt {

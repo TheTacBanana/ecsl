@@ -16,7 +16,7 @@ impl Attributes {
         Self { attributes: v }
     }
 
-    pub fn get_attribute(&self, attr: &Attribute) -> bool {
+    pub fn has_attribute(&self, attr: &Attribute) -> bool {
         self.attributes.contains(attr)
     }
 

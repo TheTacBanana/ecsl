@@ -2,7 +2,10 @@ use cfgrammar::Span;
 use ecsl_ast::{data::DataKind, parse::FnKind};
 use ecsl_index::{SourceFileID, SymbolID};
 use lrlex::{DefaultLexerTypes, LRNonStreamingLexer};
-use std::collections::{hash_map::Entry, HashMap};
+use std::{
+    collections::{hash_map::Entry, HashMap},
+    sync::RwLock,
+};
 
 #[derive(Clone)]
 pub struct PartialSymbolTable<'a, 'b> {
@@ -12,29 +15,28 @@ pub struct PartialSymbolTable<'a, 'b> {
     pub lexer: &'a LRNonStreamingLexer<'a, 'b, DefaultLexerTypes>,
 }
 
-#[derive(Clone)]
 pub struct SymbolTable {
     file: SourceFileID,
-    symbols: Vec<Symbol>,
-    symbol_map: HashMap<String, SymbolID>,
+    symbols: RwLock<Vec<Symbol>>,
+    symbol_map: RwLock<HashMap<String, SymbolID>>,
 }
 
 #[derive(Debug, Clone)]
 pub struct Symbol {
     pub name: String,
-    pub definitions: Vec<(SymbolKind, Span)>,
-    pub usages: Vec<(SymbolKind, Span)>,
+    // pub definitions: Vec<(SymbolKind, Span)>,
+    // pub usages: Vec<(SymbolKind, Span)>,
 }
 
-impl Symbol {
-    pub fn add_definition(&mut self, kind: SymbolKind, span: Span) {
-        self.definitions.push((kind, span));
-    }
+// impl Symbol {
+// pub fn add_definition(&mut self, kind: SymbolKind, span: Span) {
+//     self.definitions.push((kind, span));
+// }
 
-    pub fn add_usage(&mut self, kind: SymbolKind, span: Span) {
-        self.usages.push((kind, span));
-    }
-}
+// pub fn add_usage(&mut self, kind: SymbolKind, span: Span) {
+//     self.usages.push((kind, span));
+// }
+// }
 
 #[derive(Debug, Clone, Copy)]
 pub enum SymbolKind {
@@ -73,15 +75,15 @@ impl<'a, 'b> PartialSymbolTable<'a, 'b> {
         }
     }
 
-    pub fn define_symbol(&mut self, name: String, span: Span, kind: SymbolKind) -> SymbolID {
-        let (id, entry) = self.create_entry(name);
-        entry.add_definition(kind, span);
+    pub fn define_symbol(&mut self, name: String, span: Span, _: SymbolKind) -> SymbolID {
+        let (id, _) = self.create_entry(name);
+        // entry.add_definition(kind, span);
         id
     }
 
-    pub fn use_symbol(&mut self, name: String, span: Span, kind: SymbolKind) -> SymbolID {
-        let (id, entry) = self.create_entry(name);
-        entry.add_usage(kind, span);
+    pub fn use_symbol(&mut self, name: String, span: Span, _: SymbolKind) -> SymbolID {
+        let (id, _) = self.create_entry(name);
+        // entry.add_usage(kind, span);
         id
     }
 
@@ -93,8 +95,8 @@ impl<'a, 'b> PartialSymbolTable<'a, 'b> {
                 e.insert(symbol_id);
                 self.symbols.push(Symbol {
                     name: name,
-                    definitions: Vec::new(),
-                    usages: Vec::new(),
+                    // definitions: Vec::new(),
+                    // usages: Vec::new(),
                 });
             }
             Entry::Occupied(e) => {
@@ -107,8 +109,8 @@ impl<'a, 'b> PartialSymbolTable<'a, 'b> {
     pub fn finish(self) -> SymbolTable {
         SymbolTable {
             file: self.file,
-            symbols: self.symbols,
-            symbol_map: self.symbol_map,
+            symbols: RwLock::new(self.symbols),
+            symbol_map: RwLock::new(self.symbol_map),
         }
     }
 }
@@ -118,15 +120,30 @@ impl SymbolTable {
         self.file
     }
 
-    pub fn get_symbol(&self, id: SymbolID) -> Option<&Symbol> {
-        self.symbols.get(id.inner())
-    }
-
-    pub fn get_symbol_mut(&mut self, id: SymbolID) -> Option<&mut Symbol> {
-        self.symbols.get_mut(id.inner())
+    pub fn get_symbol(&self, id: SymbolID) -> Option<Symbol> {
+        let lock = self.symbols.read().unwrap();
+        lock.get(id.inner()).cloned()
     }
 
     pub fn get_symbol_from_string(&self, s: &String) -> Option<SymbolID> {
-        self.symbol_map.get(s).cloned()
+        let lock = self.symbol_map.read().unwrap();
+        lock.get(s).cloned()
+    }
+
+    pub fn create_entry(&self, name: String) -> SymbolID {
+        let symbol_id: SymbolID;
+        let mut symbols = self.symbols.write().unwrap();
+        let mut symbol_map = self.symbol_map.write().unwrap();
+        match symbol_map.entry(name.clone()) {
+            Entry::Vacant(e) => {
+                symbol_id = SymbolID::new(symbols.len());
+                e.insert(symbol_id);
+                symbols.push(Symbol { name });
+            }
+            Entry::Occupied(e) => {
+                symbol_id = *e.get();
+            }
+        }
+        symbol_id
     }
 }

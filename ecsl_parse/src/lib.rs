@@ -19,12 +19,11 @@ lrlex_mod!("ecsl.l");
 lrpar_mod!("ecsl.y");
 
 type LexerDef = LRNonStreamingLexerDef<DefaultLexerTypes<u32>>;
-type LexerTy<'a, 'b> = LRNonStreamingLexer<'a, 'b, DefaultLexerTypes<u32>>;
+pub type LexerTy<'a, 'b> = LRNonStreamingLexer<'a, 'b, DefaultLexerTypes<u32>>;
 
 lazy_static! {
     static ref LEXER_DEF: LexerDef = ecsl_l::lexerdef();
 }
-
 pub struct ParseResult {
     pub ast: Option<SourceAST>,
     pub table: SymbolTable,

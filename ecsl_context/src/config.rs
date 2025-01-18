@@ -41,20 +41,21 @@ impl EcslConfig {
             cycle: None,
         };
 
-        // Load std lib
         {
+            // Load project Bundle.toml first to check it exists
+            let root_bundle_toml = Self::load_bundle_toml(path)?;
+
+            // Load std lib second but process it first
             config.std_id = match Self::load_bundle_toml(std_path) {
                 Ok(bundle_toml) => config.include_bundle_toml(bundle_toml, diag.clone()),
                 Err(err) => {
                     return Err(err.with_note(|_| "Failed to load standard library".to_string()));
                 }
             };
+            // Can now set the canon path as it exists
             config.std_path = config.std_path.canonicalize().unwrap();
-        }
 
-        // Load Root of project
-        {
-            let root_bundle_toml = Self::load_bundle_toml(path)?;
+            // Finally include the root
             config.root_id = config.include_bundle_toml(root_bundle_toml, diag.clone());
         }
 
@@ -89,8 +90,6 @@ impl EcslConfig {
             config.cycle = Some(cycle.node_id());
         }
 
-        println!("{config:?}");
-
         Ok(config)
     }
 
@@ -107,6 +106,7 @@ impl EcslConfig {
         let package_id = self.crate_id_from_path(&bundle_toml.package.path);
         let mut package = EcslPackage::new(package_id, bundle_toml.package.clone());
 
+        // Convert out of a hashmap
         let mut dependencies = bundle_toml
             .dependencies
             .drain()

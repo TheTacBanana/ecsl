@@ -5,6 +5,7 @@ use ecsl_error::{snippet::Snippet, ErrorLevel};
 use ecsl_index::{CrateID, LineNumberColumn, SourceFileID};
 use lrpar::{NonStreamingLexer, Span};
 
+#[derive(Debug)]
 pub struct SourceFile {
     pub id: SourceFileID,
     pub cr: CrateID,
