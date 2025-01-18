@@ -42,7 +42,7 @@ pub enum ItemKind {
 #[derive(Debug, Clone, AST)]
 pub struct UseDef {
     pub span: Span,
-    pub attributes: Option<Attributes>,
+    pub attributes: Attributes,
     pub path: P<UsePath>,
 }
 

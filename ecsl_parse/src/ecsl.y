@@ -237,12 +237,12 @@ Component -> Result<DataKind, ()>:
     | { Ok(DataKind::Normal) }
     ;
 
-Attributes -> Result<Option<Attributes>, ()>:
+Attributes -> Result<Attributes, ()>:
     'HASH' 'LSQUARE' AttributeList TrailingComma 'RSQUARE' {
-        Ok(Some(Attributes::from_vec($3?)))
+        Ok(Attributes::from_vec($3?))
      }
-    | 'HASH' 'LSQUARE' 'RSQUARE' { Ok(None)}
-    | {Ok(None)}
+    | 'HASH' 'LSQUARE' 'RSQUARE' { Ok(Attributes::new())}
+    | { Ok(Attributes::new()) }
     ;
 
 AttributeList -> Result<Vec<Attribute>, ()>:
@@ -254,13 +254,17 @@ AttributeList -> Result<Vec<Attribute>, ()>:
 
 Attribute -> Result<Attribute, ()>:
     'IDENT' {
-        Ok(Attribute::Marker(table.string($span)))
+        Ok(Attribute::Marker(
+            AttributeMarker::from_string(&table.string($span))
+        ))
     }
     | 'IDENT' 'LBRACKET' INT 'RBRACKET'{
         Ok(Attribute::Value(
-            table.string($1.map_err(|_| ())?.span()),
-            table.string($3.map_err(|_| ())?.span()).parse().map_err(|_| ())?)
-        )
+            AttributeValue::from_string(
+                &table.string($1.map_err(|_| ())?.span())
+            ),
+            table.string($3.map_err(|_| ())?.span()).parse().map_err(|_| ())?
+        ))
     }
     ;
 
