@@ -1,3 +1,4 @@
+use attributes::AttributeValidator;
 use casing::CasingWarnings;
 use definitions::TypeDefCollector;
 use ecsl_ast::{
@@ -19,6 +20,7 @@ use import_collector::ImportCollector;
 use prelude::{rewrite_use_path, Prelude};
 use std::{path::PathBuf, sync::Arc};
 
+pub mod attributes;
 pub mod casing;
 pub mod definitions;
 pub mod fn_validator;
@@ -50,9 +52,12 @@ pub fn include_prelude(
     );
 }
 
-pub fn validate_ast(ast: &SourceAST, diag: DiagConn) {
-    let mut fn_validator = FnValidator::new(diag);
+pub fn validate_ast(ctxt: &Context, ast: &SourceAST, diag: DiagConn) {
+    let mut fn_validator = FnValidator::new(diag.clone());
     fn_validator.visit_ast(ast);
+
+    let mut attribute_validator = AttributeValidator::new(ctxt, diag.clone(), ast.file);
+    attribute_validator.visit_ast(ast);
 }
 
 pub fn ast_definitions(ast: &SourceAST, ctxt: &Context, ty_ctxt: Arc<LocalTyCtxt>) {

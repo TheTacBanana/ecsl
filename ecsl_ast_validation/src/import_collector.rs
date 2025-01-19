@@ -1,6 +1,6 @@
 use ecsl_ast::{
     item::{Item, ItemKind, UseDef, UsePath},
-    parse::{Attribute, AttributeMarker},
+    parse::{AttributeKind, AttributeMarker},
     visit::{walk_item, Visitor, VisitorCF},
 };
 use ecsl_context::Context;
@@ -29,7 +29,7 @@ impl<'a> Visitor for ImportCollector<'a> {
 
     fn visit_use(&mut self, u: &UseDef) -> VisitorCF {
         if u.attributes
-            .has_attribute(&Attribute::Marker(AttributeMarker::Prelude))
+            .has_attribute(&AttributeKind::Marker(AttributeMarker::Prelude))
             && self.ctxt.in_std(self.ty_ctxt.file)
         {
             return VisitorCF::Continue;

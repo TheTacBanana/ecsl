@@ -3,7 +3,7 @@ use crate::{
     ecs::{QueryExpr, Schedule, ScheduleKind},
     expr::{Expr, ExprKind, FieldExpr},
     item::{ImplBlock, Item, ItemKind, UseDef},
-    parse::{FnDef, RetTy},
+    parse::{Attributes, FnDef, RetTy},
     stmt::{Block, MatchArm, Stmt, StmtKind},
     ty::{ConcreteGenerics, Generics, Ty, TyKind},
     SourceAST,
@@ -67,6 +67,9 @@ pub trait Visitor: Sized {
     fn visit_schedule(&mut self, s: &Schedule) -> VisitorCF {
         walk_schedule(self, s)
     }
+    fn visit_attributes(&mut self, a: &Attributes) -> VisitorCF {
+        walk_attributes(self, a)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -106,8 +109,8 @@ pub fn walk_item<V: Visitor>(v: &mut V, item: &Item) -> VisitorCF {
     }
 }
 
-pub fn walk_use<V: Visitor>(_v: &mut V, _u: &UseDef) -> VisitorCF {
-    VisitorCF::Continue
+pub fn walk_use<V: Visitor>(v: &mut V, u: &UseDef) -> VisitorCF {
+    v.visit_attributes(&u.attributes)
 }
 
 pub fn walk_fn<V: Visitor>(v: &mut V, f: &FnDef) -> VisitorCF {
@@ -133,6 +136,7 @@ pub fn walk_concrete_generics<V: Visitor>(v: &mut V, c: &ConcreteGenerics) -> Vi
 }
 
 pub fn walk_struct_def<V: Visitor>(v: &mut V, s: &StructDef) -> VisitorCF {
+    visit!(v.visit_attributes(&s.attributes));
     for f in &s.fields {
         visit!(v.visit_field_def(&f))
     }
@@ -140,6 +144,7 @@ pub fn walk_struct_def<V: Visitor>(v: &mut V, s: &StructDef) -> VisitorCF {
 }
 
 pub fn walk_enum_def<V: Visitor>(v: &mut V, e: &EnumDef) -> VisitorCF {
+    visit!(v.visit_attributes(&e.attributes));
     for var in &e.variants {
         visit!(v.visit_variant_def(var));
     }
@@ -326,5 +331,9 @@ pub fn walk_schedule<V: Visitor>(v: &mut V, s: &Schedule) -> VisitorCF {
             }
         }
     }
+    VisitorCF::Continue
+}
+
+pub fn walk_attributes<V: Visitor>(_v: &mut V, _a: &Attributes) -> VisitorCF {
     VisitorCF::Continue
 }

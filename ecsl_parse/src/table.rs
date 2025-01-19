@@ -75,13 +75,13 @@ impl<'a, 'b> PartialSymbolTable<'a, 'b> {
         }
     }
 
-    pub fn define_symbol(&mut self, name: String, span: Span, _: SymbolKind) -> SymbolID {
+    pub fn define_symbol(&mut self, name: String, _: Span, _: SymbolKind) -> SymbolID {
         let (id, _) = self.create_entry(name);
         // entry.add_definition(kind, span);
         id
     }
 
-    pub fn use_symbol(&mut self, name: String, span: Span, _: SymbolKind) -> SymbolID {
+    pub fn use_symbol(&mut self, name: String, _: Span, _: SymbolKind) -> SymbolID {
         let (id, _) = self.create_entry(name);
         // entry.add_usage(kind, span);
         id

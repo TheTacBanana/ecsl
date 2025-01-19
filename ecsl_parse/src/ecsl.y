@@ -254,16 +254,22 @@ AttributeList -> Result<Vec<Attribute>, ()>:
 
 Attribute -> Result<Attribute, ()>:
     'IDENT' {
-        Ok(Attribute::Marker(
-            AttributeMarker::from_string(&table.string($span))
+        Ok(Attribute::new(
+            $span,
+            AttributeKind::Marker(
+                AttributeMarker::from_string(&table.string($span))
+            )
         ))
     }
     | 'IDENT' 'LBRACKET' INT 'RBRACKET'{
-        Ok(Attribute::Value(
-            AttributeValue::from_string(
-                &table.string($1.map_err(|_| ())?.span())
-            ),
-            table.string($3.map_err(|_| ())?.span()).parse().map_err(|_| ())?
+        Ok(Attribute::new(
+            $span,
+            AttributeKind::Value(
+                AttributeValue::from_string(
+                    &table.string($1.map_err(|_| ())?.span())
+                ),
+                table.string($3.map_err(|_| ())?.span()).parse().map_err(|_| ())?
+            )
         ))
     }
     ;

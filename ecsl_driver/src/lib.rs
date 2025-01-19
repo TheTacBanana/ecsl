@@ -99,7 +99,7 @@ impl Driver {
             |ctxt, src, (diag, ast, table)| {
                 let local_ctxt = ty_ctxt.new_local_ctxt(src.id, table.clone(), diag.clone());
 
-                validate_ast(&ast, diag.clone());
+                validate_ast(ctxt, &ast, diag.clone());
                 ast_definitions(&ast, ctxt, local_ctxt.clone());
                 casing_warnings(&ast, diag.clone(), table.clone());
 

@@ -3,10 +3,9 @@ use std::sync::Arc;
 use convert_case::{Case, Casing};
 use ecsl_ast::{
     data::{EnumDef, FieldDef, StructDef, VariantDef},
-    parse::{Attribute, AttributeMarker, FnDef},
+    parse::{AttributeKind, AttributeMarker, FnDef},
     visit::{
-        walk_enum_def, walk_field_def, walk_fn, walk_struct_def, walk_variant_def, FnCtxt, Visitor,
-        VisitorCF,
+        walk_enum_def, walk_fn, walk_struct_def, walk_variant_def, FnCtxt, Visitor, VisitorCF,
     },
 };
 use ecsl_diagnostics::DiagConn;
@@ -50,7 +49,7 @@ impl Visitor for CasingWarnings {
         if !symbol.name.is_case(Case::Pascal)
             && !s
                 .attributes
-                .has_attribute(&Attribute::Marker(AttributeMarker::AllowCasing))
+                .has_attribute(&AttributeKind::Marker(AttributeMarker::AllowCasing))
         {
             self.diag.push_error(
                 EcslError::new(ErrorLevel::Warning, CasingWarning::PascalCase)
@@ -65,7 +64,7 @@ impl Visitor for CasingWarnings {
         if !symbol.name.is_case(Case::Pascal)
             && !e
                 .attributes
-                .has_attribute(&Attribute::Marker(AttributeMarker::AllowCasing))
+                .has_attribute(&AttributeKind::Marker(AttributeMarker::AllowCasing))
         {
             self.diag.push_error(
                 EcslError::new(ErrorLevel::Warning, CasingWarning::PascalCase)
