@@ -77,9 +77,9 @@ impl Snippet {
     fn get_number_padding(lines: &Vec<(usize, String)>) -> usize {
         lines
             .iter()
-            .max_by_key(|l| l.0.to_string())
-            .unwrap()
-            .0
+            .map(|l| l.0)
+            .max_by_key(|l| l.to_string())
+            .unwrap_or_default()
             .to_string()
             .len()
     }

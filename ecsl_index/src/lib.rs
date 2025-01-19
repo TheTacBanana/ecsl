@@ -2,7 +2,7 @@
 macro_rules! generate_index_type {
     ($struct_name:ident) => {
         #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord, Hash)]
-        pub struct $struct_name(pub u32);
+        pub struct $struct_name(u32);
 
         impl $struct_name {
             pub const ZERO: $struct_name = $struct_name(0);
@@ -41,8 +41,26 @@ macro_rules! generate_index_type {
     };
 }
 
-generate_index_type!(CrateID);
+generate_index_type!(SymbolID);
 generate_index_type!(SourceFileID);
+generate_index_type!(CrateID);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GlobalID(SymbolID, SourceFileID);
+
+impl GlobalID {
+    pub fn new(s: SymbolID, f: SourceFileID) -> Self {
+        GlobalID(s, f)
+    }
+
+    pub fn symbol(&self) -> SymbolID {
+        self.0
+    }
+
+    pub fn source_file(&self) -> SourceFileID {
+        self.1
+    }
+}
 
 #[derive(Debug, Clone, Copy)]
 pub struct LineNumberColumn {

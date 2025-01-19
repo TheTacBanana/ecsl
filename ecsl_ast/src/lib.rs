@@ -1,7 +1,8 @@
 use ecsl_ast_derive::AST;
-use ecsl_index::{generate_index_type, SourceFileID};
+use ecsl_index::SourceFileID;
 use item::Item;
 
+pub mod attributes;
 pub mod callable;
 pub mod data;
 pub mod ecs;
@@ -9,8 +10,10 @@ pub mod expr;
 pub mod item;
 pub mod stmt;
 pub mod ty;
+pub mod visit;
 
 pub mod parse {
+    pub use crate::attributes::*;
     pub use crate::callable::*;
     pub use crate::data::*;
     pub use crate::ecs::*;
@@ -22,8 +25,6 @@ pub mod parse {
 }
 
 pub type P<T> = Box<T>;
-
-generate_index_type!(SymbolId);
 
 #[derive(Debug, AST)]
 pub struct SourceAST {

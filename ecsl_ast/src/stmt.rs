@@ -1,7 +1,12 @@
 use cfgrammar::Span;
 use ecsl_ast_derive::AST;
+use ecsl_index::SymbolID;
 
-use crate::{expr::Expr, ty::{Mutable, Ty}, SymbolId, P};
+use crate::{
+    expr::Expr,
+    ty::{Mutable, Ty},
+    P,
+};
 
 #[derive(Debug, Clone, AST)]
 pub struct Block {
@@ -24,7 +29,7 @@ impl Stmt {
 #[derive(Debug, Clone, AST)]
 pub enum StmtKind {
     /// `let mut ident : int = 1;`
-    Let(Mutable, SymbolId, P<Ty>, P<Expr>),
+    Let(Mutable, SymbolID, P<Ty>, P<Expr>),
 
     /// `if (*expr*) { .. }` Option of Else
     If(P<Expr>, P<Block>, Option<P<Stmt>>),
@@ -34,7 +39,7 @@ pub enum StmtKind {
     Else(P<Block>),
 
     /// `for (*symbol* : *ty* in *expr*) { .. }`
-    For(SymbolId, P<Ty>, P<Expr>, P<Block>),
+    For(SymbolID, P<Ty>, P<Expr>, P<Block>),
     /// `while (*expr*) { .. }`
     While(P<Expr>, P<Block>),
 
@@ -62,6 +67,7 @@ pub enum StmtKind {
 #[derive(Debug, Clone, AST)]
 pub struct MatchArm {
     pub span: Span,
+    pub ident: SymbolID,
     pub fields: Vec<Field>,
     pub block: P<Block>,
 }
@@ -69,5 +75,5 @@ pub struct MatchArm {
 #[derive(Debug, Clone, AST)]
 pub struct Field {
     pub span: Span,
-    pub ident: SymbolId,
+    pub ident: SymbolID,
 }

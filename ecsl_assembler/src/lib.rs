@@ -102,7 +102,6 @@ impl Assembler {
         let mut bytes = Vec::new();
 
         for i in inst {
-            println!("{:?}", i);
             bytes.extend(i.to_bytes());
         }
 
@@ -134,7 +133,6 @@ impl Assembler {
             address,
         } in &self.sections
         {
-            println!("{:?}", section_type);
             file.write(&(*section_type as u32).to_be_bytes())?;
             file.write(&length.to_be_bytes())?;
             file.write(&address.to_be_bytes())?;

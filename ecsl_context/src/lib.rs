@@ -1,118 +1,250 @@
+use config::EcslConfig;
+use ecsl_diagnostics::DiagConn;
+use ecsl_error::{ext::EcslErrorExt, EcslError, EcslResult, ErrorLevel};
+use ecsl_index::{CrateID, SourceFileID};
+use ecsl_parse::source::SourceFile;
+use glob::glob;
+use package::EcslPackage;
+use rayon::prelude::*;
 use std::{
     collections::{BTreeMap, HashMap},
     path::PathBuf,
+    sync::Arc,
 };
 
-use ecsl_config::{package::PackageInfo, EcslRootConfig};
-use ecsl_diagnostics::Diagnostics;
-use ecsl_error::{ext::EcslErrorExt, EcslError, EcslResult, ErrorLevel};
-// use ecsl_source::SourceFile;
-use ecsl_index::{CrateID, SourceFileID};
+pub mod bundle_toml;
+pub mod config;
+pub mod package;
 
-use ecsl_parse::source::SourceFile;
-use glob::glob;
-
-// #[derive(Debug)]
+#[derive(Debug)]
 pub struct Context {
-    config: EcslRootConfig,
-    sources: Vec<SourceFile>,
-    crate_map: BTreeMap<CrateID, SourceCollection>,
+    config: EcslConfig,
+    sources: BTreeMap<SourceFileID, SourceFile>,
+    source_paths: HashMap<PathBuf, SourceFileID>,
+}
+
+pub struct AssocContext<T> {
+    pub assoc: BTreeMap<SourceFileID, T>,
 }
 
 impl Context {
-    pub fn new(path: PathBuf, diag: &mut Diagnostics) -> EcslResult<Self> {
-        let config = EcslRootConfig::new_root_config(&path)?;
+    pub fn new(
+        path: PathBuf,
+        std_path: PathBuf,
+        diag: DiagConn,
+    ) -> EcslResult<(Context, AssocContext<()>)> {
+        let config = EcslConfig::new_config(&path, &std_path, diag.clone())?;
 
         if let Some(cycle_causer) = config.cycle {
-            let package_info = config.get_crate(cycle_causer).unwrap();
+            let package = config.get_crate(cycle_causer).unwrap();
             diag.push_error(
                 EcslError::new(
                     ErrorLevel::Error,
-                    format!("Dependency cycle caused by crate {}", package_info.name),
+                    format!("Dependency cycle caused by crate {}", package.name()),
                 )
-                .with_path(|_| package_info.path.clone()),
+                .with_path(|_| package.bundle_toml_path()),
             );
-        }
-
-        if config.failed_packages.len() > 0 {
-            for (dependency, error) in &config.failed_packages {
-                let required_by = config.get_crate(dependency.required_by).unwrap();
-                diag.push_error(
-                    EcslError::new(
-                        ErrorLevel::Error,
-                        format!(
-                            "Dependency '{}' required by '{}' could not be resolved. {}",
-                            dependency.name, required_by.name, error
-                        ),
-                    )
-                    .with_path(|_| path.clone()),
-                )
-            }
         }
 
         let mut context = Context {
             config,
-            sources: Vec::new(),
-            crate_map: BTreeMap::new(),
+            sources: BTreeMap::new(),
+            source_paths: HashMap::new(),
         };
 
         {
-            let packages = std::mem::replace(&mut context.config.packages, Vec::new());
-
-            for (i, conf) in packages.iter().enumerate() {
-                context.read_src_dir(conf, CrateID::new(i), diag);
+            let packages = std::mem::replace(&mut context.config.packages, BTreeMap::new());
+            for (_, conf) in &packages {
+                context.read_package(conf);
             }
 
             context.config.packages = packages;
         }
 
-        Ok(context)
+        let assoc = context.sources.iter().map(|(id, _)| (*id, ())).collect();
+        let assoc = AssocContext { assoc };
+
+        Ok((context, assoc))
     }
 
-    fn read_src_dir(&mut self, package_info: &PackageInfo, id: CrateID, diag: &mut Diagnostics) {
-        let mut root = package_info.path.clone();
-        root.push("src/**/*.ecsl");
+    fn read_package(&mut self, package: &EcslPackage) {
+        let mut path = package.src_path();
+        path.push("**/*.ecsl");
 
-        let mut file_map: HashMap<PathBuf, SourceFileID> = HashMap::new();
-        for entry in glob(root.to_str().unwrap()).unwrap() {
+        for entry in glob(path.to_str().unwrap()).unwrap() {
             if let Ok(full_path) = entry {
-                let relative_path =
-                    PathBuf::from(full_path.strip_prefix(&package_info.path).unwrap());
-
-                let file_id = self.create_source_file(full_path, diag);
-
-                file_map.insert(relative_path, file_id);
+                _ = self.create_source_file(&full_path, package.id());
             }
         }
-
-        let source_collection = SourceCollection {
-            crate_id: id,
-            root: package_info.path.clone(),
-            file_map,
-        };
-
-        self.crate_map.insert(id, source_collection);
     }
 
-    fn create_source_file(&mut self, full_path: PathBuf, _diag: &mut Diagnostics) -> SourceFileID {
-        let next_id = self.sources.len();
-        let source = SourceFile::from_path(full_path, SourceFileID::new(next_id));
-        self.sources.push(source);
-        SourceFileID::new(next_id)
+    fn create_source_file(&mut self, full_path: &PathBuf, cr: CrateID) -> SourceFileID {
+        let full_path = full_path.canonicalize().ok().unwrap();
+        let next_id = SourceFileID::new(self.sources.len());
+        let source = SourceFile::from_path(full_path.clone(), next_id, cr);
+        self.sources.insert(next_id, source);
+        self.source_paths.insert(full_path.clone(), next_id);
+        next_id
     }
 
-    pub fn get_source(&self, id: SourceFileID) -> Option<&SourceFile> {
-        self.sources.get(id.inner())
+    pub fn config(&self) -> &EcslConfig {
+        &self.config
     }
 
-    pub fn source_files(&self) -> &Vec<SourceFile> {
-        &self.sources
+    pub fn sources(&self) -> impl Iterator<Item = (&SourceFileID, &SourceFile)> {
+        self.sources.iter()
+    }
+
+    pub fn get_source_file(&self, id: SourceFileID) -> Option<&SourceFile> {
+        self.sources.get(&id)
+    }
+
+    pub fn get_source_file_package(&self, id: SourceFileID) -> Option<&EcslPackage> {
+        let source = self.sources.get(&id)?;
+        self.config.packages.get(&source.cr)
+    }
+
+    /// Get a SourceFileID with a relative path from a crates src file
+    /// Gets the packages path from the crate id and appends the extension
+    pub fn get_source_file_from_crate(
+        &self,
+        relative_path: &PathBuf,
+        cr: CrateID,
+    ) -> Result<SourceFileID, ImportPathError> {
+        let path = self
+            .config()
+            .get_crate(cr)
+            .ok_or(ImportPathError::MissingCrate)?
+            .file_path(relative_path);
+        let id = self
+            .source_paths
+            .get(&path)
+            .ok_or(ImportPathError::PathError)?;
+        let source_file = self.sources.get(&id).unwrap();
+        if source_file.cr == cr {
+            Ok(*id)
+        } else {
+            Err(ImportPathError::NotInSameCrate)
+        }
+    }
+
+    pub fn get_source_file_relative(
+        &self,
+        relative_path: &PathBuf,
+        from_src: SourceFileID,
+    ) -> Result<SourceFileID, ImportPathError> {
+        let from_source = self.get_source_file(from_src).unwrap();
+        let mut path = from_source.path.clone();
+        path.pop();
+        let cr = from_source.cr;
+        path.push(relative_path);
+        path.set_extension("ecsl");
+
+        let cannon_path = path
+            .canonicalize()
+            .map_err(|_| ImportPathError::PathError)?;
+        let id = self
+            .source_paths
+            .get(&cannon_path)
+            .ok_or(ImportPathError::PathError)?;
+        let to_source = self.sources.get(id).unwrap();
+        if to_source.cr == cr {
+            Ok(*id)
+        } else {
+            Err(ImportPathError::NotInSameCrate)
+        }
+    }
+
+    pub fn in_std(&self, id: SourceFileID) -> bool {
+        self.get_source_file(id)
+            .is_some_and(|s| s.cr == self.config.std_id)
     }
 }
 
-#[derive(Debug)]
-pub struct SourceCollection {
-    pub crate_id: CrateID,
-    pub root: PathBuf,
-    pub file_map: HashMap<PathBuf, SourceFileID>,
+#[derive(Debug, Clone, Copy)]
+pub enum ImportPathError {
+    MissingCrate,
+    PathError,
+    NotInSameCrate,
+}
+
+impl std::fmt::Display for ImportPathError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            ImportPathError::MissingCrate => "Crate cannot be resolved",
+            ImportPathError::PathError => "Path cannot be resolved",
+            ImportPathError::NotInSameCrate => {
+                "Importing files from outside of the specified crate is not allowed"
+            }
+        };
+        write!(f, "{}", s)
+    }
+}
+
+pub trait MapAssocExt<T: Send> {
+    fn par_map_assoc<U: Send>(
+        self,
+        f: impl Fn(&Context, &SourceFile, T) -> Option<U> + Send + Sync,
+        a: impl FnOnce() -> Result<(), ()>,
+    ) -> Result<AssocContext<U>, ()>;
+
+    fn par_map_assoc_with<U: Send, W: Send + Sync>(
+        self,
+        w: &W,
+        f: impl Fn(&W, &SourceFile, T) -> Option<U> + Send + Sync,
+    ) -> Result<AssocContext<U>, ()>;
+}
+
+impl<T: Send> MapAssocExt<T> for (&Context, AssocContext<T>) {
+    fn par_map_assoc<U: Send>(
+        self,
+        f: impl Fn(&Context, &SourceFile, T) -> Option<U> + Send + Sync,
+        a: impl FnOnce() -> Result<(), ()>,
+    ) -> Result<AssocContext<U>, ()> {
+        let len = self.1.assoc.len();
+
+        let out = self
+            .1
+            .assoc
+            .into_par_iter()
+            .filter_map(|(k, v)| {
+                let src = self.0.sources.get(&k).unwrap();
+                let result = f(self.0, src, v);
+                result.map(|r| (k, r))
+            })
+            .collect::<BTreeMap<SourceFileID, U>>();
+
+        a()?;
+
+        if out.len() != len {
+            return Err(());
+        }
+
+        Ok(AssocContext { assoc: out })
+    }
+
+    fn par_map_assoc_with<U: Send, W: Send + Sync>(
+        self,
+        w: &W,
+        f: impl Fn(&W, &SourceFile, T) -> Option<U> + Send + Sync,
+    ) -> Result<AssocContext<U>, ()> {
+        let len = self.1.assoc.len();
+
+        let out = self
+            .1
+            .assoc
+            .into_par_iter()
+            .filter_map(|(k, v)| {
+                let src = self.0.sources.get(&k).unwrap();
+                let result = f(w, src, v);
+                result.map(|r| (k, r))
+            })
+            .collect::<BTreeMap<SourceFileID, U>>();
+
+        if out.len() != len {
+            return Err(());
+        }
+
+        Ok(AssocContext { assoc: out })
+    }
 }

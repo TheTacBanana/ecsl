@@ -1,7 +1,9 @@
 # Compiler Target
-/target
+target/
+Cargo.lock
 
 # Zig Target
+.zig-cache/
 zig-cache/
 zig-out/
 

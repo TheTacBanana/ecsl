@@ -9,6 +9,7 @@ use ansi_term::{
 };
 
 use cfgrammar::Span;
+use ecsl_index::SourceFileID;
 use snippet::Snippet;
 
 pub mod ext;
@@ -24,6 +25,7 @@ pub struct EcslError {
 
     // Optional
     span: Option<Span>,
+    file: Option<SourceFileID>,
     path: Option<PathBuf>,
     snippet: Option<Snippet>,
     notes: Vec<String>,
@@ -35,6 +37,7 @@ impl EcslError {
             level,
             message: message.to_string(),
             span: None,
+            file: None,
             path: None,
             snippet: None,
             notes: Vec::new(),
@@ -51,6 +54,10 @@ impl EcslError {
 
     pub fn get_span(&self) -> Option<Span> {
         self.span
+    }
+
+    pub fn get_file(&self) -> Option<SourceFileID> {
+        self.file
     }
 
     pub fn get_path(&self) -> Option<&PathBuf> {
@@ -101,9 +108,13 @@ impl std::fmt::Display for EcslError {
                     f,
                     "{}{} {}",
                     format!(" {: >1$} ", " ", snippet.number_padding() as usize),
-                    HIGHLIGHT_COLOUR.paint("="),
+                    HIGHLIGHT_COLOUR.paint("= Note:"),
                     note
                 )?;
+            }
+        } else {
+            for note in &self.notes {
+                writeln!(f, " {} {}", HIGHLIGHT_COLOUR.paint("= Note:"), note)?
             }
         }
 

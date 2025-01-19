@@ -1,13 +1,19 @@
 use cfgrammar::Span;
 use ecsl_ast_derive::AST;
+use ecsl_index::SymbolID;
 
-use crate::{ty::{Generics, Ty}, SymbolId, P};
+use crate::{
+    parse::Attributes,
+    ty::{Generics, Ty},
+    P,
+};
 
 #[derive(Debug, Clone, AST)]
 pub struct StructDef {
     pub span: Span,
     pub kind: DataKind,
-    pub ident: SymbolId,
+    pub ident: SymbolID,
+    pub attributes: Attributes,
     pub generics: Option<Generics>,
     pub fields: Vec<FieldDef>,
 }
@@ -16,7 +22,8 @@ pub struct StructDef {
 pub struct EnumDef {
     pub span: Span,
     pub kind: DataKind,
-    pub ident: SymbolId,
+    pub ident: SymbolID,
+    pub attributes: Attributes,
     pub generics: Option<Generics>,
     pub variants: Vec<VariantDef>,
 }
@@ -30,13 +37,13 @@ pub enum DataKind {
 #[derive(Debug, Clone, AST)]
 pub struct FieldDef {
     pub span: Span,
-    pub ident: SymbolId,
+    pub ident: SymbolID,
     pub ty: P<Ty>,
 }
 
 #[derive(Debug, Clone, AST)]
 pub struct VariantDef {
     pub span: Span,
-    pub ident: SymbolId,
+    pub ident: SymbolID,
     pub fields: Vec<FieldDef>,
 }

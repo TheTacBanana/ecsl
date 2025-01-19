@@ -1,21 +1,45 @@
 use cfgrammar::Span;
 use ecsl_ast_derive::AST;
+use ecsl_index::SymbolID;
 
 use crate::{
     stmt::Block,
     ty::{Generics, Mutable, Ty},
-    SymbolId, P,
+    P,
 };
 
 #[derive(Debug, Clone, AST)]
 pub struct FnDef {
     pub span: Span,
     pub kind: FnKind,
-    pub ident: SymbolId,
+    pub ident: SymbolID,
     pub generics: Option<Generics>,
     pub params: Vec<Param>,
     pub ret: RetTy,
     pub block: Block,
+}
+
+impl FnDef {
+    pub fn to_header(&self) -> FnHeader {
+        FnHeader {
+            span: self.span,
+            kind: self.kind,
+            ident: self.ident,
+            generics: self.generics.clone(),
+            params: self.params.clone(),
+            ret: self.ret.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct FnHeader {
+    pub span: Span,
+    pub kind: FnKind,
+    pub ident: SymbolID,
+    pub generics: Option<Generics>,
+    pub params: Vec<Param>,
+    pub ret: RetTy,
 }
 
 #[derive(Debug, Clone, AST)]
@@ -34,7 +58,7 @@ impl Param {
 pub enum ParamKind {
     SelfValue(Mutable),
     SelfReference(Mutable),
-    Normal(Mutable, SymbolId, P<Ty>), //TODO: Find a better name
+    Normal(Mutable, SymbolID, P<Ty>), //TODO: Find a better name
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

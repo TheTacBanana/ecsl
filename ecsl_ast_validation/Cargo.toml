@@ -1,0 +1,15 @@
+[package]
+name = "ecsl_ast_validation"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ecsl_ast = { path = "../ecsl_ast" }
+ecsl_diagnostics = { path = "../ecsl_diagnostics" }
+ecsl_error = { path = "../ecsl_error" }
+ecsl_parse = { path = "../ecsl_parse" }
+ecsl_index = { path = "../ecsl_index" }
+ecsl_ty = { path = "../ecsl_ty" }
+ecsl_context = { path = "../ecsl_context" }
+lrpar.workspace = true
+convert_case = "0.7.1"

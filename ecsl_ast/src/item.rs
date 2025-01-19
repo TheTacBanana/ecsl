@@ -1,8 +1,13 @@
 use crate::{
-    callable::FnDef, data::{EnumDef, StructDef}, ty::{Generics, Ty}, SymbolId, P
+    callable::FnDef,
+    data::{EnumDef, StructDef},
+    parse::Attributes,
+    ty::{Generics, Ty},
+    P,
 };
 use cfgrammar::Span;
 use ecsl_ast_derive::AST;
+use ecsl_index::SymbolID;
 
 #[derive(Debug, Clone, AST)]
 pub struct Item {
@@ -37,15 +42,16 @@ pub enum ItemKind {
 #[derive(Debug, Clone, AST)]
 pub struct UseDef {
     pub span: Span,
+    pub attributes: Attributes,
     pub path: P<UsePath>,
 }
 
 #[derive(Debug, Clone, AST)]
 pub enum UsePath {
     Super(Span, P<UsePath>),
-    Single(Span, SymbolId, P<UsePath>),
+    Single(Span, SymbolID, P<UsePath>),
     Multiple(Span, Vec<UsePath>),
-    Item(Span, SymbolId),
+    Item(Span, SymbolID),
 }
 
 #[derive(Debug, Clone, AST)]

@@ -5,4 +5,5 @@ edition = "2021"
 
 [dependencies]
 ecsl_error = { path = "../ecsl_error" }
+ecsl_index = { path = "../ecsl_index" }
 ansi_term = "0.12.1"

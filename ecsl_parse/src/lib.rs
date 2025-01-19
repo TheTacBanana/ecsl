@@ -1,8 +1,7 @@
-use std::{cell::RefCell, rc::Rc};
-
-use ecsl_ast::{SourceAST, SymbolId};
+use ecsl_ast::SourceAST;
+use ecsl_diagnostics::DiagConn;
 use ecsl_error::{ext::EcslErrorExt, EcslError, ErrorLevel};
-use ecsl_index::SourceFileID;
+use ecsl_index::{SourceFileID, SymbolID};
 use lazy_static::lazy_static;
 use lrlex::{
     lrlex_mod, DefaultLexeme, DefaultLexerTypes, LRLexError, LRNonStreamingLexer,
@@ -10,6 +9,7 @@ use lrlex::{
 };
 use lrpar::{lrpar_mod, LexError, LexParseError, Lexeme, NonStreamingLexer, ParseError, Span};
 use source::SourceFile;
+use std::{cell::RefCell, rc::Rc};
 use table::{PartialSymbolTable, SymbolKind, SymbolTable};
 
 pub mod source;
@@ -19,19 +19,17 @@ lrlex_mod!("ecsl.l");
 lrpar_mod!("ecsl.y");
 
 type LexerDef = LRNonStreamingLexerDef<DefaultLexerTypes<u32>>;
-type LexerTy<'a, 'b> = LRNonStreamingLexer<'a, 'b, DefaultLexerTypes<u32>>;
+pub type LexerTy<'a, 'b> = LRNonStreamingLexer<'a, 'b, DefaultLexerTypes<u32>>;
 
 lazy_static! {
     static ref LEXER_DEF: LexerDef = ecsl_l::lexerdef();
 }
-
 pub struct ParseResult {
     pub ast: Option<SourceAST>,
     pub table: SymbolTable,
-    pub errs: Vec<EcslError>,
 }
 
-pub fn parse_file(source: &SourceFile, lexer: &LexerTy) -> ParseResult {
+pub fn parse_file(source: &SourceFile, lexer: &LexerTy, diag: DiagConn) -> ParseResult {
     let table = Rc::new(RefCell::new(PartialSymbolTable::new(source.id, &lexer)));
     let (ast, mut errs) = ecsl_y::parse(lexer, table.clone());
     let table = (*table).clone().into_inner().finish();
@@ -39,37 +37,28 @@ pub fn parse_file(source: &SourceFile, lexer: &LexerTy) -> ParseResult {
     let errs = errs
         .drain(..)
         .map(|e| match e {
-            LexParseError::LexError(lex_error) => rewrite_lex_error(source, lexer, lex_error),
-            LexParseError::ParseError(parse_error) => {
-                rewrite_parse_error(source, lexer, parse_error)
-            }
+            LexParseError::LexError(lex_error) => rewrite_lex_error(lex_error),
+            LexParseError::ParseError(parse_error) => rewrite_parse_error(lexer, parse_error),
         })
-        .collect();
+        .collect::<Vec<_>>();
+    for e in errs {
+        diag.push_error(e);
+    }
 
     ParseResult {
         ast: ast.unwrap_or(Err(())).ok(),
         table,
-        errs,
     }
 }
 
-fn rewrite_lex_error(source: &SourceFile, lexer: &LexerTy, err: LRLexError) -> EcslError {
-    let span = err.span();
-    EcslError::new(ErrorLevel::Error, "Lexer Error")
-        .with_path(|_| source.path.clone().unwrap())
-        .with_snippet(|e| source.get_snippet(span, e.level(), lexer))
+fn rewrite_lex_error(err: LRLexError) -> EcslError {
+    EcslError::new(ErrorLevel::Error, "Lexer Error").with_span(|_| err.span())
 }
 
 //TODO: Improve representation of repair sequences
-fn rewrite_parse_error(
-    source: &SourceFile,
-    lexer: &LexerTy,
-    err: ParseError<DefaultLexeme, u32>,
-) -> EcslError {
-    let span = err.lexeme().span();
-    let mut e_out = EcslError::new(ErrorLevel::Error, "Parser Error")
-        .with_path(|_| source.path.clone().unwrap())
-        .with_snippet(|e| source.get_snippet(span, e.level(), lexer));
+fn rewrite_parse_error(lexer: &LexerTy, err: ParseError<DefaultLexeme, u32>) -> EcslError {
+    let mut e_out =
+        EcslError::new(ErrorLevel::Error, "Parser Error").with_span(|_| err.lexeme().span());
 
     // let notes = Vec::new();
     if let Some(repair_seq) = err.repairs().iter().next() {
@@ -93,9 +82,11 @@ fn rewrite_parse_error(
 pub trait GenerateIdentExt {
     fn file_id(&self) -> SourceFileID;
 
-    fn definition(&self, span: Span, kind: SymbolKind) -> SymbolId;
+    fn definition(&self, span: Span, kind: SymbolKind) -> SymbolID;
 
-    fn usage(&self, span: Span, kind: SymbolKind) -> SymbolId;
+    fn string(&self, span: Span) -> String;
+
+    fn usage(&self, span: Span, kind: SymbolKind) -> SymbolID;
 }
 
 impl GenerateIdentExt for Rc<RefCell<PartialSymbolTable<'_, '_>>> {
@@ -103,14 +94,19 @@ impl GenerateIdentExt for Rc<RefCell<PartialSymbolTable<'_, '_>>> {
         self.borrow().file
     }
 
-    fn definition(&self, span: Span, kind: SymbolKind) -> SymbolId {
+    fn definition(&self, span: Span, kind: SymbolKind) -> SymbolID {
         let mut s = self.borrow_mut();
         let symbol_string = s.lexer.span_str(span).to_string();
         let id = s.define_symbol(symbol_string, span, kind);
         id
     }
 
-    fn usage(&self, span: Span, kind: SymbolKind) -> SymbolId {
+    fn string(&self, span: Span) -> String {
+        let s = self.borrow_mut();
+        s.lexer.span_str(span).to_string()
+    }
+
+    fn usage(&self, span: Span, kind: SymbolKind) -> SymbolID {
         let mut s = self.borrow_mut();
         let symbol_string = s.lexer.span_str(span).to_string();
         let id = s.use_symbol(symbol_string, span, kind);

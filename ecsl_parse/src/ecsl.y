@@ -16,6 +16,7 @@
 %epp 'ENUM' 'enum'
 %epp 'COMP' 'comp'
 %epp 'IMPL' 'impl'
+%epp 'HASH' '#'
 
 %epp 'FN' 'fn'
 %epp 'SYS' 'sys'
@@ -108,6 +109,12 @@ File -> Result<SourceAST, ()>:
             items: $1?
         })
     }
+    | {
+        Ok(SourceAST {
+            file: table.file_id(),
+            items: Vec::new()
+        })
+    }
     ;
 
 ItemList -> Result<Vec<Item>, ()>:
@@ -118,29 +125,32 @@ ItemList -> Result<Vec<Item>, ()>:
     ;
 
 Item -> Result<Item, ()>:
-    'USE' UsePath 'SEMI' {
+    Attributes 'USE' UsePath 'SEMI' {
         Ok(Item::new($span, ItemKind::Use(P::new(UseDef {
             span: $span,
-            path: P::new($2?),
+            attributes: $1?,
+            path: P::new($3?),
         }))))
     }
     | FnDef { Ok(Item::new($span, ItemKind::Fn(P::new($1?)))) }
-    | 'STRUCT' Component 'IDENT' Generics FieldDefs {
+    | Attributes 'STRUCT' Component 'IDENT' Generics FieldDefs {
         Ok(Item::new($span, ItemKind::Struct(P::new(StructDef {
-            span: $span,
-            kind: $2?,
-            ident: table.definition($3.map_err(|_| ())?.span(), SymbolKind::Struct($2?)),
-            generics: $4?,
-            fields: $5?,
+            span: $4.map_err(|_| ())?.span(),
+            kind: $3?,
+            ident: table.definition($4.map_err(|_| ())?.span(), SymbolKind::Struct($3?)),
+            attributes: $1?,
+            generics: $5?,
+            fields: $6?,
         }))))
     }
-    | 'ENUM' Component 'IDENT' Generics VariantDefs {
+    | Attributes 'ENUM' Component 'IDENT' Generics VariantDefs {
         Ok(Item::new($span, ItemKind::Enum(P::new(EnumDef {
-            span: $span,
-            kind: $2?,
-            ident: table.definition($3.map_err(|_| ())?.span(), SymbolKind::Enum($2?)),
-            generics: $4?,
-            variants: $5?,
+            span: $4.map_err(|_| ())?.span(),
+            kind: $3?,
+            ident: table.definition($4.map_err(|_| ())?.span(), SymbolKind::Enum($3?)),
+            attributes: $1?,
+            generics: $5?,
+            variants: $6?,
         }))))
     }
     | 'IMPL' Generics Ty ImplBlockContents {
@@ -168,7 +178,7 @@ FnDefList -> Result<Vec<FnDef>, ()>:
 FnDef -> Result<FnDef, ()>:
     FnKind 'IDENT' Generics 'LBRACKET' FnArgs 'RBRACKET' ReturnTy Block {
         Ok(FnDef {
-            span: $span,
+            span: $2.map_err(|_| ())?.span(),
             kind: $1?,
             ident: table.definition($2.map_err(|_| ())?.span(), SymbolKind::Function($1?)),
             generics: $3?,
@@ -225,6 +235,43 @@ TrailingComma -> ():
 Component -> Result<DataKind, ()>:
     'COMP' { Ok(DataKind::Component) }
     | { Ok(DataKind::Normal) }
+    ;
+
+Attributes -> Result<Attributes, ()>:
+    'HASH' 'LSQUARE' AttributeList TrailingComma 'RSQUARE' {
+        Ok(Attributes::from_vec($3?))
+     }
+    | 'HASH' 'LSQUARE' 'RSQUARE' { Ok(Attributes::new())}
+    | { Ok(Attributes::new()) }
+    ;
+
+AttributeList -> Result<Vec<Attribute>, ()>:
+    Attribute { Ok(vec![$1?]) }
+    | AttributeList 'COMMA' Attribute {
+        flatten($1, $3)
+    }
+    ;
+
+Attribute -> Result<Attribute, ()>:
+    'IDENT' {
+        Ok(Attribute::new(
+            $span,
+            AttributeKind::Marker(
+                AttributeMarker::from_string(&table.string($span))
+            )
+        ))
+    }
+    | 'IDENT' 'LBRACKET' INT 'RBRACKET'{
+        Ok(Attribute::new(
+            $span,
+            AttributeKind::Value(
+                AttributeValue::from_string(
+                    &table.string($1.map_err(|_| ())?.span())
+                ),
+                table.string($3.map_err(|_| ())?.span()).parse().map_err(|_| ())?
+            )
+        ))
+    }
     ;
 
 ConcreteGenerics -> Result<Option<ConcreteGenerics>, ()>:
@@ -544,6 +591,7 @@ MatchArm -> Result<MatchArm, ()>:
     'IDENT' 'LCURLY' FieldList 'RCURLY' 'ARROW' Block {
         Ok(MatchArm {
             span: $span,
+            ident: table.usage($1.map_err(|_| ())?.span(), SymbolKind::VariantUsage),
             fields: $3?,
             block: P::new($6?)
         })
@@ -551,6 +599,7 @@ MatchArm -> Result<MatchArm, ()>:
     | 'IDENT' 'ARROW' Block {
         Ok(MatchArm {
             span: $span,
+            ident: table.usage($1.map_err(|_| ())?.span(), SymbolKind::VariantUsage),
             fields: Vec::new(),
             block: P::new($3?)
         })

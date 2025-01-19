@@ -6,7 +6,11 @@ edition = "2021"
 [dependencies]
 ecsl_error = { path = "../ecsl_error" }
 ecsl_index = { path = "../ecsl_index" }
-ecsl_config = { path = "../ecsl_config"}
 ecsl_diagnostics = { path = "../ecsl_diagnostics"}
 ecsl_parse = { path = "../ecsl_parse" }
 glob = "0.3.1"
+rayon = "1.10.0"
+petgraph = "0.6.5"
+serde = { version = "1.0.207", features = ["derive"] }
+toml = "0.8.19"
+bimap = "0.6.3"

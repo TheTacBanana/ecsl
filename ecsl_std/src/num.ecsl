@@ -1,0 +1,15 @@
+#[copy, builtin(4), allow_casing]
+struct int;
+
+impl int {
+    fn positive(&self) -> bool {
+        if (self > 0) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+}
+
+#[copy, builtin(4), allow_casing]
+struct float;
