@@ -9,6 +9,7 @@ use ecsl_diagnostics::{Diagnostics, DiagnosticsExt};
 use ecsl_error::{ext::EcslErrorExt, EcslError};
 use ecsl_parse::parse_file;
 use ecsl_ty::{local::LocalTyCtxtExt, TyCtxt};
+use log::info;
 use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
 
 pub struct Driver;
@@ -24,7 +25,10 @@ impl Driver {
     }
 
     fn inner(std_path: PathBuf, diag: Arc<Diagnostics>) -> Result<(), ()> {
+        info!("Starting compilation");
+
         // Create the context and load all dependencies of the target program
+        info!("Creating context and loading dependencies");
         let path = std::env::current_dir().unwrap();
         let (context, assoc) = match Context::new(path.clone(), std_path, diag.empty_conn()) {
             Ok(ctx) => ctx,
@@ -37,8 +41,10 @@ impl Driver {
         diag.finish_stage(|_| ())?;
 
         // Create lexers externally due to lifetimes
+        info!("Lexing source files");
         let mut lexers = BTreeMap::new();
         for (id, src) in context.sources() {
+            info!("Lexing source file {:?}", src.path);
             let lexer = src.lexer();
             lexers.insert(id, lexer);
         }
@@ -56,6 +62,7 @@ impl Driver {
         };
 
         // Parse all files
+        info!("Parsing Files");
         let assoc = (&context, assoc).par_map_assoc(
             |_, src, _| {
                 let lexer = lexers.get(&src.id).unwrap();
@@ -72,6 +79,7 @@ impl Driver {
         )?;
 
         // Process the std prelude
+        info!("Getting prelude from std");
         let prelude = {
             let std_lib = context
                 .get_source_file_from_crate(&"lib".into(), context.config().std_id)
@@ -81,9 +89,12 @@ impl Driver {
         };
 
         // Include the std prelude in all files outside of std
+        info!("Including prelude into all files");
         let assoc = (&context, assoc).par_map_assoc(
             |ctxt, src, (diag, mut ast, table)| {
                 if !ctxt.in_std(src.id) {
+                    info!("Including prelude for source file {:?}", src.path);
+
                     let lexer = lexers.get(&prelude.id).unwrap();
                     include_prelude(&prelude, &mut ast, table.clone(), lexer);
                 }
@@ -93,7 +104,8 @@ impl Driver {
             || Ok(()),
         )?;
 
-        // Perform AST validation and collect definitions and imports
+        // AST validation, Collect Definitions and Casing Warnings
+        info!("Validating AST, Collect Definitions and Casing Warnings");
         let ty_ctxt = Arc::new(TyCtxt::new());
         let assoc = (&context, assoc).par_map_assoc(
             |ctxt, src, (diag, ast, table)| {
@@ -109,7 +121,8 @@ impl Driver {
         )?;
 
         // Verify imports
-        let assoc = (&context, assoc).par_map_assoc(
+        info!("Verifying imports");
+        let _assoc = (&context, assoc).par_map_assoc(
             |ctxt, src, (_, ast, table, local_ctxt)| {
                 validate_imports(src, &ctxt, local_ctxt.clone());
 
