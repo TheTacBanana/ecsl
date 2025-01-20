@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use clap::Args;
 use ecsl_driver::Driver;
+use log::info;
 
 use crate::cli::CommandTrait;
 use anyhow::{Ok, Result};
@@ -21,6 +22,7 @@ impl Compile {
 impl CommandTrait for Compile {
     fn execute(&mut self) -> Result<()> {
         self.std = std::path::absolute(&self.std).unwrap();
+        info!("Running Driver");
         let _ = Driver::run(self.std.clone());
         Ok(())
     }

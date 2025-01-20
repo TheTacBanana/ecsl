@@ -4,11 +4,11 @@ use clap::{Parser, Subcommand};
 use crate::{compile::Compile, new::New};
 
 #[derive(Parser)]
-#[command(version, about, long_about = None)]
-#[command(propagate_version = true)]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Commands,
+    #[arg(short, long)]
+    pub verbose: bool,
 }
 
 #[derive(Debug, Subcommand)]
