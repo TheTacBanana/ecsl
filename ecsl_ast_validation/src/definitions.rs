@@ -5,6 +5,7 @@ use ecsl_ast::{
     visit::{walk_item, FnCtxt, Visitor, VisitorCF},
 };
 use ecsl_ty::{def::Definition, local::LocalTyCtxt};
+use log::debug;
 use std::sync::Arc;
 
 pub struct TypeDefCollector {
@@ -47,7 +48,8 @@ impl Visitor for TypeDefCollector {
         VisitorCF::Continue
     }
 
-    fn visit_impl(&mut self, i: &ImplBlock) -> VisitorCF {
+    fn visit_impl(&mut self, _i: &ImplBlock) -> VisitorCF {
+        debug!("TODO: Store Impl Blocks");
         // match i.ty.kind {
         //     TyKind::Ident(symbol_id, concrete_generics) => todo!(),
         //     TyKind::Array(ty, span) => todo!(),
@@ -60,9 +62,9 @@ impl Visitor for TypeDefCollector {
         //     TyKind::Schedule => todo!(),
         // }
 
-        for f in &i.fn_defs {
-            // println!("{:?}", f)
-        }
+        // for f in &i.fn_defs {
+        // println!("{:?}", f)
+        // }
         VisitorCF::Continue
     }
 }

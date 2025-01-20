@@ -44,7 +44,7 @@ impl Driver {
         info!("Lexing source files");
         let mut lexers = BTreeMap::new();
         for (id, src) in context.sources() {
-            info!("Lexing source file {:?}", src.path);
+            info!("Lexing source file {}", src.id);
             let lexer = src.lexer();
             lexers.insert(id, lexer);
         }
@@ -65,6 +65,7 @@ impl Driver {
         info!("Parsing Files");
         let assoc = (&context, assoc).par_map_assoc(
             |_, src, _| {
+                info!("Parsing source file {}", src.id);
                 let lexer = lexers.get(&src.id).unwrap();
                 let diag = diag.new_conn(src.id);
 
@@ -93,7 +94,7 @@ impl Driver {
         let assoc = (&context, assoc).par_map_assoc(
             |ctxt, src, (diag, mut ast, table)| {
                 if !ctxt.in_std(src.id) {
-                    info!("Including prelude for source file {:?}", src.path);
+                    info!("Including prelude for source file {}", src.id);
 
                     let lexer = lexers.get(&prelude.id).unwrap();
                     include_prelude(&prelude, &mut ast, table.clone(), lexer);
