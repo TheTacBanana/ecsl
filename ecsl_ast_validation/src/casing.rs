@@ -4,8 +4,10 @@ use convert_case::{Case, Casing};
 use ecsl_ast::{
     data::{EnumDef, FieldDef, StructDef, VariantDef},
     parse::{AttributeKind, AttributeMarker, FnDef},
+    stmt::{Stmt, StmtKind},
     visit::{
-        walk_enum_def, walk_fn, walk_struct_def, walk_variant_def, FnCtxt, Visitor, VisitorCF,
+        walk_enum_def, walk_fn, walk_stmt, walk_struct_def, walk_variant_def, FnCtxt, Visitor,
+        VisitorCF,
     },
 };
 use ecsl_diagnostics::DiagConn;
@@ -83,6 +85,19 @@ impl Visitor for CasingWarnings {
             );
         }
         walk_variant_def(self, v)
+    }
+
+    fn visit_stmt(&mut self, s: &Stmt) -> VisitorCF {
+        if let StmtKind::Let(_, id, span, _, _) = &s.kind {
+            let symbol = self.table.get_symbol(*id).unwrap();
+            if !symbol.name.is_case(Case::Snake) {
+                self.diag.push_error(
+                    EcslError::new(ErrorLevel::Warning, CasingWarning::SnakeCase)
+                        .with_span(|_| *span),
+                );
+            }
+        }
+        walk_stmt(self, s)
     }
 }
 

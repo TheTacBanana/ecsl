@@ -507,6 +507,7 @@ Stmt -> Result<Stmt, ()>:
         Ok(Stmt::new($span, StmtKind::Let(
             $2?,
             table.definition($3.map_err(|_| ())?.span(), SymbolKind::Local),
+            $3.map_err(|_| ())?.span(),
             P::new($5?),
             P::new($7?),
         )))

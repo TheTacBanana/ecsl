@@ -179,7 +179,7 @@ pub fn walk_block<V: Visitor>(v: &mut V, b: &Block) -> VisitorCF {
 
 pub fn walk_stmt<V: Visitor>(v: &mut V, s: &Stmt) -> VisitorCF {
     match &s.kind {
-        StmtKind::Let(_, _, ty, expr) => {
+        StmtKind::Let(_, _, _, ty, expr) => {
             visit!(v.visit_ty(ty));
             visit!(v.visit_expr(expr));
         }
