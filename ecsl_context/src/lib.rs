@@ -4,12 +4,12 @@ use ecsl_error::{ext::EcslErrorExt, EcslError, EcslResult, ErrorLevel};
 use ecsl_index::{CrateID, SourceFileID};
 use ecsl_parse::source::SourceFile;
 use glob::glob;
+use log::info;
 use package::EcslPackage;
 use rayon::prelude::*;
 use std::{
     collections::{BTreeMap, HashMap},
     path::PathBuf,
-    sync::Arc,
 };
 
 pub mod bundle_toml;
@@ -81,6 +81,8 @@ impl Context {
     fn create_source_file(&mut self, full_path: &PathBuf, cr: CrateID) -> SourceFileID {
         let full_path = full_path.canonicalize().ok().unwrap();
         let next_id = SourceFileID::new(self.sources.len());
+
+        info!("Including source file {:?} with id {}", full_path, next_id);
         let source = SourceFile::from_path(full_path.clone(), next_id, cr);
         self.sources.insert(next_id, source);
         self.source_paths.insert(full_path.clone(), next_id);

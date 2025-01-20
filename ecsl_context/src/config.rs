@@ -6,6 +6,7 @@ use bimap::BiHashMap;
 use ecsl_diagnostics::DiagConn;
 use ecsl_error::{ext::EcslErrorExt, EcslError, EcslResult, ErrorLevel};
 use ecsl_index::CrateID;
+use log::info;
 use petgraph::{algo, prelude::GraphMap, Directed};
 use std::{collections::BTreeMap, path::PathBuf};
 
@@ -24,8 +25,6 @@ pub struct EcslConfig {
 }
 
 impl EcslConfig {
-    pub const CONFIG_FILE: &'static str = "Bundle.toml";
-
     pub fn new_config(
         path: &PathBuf,
         std_path: &PathBuf,
@@ -71,6 +70,7 @@ impl EcslConfig {
             let to_id = if config.packages.contains_key(&dep.id) {
                 dep.id
             } else {
+                info!("Loading dependency {}", dep.name);
                 // Load Bundle.toml file
                 let path = config.abs_paths.get_by_right(&dep.id).unwrap();
                 match Self::load_bundle_toml(path) {
@@ -94,8 +94,10 @@ impl EcslConfig {
     }
 
     fn load_bundle_toml(path: &PathBuf) -> EcslResult<BundleToml> {
+        info!("Loading Bundle.toml from path {:?}", path);
+
         let mut bundle_toml_path = path.clone();
-        bundle_toml_path.push(Self::CONFIG_FILE);
+        bundle_toml_path.push("Bundle.toml");
 
         BundleToml::deserialize(&bundle_toml_path)
             .map_err(|e| EcslError::new(ErrorLevel::Error, e.to_string()))
@@ -105,6 +107,11 @@ impl EcslConfig {
     fn include_bundle_toml(&mut self, mut bundle_toml: BundleToml, diag: DiagConn) -> CrateID {
         let package_id = self.crate_id_from_path(&bundle_toml.package.path);
         let mut package = EcslPackage::new(package_id, bundle_toml.package.clone());
+
+        info!(
+            "Including package '{}' with id {}",
+            bundle_toml.package.name, package_id
+        );
 
         // Convert out of a hashmap
         let mut dependencies = bundle_toml
@@ -140,6 +147,12 @@ impl EcslConfig {
                         continue;
                     }
 
+                    info!(
+                        "Added dependency '{}' with id {} to '{}'",
+                        name,
+                        dep_id,
+                        package.name()
+                    );
                     package.add_dependency(name.clone(), dep_id);
 
                     self.dependency_queue.push(PackageDependency {
