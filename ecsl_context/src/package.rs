@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, path::PathBuf};
+use std::path::PathBuf;
 
 use bimap::BiHashMap;
 use ecsl_index::CrateID;

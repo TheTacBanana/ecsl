@@ -14,3 +14,4 @@ petgraph = "0.6.5"
 serde = { version = "1.0.207", features = ["derive"] }
 toml = "0.8.19"
 bimap = "0.6.3"
+log.workspace = true
