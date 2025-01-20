@@ -1,5 +1,8 @@
 #[prelude]
 use {
     std::option::Option,
-    std::num::{int, float}
+    std::num::{int, float},
+    std::lib::drop,
 };
+
+fn drop<T>(val: T) { }

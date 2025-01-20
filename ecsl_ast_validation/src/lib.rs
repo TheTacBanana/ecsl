@@ -19,6 +19,7 @@ use fn_validator::FnValidator;
 use import_collector::ImportCollector;
 use prelude::{rewrite_use_path, Prelude};
 use std::{path::PathBuf, sync::Arc};
+use ty_check::TyCheck;
 
 pub mod attributes;
 pub mod casing;
@@ -26,6 +27,7 @@ pub mod definitions;
 pub mod fn_validator;
 pub mod import_collector;
 pub mod prelude;
+pub mod ty_check;
 
 pub fn collect_prelude(ast: &SourceAST, id: SourceFileID) -> Prelude {
     let mut prelude = Prelude::new(id);
@@ -68,11 +70,16 @@ pub fn ast_definitions(ast: &SourceAST, ctxt: &Context, ty_ctxt: Arc<LocalTyCtxt
     imports.visit_ast(ast);
 }
 
+pub fn casing_warnings(ast: &SourceAST, diag: DiagConn, table: Arc<SymbolTable>) {
+    let mut casing = CasingWarnings::new(diag, table);
+    casing.visit_ast(&ast);
+}
+
 pub fn validate_imports(source: &SourceFile, ctxt: &Context, ty_ctxt: Arc<LocalTyCtxt>) {
     for (_, imported) in ty_ctxt.imported.write().unwrap().iter_mut() {
         let package = ctxt.get_source_file_package(source.id).unwrap();
         let Import::Unresolved(import) = imported else {
-            panic!()
+            panic!("{:?}", imported)
         };
 
         let first = import.path.iter().next().unwrap().to_str().unwrap();
@@ -127,7 +134,7 @@ pub fn validate_imports(source: &SourceFile, ctxt: &Context, ty_ctxt: Arc<LocalT
     }
 }
 
-pub fn casing_warnings(ast: &SourceAST, diag: DiagConn, table: Arc<SymbolTable>) {
-    let mut casing = CasingWarnings::new(diag, table);
-    casing.visit_ast(&ast);
+pub fn ty_check(ast: &SourceAST, ty_ctxt: Arc<LocalTyCtxt>) {
+    let mut ty_check = TyCheck::new(ty_ctxt);
+    ty_check.visit_ast(ast);
 }

@@ -24,7 +24,7 @@ impl Expr {
 pub enum ExprKind {
     /// Assign expression to ident
     /// `ident = *expr*`
-    Assign(SymbolID, P<Expr>),
+    Assign(SymbolID, Span, P<Expr>),
 
     /// Create a reference to an expression
     /// `&foo &mut bar`

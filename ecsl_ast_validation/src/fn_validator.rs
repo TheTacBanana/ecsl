@@ -152,7 +152,7 @@ impl Visitor for FnValidator {
         let cur_state = self.assignment_state;
         self.assignment_state = match (&e.kind, cur_state) {
             (_, AssignmentState::Allowed) => AssignmentState::Illegal,
-            (ExprKind::Assign(_, _), AssignmentState::Illegal) => {
+            (ExprKind::Assign(_, _, _), AssignmentState::Illegal) => {
                 self.diag.push_error(
                     EcslError::new(
                         ErrorLevel::Error,

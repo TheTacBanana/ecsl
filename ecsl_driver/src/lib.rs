@@ -1,7 +1,7 @@
 use anyhow::Result;
 use ecsl_assembler::Assembler;
 use ecsl_ast_validation::{
-    ast_definitions, casing_warnings, collect_prelude, include_prelude, validate_ast,
+    ast_definitions, casing_warnings, collect_prelude, include_prelude, ty_check, validate_ast,
     validate_imports,
 };
 use ecsl_context::{Context, MapAssocExt};
@@ -123,11 +123,25 @@ impl Driver {
 
         // Verify imports
         info!("Verifying imports");
-        let _assoc = (&context, assoc).par_map_assoc(
-            |ctxt, src, (_, ast, table, local_ctxt)| {
+        let assoc = (&context, assoc).par_map_assoc(
+            |ctxt, src, (diag, ast, table, local_ctxt)| {
                 validate_imports(src, &ctxt, local_ctxt.clone());
 
-                Some((ast, table, local_ctxt))
+                Some((diag, ast, table, local_ctxt))
+            },
+            || diag.finish_stage(lexer_func),
+        )?;
+
+        // Perform type checking
+        info!("Type Checking");
+        let _assoc = (&context, assoc).par_map_assoc(
+            |ctxt, src, (diag, ast, table, local_ctxt)| {
+                //TODO: Temp
+                if src.id.inner() == 6 {
+                    ty_check(&ast, local_ctxt.clone());
+                }
+
+                Some((diag, ast, table, local_ctxt))
             },
             || diag.finish_stage(lexer_func),
         )?;

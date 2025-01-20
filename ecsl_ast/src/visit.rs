@@ -230,7 +230,7 @@ pub fn walk_stmt<V: Visitor>(v: &mut V, s: &Stmt) -> VisitorCF {
 
 pub fn walk_expr<V: Visitor>(v: &mut V, expr: &Expr) -> VisitorCF {
     match &expr.kind {
-        ExprKind::Assign(_, e) => visit!(v.visit_expr(e)),
+        ExprKind::Assign(_, _, e) => visit!(v.visit_expr(e)),
         ExprKind::Ref(_, e) => visit!(v.visit_expr(e)),
         ExprKind::UnOp(_, e) => visit!(v.visit_expr(e)),
         ExprKind::BinOp(_, e1, e2) => {

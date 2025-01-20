@@ -9,6 +9,7 @@ pub mod assoc;
 pub mod def;
 pub mod import;
 pub mod local;
+pub mod ty;
 
 pub struct TyCtxt {
     pub sources: RwLock<BTreeMap<SourceFileID, Arc<LocalTyCtxt>>>,

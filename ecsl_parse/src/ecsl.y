@@ -646,6 +646,7 @@ Expr -> Result<Expr, ()>:
             $span,
             ExprKind::Assign(
                 table.usage($1.map_err(|_| ())?.span(), SymbolKind::Local),
+                $1.map_err(|_| ())?.span(),
                 P::new($3?),
             )
         ))
