@@ -15,7 +15,7 @@ members = [
     "ecsl_lexer",
     "ecsl_ty",
     "ecsl_lexer",
-    "ecsl_bytecode_derive",
+    "ecsl_bytecode_derive", "ecsl_ty_check",
     ]
 
 resolver = "1"

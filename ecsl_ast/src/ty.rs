@@ -24,7 +24,7 @@ pub enum TyKind {
     /// Array with associated size constant
     // Includes span of constant
     /// `[<ty> : N]`
-    Array(P<Ty>, Span),
+    Array(P<Ty>, usize),
 
     /// Reference to Array
     /// `&[<ty>]`
@@ -45,20 +45,12 @@ pub enum TyKind {
     /// `Entity<foo: Foo, ..>`
     Entity(EntityTy),
 
-    /// Query Type
-    /// `Query`
-    Query,
-
-    /// System Type
-    /// `-> System`
-    System,
-
     /// Schedule Type
     /// `-> Schedule`
     Schedule,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Mutable {
     Imm,
     Mut,

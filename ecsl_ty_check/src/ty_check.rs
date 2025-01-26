@@ -1,7 +1,4 @@
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    sync::Arc,
-};
+use std::{collections::BTreeMap, sync::Arc};
 
 use ecsl_ast::{
     expr::{BinOpKind, Expr, ExprKind, Literal},
@@ -11,7 +8,7 @@ use ecsl_ast::{
 };
 use ecsl_error::{ext::EcslErrorExt, EcslError, ErrorLevel};
 use ecsl_index::SymbolID;
-use ecsl_ty::{local::LocalTyCtxt, ty::TyIr};
+use ecsl_ty::{local::LocalTyCtxt, TyIr};
 use log::{debug, error};
 use lrpar::Span;
 

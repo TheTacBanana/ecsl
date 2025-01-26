@@ -71,7 +71,7 @@
 %epp 'QUERY' 'Query'
 %epp 'RESOURCE' 'Resource'
 %epp 'SCHEDULE' 'Schedule'
-%epp 'SYSTEM' 'System'
+//%epp 'SYSTEM' 'System'
 %epp 'WITH' 'with'
 %epp 'WITHOUT' 'without'
 %epp 'ADDED' 'added'
@@ -423,7 +423,7 @@ Ty -> Result<Ty, ()>:
     }
     | 'LSQUARE' Ty 'COLON' 'INT' 'RSQUARE' {
         Ok(Ty::new($span, TyKind::Array(
-            P::new($2?), $4.map_err(|_| ())?.span()
+            P::new($2?), table.string($4.map_err(|_| ())?.span()).parse().map_err(|_| ())?
         )))
     }
     | 'AMPERSAND' RefMutability 'LSQUARE' Ty 'RSQUARE' {
@@ -444,14 +444,8 @@ Ty -> Result<Ty, ()>:
     | EntityTy {
         Ok(Ty::new($span, TyKind::Entity($1?)))
     }
-    | 'QUERY' {
-        Ok(Ty::new($span, TyKind::Query))
-    }
     | 'SCHEDULE' {
         Ok(Ty::new($span, TyKind::Schedule))
-    }
-    | 'SYSTEM' {
-        Ok(Ty::new($span, TyKind::System))
     }
     ;
 

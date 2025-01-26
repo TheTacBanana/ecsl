@@ -9,17 +9,19 @@ use ecsl_ast::{
 use ecsl_context::Context;
 use ecsl_diagnostics::DiagConn;
 use ecsl_error::{ext::EcslErrorExt, EcslError, ErrorLevel};
-use ecsl_index::{GlobalID, SourceFileID};
+use ecsl_index::{FieldID, GlobalID, SourceFileID};
 use ecsl_parse::{source::SourceFile, table::SymbolTable, LexerTy};
 use ecsl_ty::{
+    def::Definition,
     import::{Import, MappedImport},
     local::LocalTyCtxt,
+    FieldDef, GenericsScope, TyIr,
 };
 use fn_validator::FnValidator;
 use import_collector::ImportCollector;
+use log::debug;
 use prelude::{rewrite_use_path, Prelude};
 use std::{path::PathBuf, sync::Arc};
-use ty_check::TyCheck;
 
 pub mod attributes;
 pub mod casing;
@@ -27,7 +29,6 @@ pub mod definitions;
 pub mod fn_validator;
 pub mod import_collector;
 pub mod prelude;
-pub mod ty_check;
 
 pub fn collect_prelude(ast: &SourceAST, id: SourceFileID) -> Prelude {
     let mut prelude = Prelude::new(id);
@@ -134,7 +135,113 @@ pub fn validate_imports(source: &SourceFile, ctxt: &Context, ty_ctxt: Arc<LocalT
     }
 }
 
-pub fn ty_check(ast: &SourceAST, ty_ctxt: Arc<LocalTyCtxt>) {
-    let mut ty_check = TyCheck::new(ty_ctxt);
-    ty_check.visit_ast(ast);
+pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
+    mod ast {
+        pub use ecsl_ast::callable::*;
+        pub use ecsl_ast::data::*;
+    }
+    let mut scope = GenericsScope::new();
+    for (_, def) in ty_ctxt.defined.read().unwrap().iter() {
+        match def {
+            Definition::Struct(ast::StructDef {
+                kind,
+                ident,
+                generics,
+                fields,
+                attributes,
+                ..
+            }) => {
+                scope.add_opt(generics.clone());
+
+                let tyid = ty_ctxt
+                    .global
+                    .get_or_create_tyid(GlobalID::new(*ident, ty_ctxt.file));
+
+                if let Some(symbol) = ty_ctxt.table.get_symbol(*ident) {
+                    let tyir = match symbol.name.as_str() {
+                        "int" => Some(TyIr::Int),
+                        "float" => Some(TyIr::Float),
+                        "bool" => Some(TyIr::Bool),
+                        "char" => Some(TyIr::Char),
+                        _ => None,
+                    };
+
+                    if let Some(tyir) = tyir {
+                        ty_ctxt.global.insert_tyir(tyid, tyir);
+                        return;
+                    }
+                }
+
+                let fields = fields
+                    .iter()
+                    .enumerate()
+                    .map(|(i, f)| {
+                        let id = FieldID::new(i);
+                        (
+                            id,
+                            FieldDef {
+                                id,
+                                ty: ty_ctxt.get_tyid(&f.ty, &scope),
+                            },
+                        )
+                    })
+                    .collect();
+
+                ty_ctxt.global.insert_tyir(
+                    tyid,
+                    TyIr::Struct(ecsl_ty::StructDef {
+                        id: tyid,
+                        kind: *kind,
+                        fields,
+                    }),
+                );
+
+                scope.pop();
+            }
+            Definition::Enum(e) => {
+                debug!("TODO: Enum TyIr");
+            }
+            Definition::Function(ast::FnDef {
+                kind,
+                ident,
+                generics,
+                params,
+                ret,
+                ..
+            }) => {
+                scope.add_opt(generics.clone());
+
+                let tyid = ty_ctxt
+                    .global
+                    .get_or_create_tyid(GlobalID::new(*ident, ty_ctxt.file));
+
+                let params = params
+                    .iter()
+                    .map(|p| {
+                        let ast::ParamKind::Normal(_, _, ty) = &p.kind else {
+                            panic!()
+                        };
+                        ty_ctxt.get_tyid(&ty, &scope)
+                    })
+                    .collect();
+
+                let ret = match ret {
+                    ast::RetTy::None(_) => None,
+                    ast::RetTy::Ty(ty) => Some(ty_ctxt.get_tyid(&ty, &scope)),
+                };
+
+                ty_ctxt.global.insert_tyir(
+                    tyid,
+                    TyIr::Fn(ecsl_ty::FnDef {
+                        id: tyid,
+                        kind: *kind,
+                        params,
+                        ret,
+                    }),
+                );
+
+                scope.pop();
+            }
+        };
+    }
 }

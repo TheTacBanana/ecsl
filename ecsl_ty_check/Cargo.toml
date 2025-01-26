@@ -1,15 +1,12 @@
 [package]
-name = "ecsl_ty"
+name = "ecsl_ty_check"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
 ecsl_ast = { path = "../ecsl_ast" }
+ecsl_ty = { path = "../ecsl_ty" }
 ecsl_error = { path = "../ecsl_error" }
 ecsl_index = { path = "../ecsl_index" }
-ecsl_parse = { path = "../ecsl_parse" }
-ecsl_diagnostics = { path = "../ecsl_diagnostics" }
-ecsl_context = { path = "../ecsl_context" }
-bimap = "0.6.3"
-cfgrammar.workspace = true
+lrpar.workspace = true
 log.workspace = true

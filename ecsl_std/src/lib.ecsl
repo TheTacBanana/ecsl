@@ -2,6 +2,8 @@
 use {
     std::option::Option,
     std::num::{int, float},
+    std::bool::{bool},
+    std::char::{char},
     std::lib::drop,
 };
 

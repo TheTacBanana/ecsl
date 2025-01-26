@@ -188,8 +188,6 @@ impl Visitor for FnValidator {
         let fn_header = self.fn_headers.last().unwrap();
         let err = match (&t.kind, fn_header.kind) {
             (TyKind::Entity(_), FnKind::Fn) => Some(FnValidationError::EntityUsedInPlainFn),
-            (TyKind::Query, FnKind::Fn) => Some(FnValidationError::QueryUsedInPlainFn),
-            (TyKind::System, FnKind::Fn) => Some(FnValidationError::SystemUsedInPlainFn),
             (TyKind::Schedule, FnKind::Fn) => Some(FnValidationError::ScheduleUsedInPlainFn),
 
             _ => None,

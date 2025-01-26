@@ -1,14 +1,15 @@
 use anyhow::Result;
 use ecsl_assembler::Assembler;
 use ecsl_ast_validation::{
-    ast_definitions, casing_warnings, collect_prelude, include_prelude, ty_check, validate_ast,
-    validate_imports,
+    ast_definitions, casing_warnings, collect_prelude, generate_definition_tyir, include_prelude,
+    validate_ast, validate_imports,
 };
 use ecsl_context::{Context, MapAssocExt};
 use ecsl_diagnostics::{Diagnostics, DiagnosticsExt};
 use ecsl_error::{ext::EcslErrorExt, EcslError};
 use ecsl_parse::parse_file;
-use ecsl_ty::{local::LocalTyCtxtExt, TyCtxt};
+use ecsl_ty::{ctxt::TyCtxt, local::LocalTyCtxtExt};
+use ecsl_ty_check::ty_check;
 use log::info;
 use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
 
@@ -136,10 +137,7 @@ impl Driver {
         info!("Type Checking");
         let _assoc = (&context, assoc).par_map_assoc(
             |ctxt, src, (diag, ast, table, local_ctxt)| {
-                //TODO: Temp
-                if src.id.inner() == 6 {
-                    ty_check(&ast, local_ctxt.clone());
-                }
+                generate_definition_tyir(local_ctxt.clone());
 
                 Some((diag, ast, table, local_ctxt))
             },

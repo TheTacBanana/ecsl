@@ -303,7 +303,7 @@ pub fn walk_ty<V: Visitor>(v: &mut V, typ: &Ty) -> VisitorCF {
             }
         }
 
-        TyKind::Query | TyKind::System | TyKind::Schedule => (),
+        TyKind::Schedule => (),
     }
     VisitorCF::Continue
 }

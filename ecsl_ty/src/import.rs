@@ -1,5 +1,5 @@
 use cfgrammar::Span;
-use ecsl_index::GlobalID;
+use ecsl_index::{GlobalID, TyID};
 use std::path::PathBuf;
 
 #[derive(Debug)]
@@ -19,7 +19,7 @@ pub struct ImportPath {
     pub span: Span,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct MappedImport {
     pub from: GlobalID,
     pub to: GlobalID,

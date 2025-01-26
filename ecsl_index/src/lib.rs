@@ -45,7 +45,11 @@ generate_index_type!(SymbolID);
 generate_index_type!(SourceFileID);
 generate_index_type!(CrateID);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+generate_index_type!(TyID);
+generate_index_type!(VariantID);
+generate_index_type!(FieldID);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct GlobalID(SymbolID, SourceFileID);
 
 impl GlobalID {

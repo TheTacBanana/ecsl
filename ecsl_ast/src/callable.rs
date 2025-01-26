@@ -61,7 +61,7 @@ pub enum ParamKind {
     Normal(Mutable, SymbolID, P<Ty>), //TODO: Find a better name
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FnKind {
     Fn,
     Sys,
