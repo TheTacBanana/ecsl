@@ -113,3 +113,16 @@ impl GenericsScope {
         self.scopes.pop();
     }
 }
+
+pub enum TypeError {
+    UnknownType,
+}
+
+impl<'a> std::fmt::Display for TypeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            TypeError::UnknownType => &format!("Could not resolve type"),
+        };
+        write!(f, "{s}")
+    }
+}

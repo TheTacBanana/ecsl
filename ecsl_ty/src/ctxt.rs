@@ -1,6 +1,9 @@
 use crate::{local::LocalTyCtxt, TyIr};
 use bimap::BiHashMap;
+use ecsl_diagnostics::DiagConn;
+use ecsl_error::{EcslError, ErrorLevel};
 use ecsl_index::{GlobalID, SourceFileID, TyID};
+use ecsl_parse::source;
 use log::debug;
 use std::{
     collections::{btree_map::Entry, BTreeMap},
@@ -9,18 +12,19 @@ use std::{
 
 pub struct TyCtxt {
     pub sources: RwLock<BTreeMap<SourceFileID, Arc<LocalTyCtxt>>>,
-
     pub mappings: RwLock<BTreeMap<GlobalID, TyID>>,
     pub tyirs: RwLock<BiHashMap<TyID, TyIr>>,
 }
 
 impl TyCtxt {
     pub fn new() -> Self {
-        TyCtxt {
+        let ty_ctxt = TyCtxt {
             sources: Default::default(),
             mappings: Default::default(),
             tyirs: Default::default(),
-        }
+        };
+        _ = ty_ctxt.tyid_from_tyir(TyIr::Unknown);
+        ty_ctxt
     }
 
     pub fn get_or_create_tyid(&self, id: GlobalID) -> TyID {
@@ -51,6 +55,10 @@ impl TyCtxt {
     pub fn get_tyir(&self, id: TyID) -> Option<TyIr> {
         let defs = self.tyirs.read().unwrap();
         defs.get_by_left(&id).cloned()
+    }
+
+    pub fn unknown_ty(&self) -> TyID {
+        TyID::ZERO
     }
 }
 

@@ -2,7 +2,7 @@ use crate::{
     ctxt::{ImportError, TyCtxt},
     def::Definition,
     import::{Import, ImportPath},
-    GenericsScope, TyIr,
+    GenericsScope, TyIr, TypeError,
 };
 use ecsl_ast::ty::{Generics, Ty, TyKind};
 use ecsl_diagnostics::DiagConn;
@@ -132,21 +132,33 @@ impl LocalTyCtxt {
     }
 
     pub fn get_tyid(&self, ty: &Ty, scope: &GenericsScope) -> TyID {
-        match &ty.kind {
-            TyKind::Ident(symbol_id, _) => {
-                if let Some(index) = scope.scope_index(*symbol_id) {
-                    debug!("Used generic with index {:?}", index);
+        macro_rules! resolve_tyid {
+            ($sym:ident) => {
+                if let Some(index) = scope.scope_index(*$sym) {
                     self.global.tyid_from_tyir(TyIr::GenericParam(index))
-                } else {
-                    let gid = self.get_global_id(*symbol_id);
+                } else if let Some(gid) = self.get_global_id(*$sym) {
                     self.global.get_or_create_tyid(gid)
+                } else {
+                    self.diag.push_error(
+                        EcslError::new(ErrorLevel::Error, TypeError::UnknownType)
+                            .with_span(|_| ty.span),
+                    );
+                    self.global.unknown_ty()
                 }
-            }
-            TyKind::Ref(mutable, ty) => self
-                .global
-                .tyid_from_tyir(TyIr::Ref(*mutable, self.get_tyid(ty, scope))),
+            };
+        }
+
+        macro_rules! from_tyir {
+            ($tyir:expr) => {
+                self.global.tyid_from_tyir($tyir)
+            };
+        }
+
+        match &ty.kind {
+            TyKind::Ident(symbol_id, _) => resolve_tyid!(symbol_id),
+            TyKind::Ref(mutable, ty) => from_tyir!(TyIr::Ref(*mutable, self.get_tyid(ty, scope))),
+            TyKind::Array(ty, span) => from_tyir!(TyIr::Array(self.get_tyid(ty, scope), *span)),
             e => todo!("{:?}", e),
-            // TyKind::Array(ty, span) => self.get_ty_tyir(ty),
             // TyKind::Ptr(mutable, ty) => todo!(),
             // TyKind::ArrayRef(mutable, ty) => todo!(),
             // TyKind::Entity(entity_ty) => todo!(),
@@ -154,23 +166,19 @@ impl LocalTyCtxt {
         }
     }
 
-    pub fn get_global_id(&self, id: SymbolID) -> GlobalID {
+    fn get_global_id(&self, id: SymbolID) -> Option<GlobalID> {
         {
             let defined = self.defined.read().unwrap();
             if defined.contains_key(&id) {
-                return GlobalID::new(id, self.file);
+                return Some(GlobalID::new(id, self.file));
             }
         }
         {
             let imported = self.imported.read().unwrap();
             if let Some(Import::Resolved(mapped_import)) = imported.get(&id) {
-                return mapped_import.to;
+                return Some(mapped_import.to);
             }
         }
-        error!(
-            "Symbol ID does not refer to a known defined or imported type {:?} {:?}",
-            id, self.file
-        );
-        panic!()
+        None
     }
 }
