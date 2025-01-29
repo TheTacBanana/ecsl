@@ -257,8 +257,8 @@ impl Visitor for TyCheck {
                 VisitorCF::Continue
             }
 
-            StmtKind::While(expr, block) => todo!(),
-            StmtKind::Match(expr, match_arms) => todo!(),
+            StmtKind::While(_, _) => todo!(),
+            StmtKind::Match(_, _) => todo!(),
             StmtKind::Break => todo!(),
             StmtKind::Continue => todo!(),
             // e => {
@@ -398,8 +398,10 @@ impl Visitor for TyCheck {
                         EcslError::new(ErrorLevel::Error, TyCheckError::RangeMustEqual)
                             .with_span(|_| e.span),
                     );
+                    self.push_tyir(TyIr::Unknown);
                     return VisitorCF::Break;
                 }
+                self.push_id(l);
                 VisitorCF::Continue
             }
 

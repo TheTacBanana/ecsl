@@ -3,7 +3,6 @@ use std::collections::BTreeMap;
 use ecsl_ast::{data::DataKind, parse::FnKind, ty::Mutable};
 use ecsl_index::{FieldID, SymbolID, TyID, VariantID};
 
-pub mod assoc;
 pub mod ctxt;
 pub mod def;
 pub mod import;

@@ -4,12 +4,11 @@ use crate::{
     import::{Import, ImportPath},
     GenericsScope, TyIr, TypeError,
 };
-use ecsl_ast::ty::{Generics, Ty, TyKind};
+use ecsl_ast::ty::{Ty, TyKind};
 use ecsl_diagnostics::DiagConn;
 use ecsl_error::{ext::EcslErrorExt, EcslError, ErrorLevel};
 use ecsl_index::{GlobalID, SourceFileID, SymbolID, TyID};
 use ecsl_parse::table::SymbolTable;
-use log::{debug, error};
 use std::{
     collections::BTreeMap,
     sync::{Arc, RwLock},

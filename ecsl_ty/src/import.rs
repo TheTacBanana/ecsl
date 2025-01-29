@@ -1,5 +1,5 @@
 use cfgrammar::Span;
-use ecsl_index::{GlobalID, TyID};
+use ecsl_index::GlobalID;
 use std::path::PathBuf;
 
 #[derive(Debug)]
