@@ -18,6 +18,7 @@ fn main() -> Result<()> {
         .format_target(false)
         .format_timestamp(None)
         .format_file(true)
+        .format_line_number(true)
         .init();
     info!("Logger initialised");
     args.command.execute()

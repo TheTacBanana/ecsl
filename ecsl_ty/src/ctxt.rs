@@ -1,9 +1,6 @@
 use crate::{local::LocalTyCtxt, TyIr};
 use bimap::BiHashMap;
-use ecsl_diagnostics::DiagConn;
-use ecsl_error::{EcslError, ErrorLevel};
 use ecsl_index::{GlobalID, SourceFileID, TyID};
-use ecsl_parse::source;
 use log::debug;
 use std::{
     collections::{btree_map::Entry, BTreeMap},
@@ -14,6 +11,7 @@ pub struct TyCtxt {
     pub sources: RwLock<BTreeMap<SourceFileID, Arc<LocalTyCtxt>>>,
     pub mappings: RwLock<BTreeMap<GlobalID, TyID>>,
     pub tyirs: RwLock<BiHashMap<TyID, TyIr>>,
+    pub cur_id: RwLock<usize>,
 }
 
 impl TyCtxt {
@@ -22,39 +20,48 @@ impl TyCtxt {
             sources: Default::default(),
             mappings: Default::default(),
             tyirs: Default::default(),
+            cur_id: Default::default(),
         };
         _ = ty_ctxt.tyid_from_tyir(TyIr::Unknown);
         ty_ctxt
     }
 
+    fn next_id(&self) -> TyID {
+        let mut cur_id = self.cur_id.write().unwrap();
+        let val = cur_id.clone();
+        *cur_id += 1;
+        return TyID::new(val);
+    }
+
     pub fn get_or_create_tyid(&self, id: GlobalID) -> TyID {
         let mut lock = self.mappings.write().unwrap();
-        let next_id = TyID::new(lock.len());
         match lock.entry(id) {
-            Entry::Vacant(vacant) => *vacant.insert(next_id),
+            Entry::Vacant(vacant) => *vacant.insert(self.next_id()),
             Entry::Occupied(occupied) => *occupied.get(),
         }
     }
 
     pub fn insert_tyir(&self, id: TyID, tyir: TyIr) {
-        debug!("{:?}", tyir);
+        debug!("{:?}:{:?}", id, tyir);
         let mut defs = self.tyirs.write().unwrap();
         defs.insert(id, tyir);
     }
 
     pub fn tyid_from_tyir(&self, tyir: TyIr) -> TyID {
-        debug!("{:?}", tyir);
         let mut tyirs = self.tyirs.write().unwrap();
-        let tyid = TyID::new(tyirs.len());
         if !tyirs.contains_right(&tyir) {
-            tyirs.insert(tyid, tyir);
+            let next_id = self.next_id();
+            debug!("{:?}:{:?}", next_id, tyir);
+            tyirs.insert(next_id, tyir);
+            next_id
+        } else {
+            tyirs.get_by_right(&tyir).cloned().unwrap()
         }
-        tyid
     }
 
-    pub fn get_tyir(&self, id: TyID) -> Option<TyIr> {
+    pub fn get_tyir(&self, id: TyID) -> TyIr {
         let defs = self.tyirs.read().unwrap();
-        defs.get_by_left(&id).cloned()
+        defs.get_by_left(&id).unwrap().clone()
     }
 
     pub fn unknown_ty(&self) -> TyID {
