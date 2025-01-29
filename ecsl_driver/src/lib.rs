@@ -11,16 +11,20 @@ use ecsl_parse::parse_file;
 use ecsl_ty::{ctxt::TyCtxt, local::LocalTyCtxtExt};
 use ecsl_ty_check::ty_check;
 use log::info;
-use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
+use std::{collections::BTreeMap, path::PathBuf, sync::Arc, time::Instant};
 
 pub struct Driver;
 
 impl Driver {
     pub fn run(std_path: PathBuf) -> Result<(), ()> {
+        let start_time = Instant::now();
+
         let diag = Arc::new(Diagnostics::new());
 
         _ = Driver::inner(std_path, diag.clone());
         diag.finish_stage(|_| ())?;
+
+        info!("Compilation took {:?}", start_time.elapsed());
 
         Ok(())
     }
@@ -133,11 +137,24 @@ impl Driver {
             || diag.finish_stage(lexer_func),
         )?;
 
+        // Generate TyIr for all Definitions
+        info!("Generating TyIr");
+        let assoc = (&context, assoc).par_map_assoc(
+            |_, _, (diag, ast, table, local_ctxt)| {
+                generate_definition_tyir(local_ctxt.clone());
+
+                Some((diag, ast, table, local_ctxt))
+            },
+            || diag.finish_stage(lexer_func),
+        )?;
+
         // Perform type checking
         info!("Type Checking");
-        let _assoc = (&context, assoc).par_map_assoc(
-            |ctxt, src, (diag, ast, table, local_ctxt)| {
-                generate_definition_tyir(local_ctxt.clone());
+        let assoc = (&context, assoc).par_map_assoc(
+            |_, _, (diag, ast, table, local_ctxt)| {
+                if ast.file.inner() == 7 {
+                    ty_check(&ast, local_ctxt.clone());
+                }
 
                 Some((diag, ast, table, local_ctxt))
             },

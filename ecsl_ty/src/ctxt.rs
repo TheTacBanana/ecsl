@@ -35,23 +35,27 @@ impl TyCtxt {
 
     pub fn get_or_create_tyid(&self, id: GlobalID) -> TyID {
         let mut lock = self.mappings.write().unwrap();
-        match lock.entry(id) {
+        let tyid = match lock.entry(id) {
             Entry::Vacant(vacant) => *vacant.insert(self.next_id()),
             Entry::Occupied(occupied) => *occupied.get(),
-        }
+        };
+        debug!("{:?} -> {:?}", id, tyid);
+        tyid
     }
 
     pub fn insert_tyir(&self, id: TyID, tyir: TyIr) {
         debug!("{:?}:{:?}", id, tyir);
         let mut defs = self.tyirs.write().unwrap();
+        debug!("{:?}", defs);
         defs.insert(id, tyir);
     }
 
     pub fn tyid_from_tyir(&self, tyir: TyIr) -> TyID {
         let mut tyirs = self.tyirs.write().unwrap();
+        debug!("{:?}", tyirs);
         if !tyirs.contains_right(&tyir) {
             let next_id = self.next_id();
-            debug!("{:?}:{:?}", next_id, tyir);
+            debug!("{:?} -> {:?}", next_id, tyir);
             tyirs.insert(next_id, tyir);
             next_id
         } else {
@@ -60,7 +64,9 @@ impl TyCtxt {
     }
 
     pub fn get_tyir(&self, id: TyID) -> TyIr {
+        debug!("Tyir of {:?}", id);
         let defs = self.tyirs.read().unwrap();
+        debug!("{:?}", defs);
         defs.get_by_left(&id).unwrap().clone()
     }
 

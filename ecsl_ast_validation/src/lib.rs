@@ -233,7 +233,7 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                 ty_ctxt.global.insert_tyir(
                     tyid,
                     TyIr::Fn(ecsl_ty::FnDef {
-                        id: tyid,
+                        tyid,
                         kind: *kind,
                         params,
                         ret,

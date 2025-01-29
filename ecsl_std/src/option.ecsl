@@ -10,10 +10,10 @@ enum Option<T> {
 impl<T> Option<T> {
     fn is_some(&self) -> bool {
         match (self) {
-            some { val } -> {
+            Some { val } -> {
                 return true;
             },
-            none -> {
+            None -> {
                 return false;
             }
         }
@@ -36,7 +36,7 @@ impl<T> Option<T> {
                 return val;
             },
             None -> {
-                panic("Unwrap");
+                panic("Unwrap failed");
             }
         }
     }

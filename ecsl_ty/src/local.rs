@@ -166,7 +166,7 @@ impl LocalTyCtxt {
         }
     }
 
-    fn get_global_id(&self, id: SymbolID) -> Option<GlobalID> {
+    pub fn get_global_id(&self, id: SymbolID) -> Option<GlobalID> {
         {
             let defined = self.defined.read().unwrap();
             if defined.contains_key(&id) {

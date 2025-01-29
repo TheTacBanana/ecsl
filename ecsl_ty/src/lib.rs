@@ -15,6 +15,8 @@ pub type P<T> = Box<T>;
 pub enum TyIr {
     /// Type is unknown and should be propagated as an error
     Unknown,
+    // The bottom/none type
+    Bottom,
     /// Intrinsic boolean type
     Bool,
     /// Intrinsic char type
@@ -70,7 +72,7 @@ pub struct FieldDef {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct FnDef {
-    pub id: TyID,
+    pub tyid: TyID,
     pub kind: FnKind,
     pub params: Vec<TyID>,
     pub ret: Option<TyID>,
