@@ -41,13 +41,22 @@ macro_rules! generate_index_type {
     };
 }
 
-generate_index_type!(SymbolID);
+// General Indexes
 generate_index_type!(SourceFileID);
 generate_index_type!(CrateID);
 
+// AST Indexes
+generate_index_type!(SymbolID);
+
+// TIR Indexes
 generate_index_type!(TyID);
 generate_index_type!(VariantID);
 generate_index_type!(FieldID);
+
+// GIR indexes
+generate_index_type!(BlockID);
+generate_index_type!(LocalID);
+generate_index_type!(ConstID);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct GlobalID(SymbolID, SourceFileID);

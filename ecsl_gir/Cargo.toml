@@ -1,0 +1,11 @@
+[package]
+name = "ecsl_gir"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ecsl_index = { path = "../ecsl_index" }
+ecsl_ty = { path = "../ecsl_ty" }
+ecsl_ast = { path = "../ecsl_ast" }
+cfgrammar.workspace = true
+log.workspace = true
