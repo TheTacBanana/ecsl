@@ -74,6 +74,7 @@ imm "IMM"
 = "ASSIGN"
 as "AS"
 
+asm "ASM"
 
 (false|true) "BOOLEAN"
 [a-zA-Z_][a-zA-Z0-9_]* "IDENT"

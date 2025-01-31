@@ -1,5 +1,6 @@
 use cfgrammar::Span;
 use ecsl_ast_derive::AST;
+use ecsl_bytecode::BytecodeInstruction;
 use ecsl_index::SymbolID;
 
 use crate::{
@@ -60,6 +61,9 @@ pub enum StmtKind {
     /// Expression of any kind terminated by a semicolon
     Expr(P<Expr>),
 
+    // Inline Bytecode
+    ASM(Vec<InlineBytecode>),
+
     /// Empty Semi Colon
     Semi,
 }
@@ -76,4 +80,10 @@ pub struct MatchArm {
 pub struct Field {
     pub span: Span,
     pub ident: SymbolID,
+}
+
+#[derive(Debug, Clone, AST)]
+pub struct InlineBytecode {
+    pub span: Span,
+    pub ins: BytecodeInstruction,
 }

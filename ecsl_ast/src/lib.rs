@@ -23,6 +23,7 @@ pub mod parse {
     pub use crate::stmt::*;
     pub use crate::ty::*;
     pub use crate::*;
+    pub use ecsl_bytecode::*;
 }
 
 pub type P<T> = Box<T>;

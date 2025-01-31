@@ -86,6 +86,7 @@
 %epp 'BREAK' 'break'
 %epp 'CONTINUE' 'continue'
 %epp 'RETURN' 'return'
+%epp 'ASM' 'asm'
 
 %parse-param table: Rc<RefCell<PartialSymbolTable>>
 
@@ -547,6 +548,31 @@ Stmt -> Result<Stmt, ()>:
         )))
     }
     | 'SEMI' { Ok(Stmt::new($span, StmtKind::Semi)) }
+    | 'ASM' 'LCURLY' 'RCURLY' {
+        Ok(Stmt::new($span, StmtKind::ASM(Vec::new())))
+    }
+    | 'ASM' 'LCURLY' BytecodeList TrailingComma 'RCURLY' {
+        Ok(Stmt::new($span, StmtKind::ASM($3?)))
+    }
+    ;
+
+BytecodeList -> Result<Vec<InlineBytecode>, ()>:
+    Bytecode { Ok(vec![$1?]) }
+    | BytecodeList 'COMMA' Bytecode {
+        flatten($1, $3)
+    }
+    ;
+
+Bytecode -> Result<InlineBytecode, ()>:
+    'IDENT' {
+        Ok(InlineBytecode {
+            span: $span,
+            ins: BytecodeInstruction {
+                op: Opcode::from_str(table.string($1.map_err(|_| ())?.span()).as_str()),
+                operand: Vec::new(),
+            }
+        })
+    }
     ;
 
 IfStmt -> Result<Stmt, ()>:

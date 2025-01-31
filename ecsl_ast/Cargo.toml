@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 ecsl_index = { path = "../ecsl_index" }
+ecsl_bytecode = { path = "../ecsl_bytecode" }
 ecsl_ast_derive = { path = "../ecsl_ast_derive" }
 strum = { version = "0.26.3", features = ["derive"] }
 cfgrammar.workspace = true
