@@ -26,6 +26,7 @@ pub fn bytecode_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStrea
 fn generate(e: &DataEnum) -> TokenStream {
     let mut variant_names = Vec::new();
     let mut variant_match_arms = Vec::new();
+    let mut from_str = Vec::new();
     let mut to_bytes = Vec::new();
     let mut to_bytecode = Vec::new();
 
@@ -42,6 +43,15 @@ fn generate(e: &DataEnum) -> TokenStream {
             let operand_len = variant.fields.len();
             variant_match_arms.push(quote! {
                 #ident => #operand_len
+            });
+        }
+
+        // from_str Method
+        {
+            let ident = variant.ident.clone();
+            let s = syn::LitStr::new(&ident.to_string(), ident.span());
+            from_str.push(quote! {
+                #s => Opcode::#ident
             });
         }
 
@@ -99,7 +109,7 @@ fn generate(e: &DataEnum) -> TokenStream {
     }
 
     quote! {
-        #[derive(Debug, Clone, Copy)]
+        #[derive(Debug, Clone, Copy, Eq, PartialEq)]
         pub enum Opcode {
             #(#variant_names),*
         }
@@ -110,12 +120,18 @@ fn generate(e: &DataEnum) -> TokenStream {
                     #(Opcode::#variant_match_arms),*
                 }
             }
+
+            pub fn from_str(s: &str) -> Opcode {
+                match s {
+                    #(#from_str),*,
+                    _ => Opcode::UNDF,
+                }
+            }
         }
 
         impl BytecodeInstruction {
             pub fn to_bytecode(self) -> Option<Bytecode> {
                 match (&self.op, self.operand.as_slice()) {
-                    // (Opcode::PSHI, [o1]) => Some(Bytecode::PSHI(o1.to_word()?)),
                     #(#to_bytecode),*
                     _ => None,
                 }

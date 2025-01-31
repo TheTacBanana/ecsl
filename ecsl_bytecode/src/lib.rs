@@ -1,6 +1,6 @@
 use ecsl_bytecode_derive::Bytecode;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct BytecodeInstruction {
     pub op: Opcode,
     pub operand: Vec<Immediate>,
@@ -12,7 +12,7 @@ impl std::fmt::Display for BytecodeInstruction {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum Immediate {
     Byte(i8),
     UByte(u8),
@@ -58,7 +58,7 @@ impl Immediate {
     }
 }
 
-#[derive(Debug, Bytecode)]
+#[derive(Debug, Bytecode, PartialEq, Eq)]
 #[repr(u8)]
 pub enum Bytecode {
     /// Undefined instruction
