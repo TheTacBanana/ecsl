@@ -50,6 +50,11 @@ generate_index_type!(SymbolID);
 
 // TIR Indexes
 generate_index_type!(TyID);
+impl TyID {
+    pub const UNKNOWN: TyID = TyID(0);
+    pub const BOTTOM: TyID = TyID(1);
+}
+
 generate_index_type!(VariantID);
 generate_index_type!(FieldID);
 

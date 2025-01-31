@@ -153,6 +153,7 @@ impl Driver {
         let assoc = (&context, assoc).par_map_assoc(
             |_, _, (diag, ast, table, local_ctxt)| {
                 if ast.file.inner() == 7 {
+                    info!("Type Checking source file {}", ast.file);
                     ty_check(&ast, local_ctxt.clone());
                 }
 

@@ -1,3 +1,5 @@
+use std::ops::{FromResidual, Try};
+
 use crate::{
     data::{EnumDef, FieldDef, StructDef, VariantDef},
     ecs::{QueryExpr, Schedule, ScheduleKind},
@@ -82,6 +84,29 @@ pub enum FnCtxt {
 pub enum VisitorCF {
     Continue,
     Break,
+}
+
+impl Try for VisitorCF {
+    type Output = ();
+
+    type Residual = ();
+
+    fn from_output(_: Self::Output) -> Self {
+        Self::Continue
+    }
+
+    fn branch(self) -> std::ops::ControlFlow<Self::Residual, Self::Output> {
+        match self {
+            VisitorCF::Continue => std::ops::ControlFlow::Continue(()),
+            VisitorCF::Break => std::ops::ControlFlow::Break(()),
+        }
+    }
+}
+
+impl FromResidual for VisitorCF {
+    fn from_residual(_: <Self as Try>::Residual) -> Self {
+        Self::Break
+    }
 }
 
 macro_rules! visit {

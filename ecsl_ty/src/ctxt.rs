@@ -21,7 +21,8 @@ impl TyCtxt {
             tyirs: Default::default(),
             cur_id: Default::default(),
         };
-        _ = ty_ctxt.tyid_from_tyir(TyIr::Unknown);
+        ty_ctxt.insert_tyir(TyID::UNKNOWN, TyIr::Unknown);
+        ty_ctxt.insert_tyir(TyID::BOTTOM, TyIr::Bottom);
         ty_ctxt
     }
 

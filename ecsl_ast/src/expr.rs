@@ -89,7 +89,7 @@ pub enum ExprKind {
     Schedule(P<Schedule>),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Literal {
     Int,
     Float,
@@ -112,6 +112,29 @@ pub enum BinOpKind {
     Leq,
     Gt,
     Geq,
+}
+
+impl BinOpKind {
+    pub fn operation(&self) -> bool {
+        match self {
+            BinOpKind::Add | BinOpKind::Sub | BinOpKind::Mul | BinOpKind::Div => true,
+            _ => false,
+        }
+    }
+
+    pub fn comparsion(&self) -> bool {
+        match self {
+            BinOpKind::And
+            | BinOpKind::Or
+            | BinOpKind::Eq
+            | BinOpKind::Neq
+            | BinOpKind::Lt
+            | BinOpKind::Leq
+            | BinOpKind::Gt
+            | BinOpKind::Geq => true,
+            _ => false,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

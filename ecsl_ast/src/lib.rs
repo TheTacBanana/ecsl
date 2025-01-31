@@ -1,3 +1,4 @@
+#![feature(try_trait_v2)]
 use ecsl_ast_derive::AST;
 use ecsl_index::SourceFileID;
 use item::Item;
