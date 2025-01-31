@@ -220,7 +220,7 @@ impl Visitor for TyCheck {
 
         let gir = self.cur_gir_mut();
 
-        debug!("{:#?}", gir);
+        debug!("{}", gir);
 
         VisitorCF::Continue
     }

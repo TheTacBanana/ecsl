@@ -24,6 +24,27 @@ pub struct GIR {
     blocks: Vec<Block>,
 }
 
+impl std::fmt::Display for GIR {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "Locals:")?;
+        for (i, local) in &self.locals {
+            writeln!(f, "  {} : {}", i, local)?;
+        }
+        writeln!(f, "")?;
+
+        writeln!(f, "Consts:")?;
+        for (i, cons) in &self.consts {
+            writeln!(f, "  {} : {}", i, cons)?;
+        }
+        writeln!(f, "")?;
+
+        for block in &self.blocks {
+            writeln!(f, "{}", block)?;
+        }
+        Ok(())
+    }
+}
+
 impl GIR {
     pub fn new(fn_id: TyID) -> Self {
         Self {
@@ -69,6 +90,16 @@ pub struct Block {
     term: Option<Terminator>,
 }
 
+impl std::fmt::Display for Block {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "Block {}:", self.id)?;
+        for s in &self.stmts {
+            writeln!(f, "  {}", s)?;
+        }
+        Ok(())
+    }
+}
+
 impl Block {
     pub fn new(id: BlockID) -> Self {
         Block {
@@ -92,6 +123,12 @@ pub struct Local {
     pub span: Span,
     pub mutable: Mutable,
     pub tyid: TyID,
+}
+
+impl std::fmt::Display for Local {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} {}", self.mutable, self.tyid)
+    }
 }
 
 impl Local {

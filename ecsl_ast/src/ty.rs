@@ -56,6 +56,15 @@ pub enum Mutable {
     Mut,
 }
 
+impl std::fmt::Display for Mutable {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Mutable::Imm => write!(f, "imm"),
+            Mutable::Mut => write!(f, "mut"),
+        }
+    }
+}
+
 #[derive(Debug, Clone, AST)]
 pub struct Generics {
     pub span: Span,

@@ -1,11 +1,16 @@
 use cfgrammar::Span;
 use ecsl_ast::expr::Literal;
-use log::debug;
 
 #[derive(Debug)]
 pub struct Constant {
     pub span: Span,
     pub kind: Literal,
+}
+
+impl std::fmt::Display for Constant {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.kind)
+    }
 }
 
 impl Constant {

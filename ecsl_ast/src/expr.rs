@@ -98,6 +98,18 @@ pub enum Literal {
     Bool,
 }
 
+impl std::fmt::Display for Literal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Literal::Int => write!(f, "int"),
+            Literal::Float => write!(f, "float"),
+            Literal::String => write!(f, "string"),
+            Literal::Char => write!(f, "char"),
+            Literal::Bool => write!(f, "bool"),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum BinOpKind {
     Add,
@@ -112,6 +124,25 @@ pub enum BinOpKind {
     Leq,
     Gt,
     Geq,
+}
+
+impl std::fmt::Display for BinOpKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BinOpKind::Add => write!(f, "+"),
+            BinOpKind::Sub => write!(f, "-"),
+            BinOpKind::Mul => write!(f, "*"),
+            BinOpKind::Div => write!(f, "/"),
+            BinOpKind::And => write!(f, "&&"),
+            BinOpKind::Or => write!(f, "||"),
+            BinOpKind::Eq => write!(f, "=="),
+            BinOpKind::Neq => write!(f, "!="),
+            BinOpKind::Lt => write!(f, "<"),
+            BinOpKind::Leq => write!(f, "<="),
+            BinOpKind::Gt => write!(f, ">"),
+            BinOpKind::Geq => write!(f, ">="),
+        }
+    }
 }
 
 impl BinOpKind {
@@ -147,6 +178,16 @@ pub enum UnOpKind {
     Neg,
     Not,
     Deref,
+}
+
+impl std::fmt::Display for UnOpKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            UnOpKind::Neg => write!(f, "-"),
+            UnOpKind::Not => write!(f, "!"),
+            UnOpKind::Deref => write!(f, "*"),
+        }
+    }
 }
 
 #[derive(Debug, Clone, AST)]
