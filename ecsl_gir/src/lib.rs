@@ -61,10 +61,18 @@ impl GIR {
         id
     }
 
+    pub fn get_local(&self, local: LocalID) -> &Local {
+        self.locals.get(&local).unwrap()
+    }
+
     pub fn new_constant(&mut self, cons: Constant) -> ConstID {
         let id = ConstID::new(self.consts.len());
         self.consts.insert(id, cons);
         id
+    }
+
+    pub fn get_constant(&self, cons: ConstID) -> &Constant {
+        self.consts.get(&cons).unwrap()
     }
 
     pub fn new_block(&mut self) -> BlockID {
@@ -86,6 +94,7 @@ impl GIR {
 #[derive(Debug)]
 pub struct Block {
     id: BlockID,
+    // parents: Vec<BlockID>,
     stmts: Vec<Stmt>,
     term: Option<Terminator>,
 }
@@ -104,10 +113,15 @@ impl Block {
     pub fn new(id: BlockID) -> Self {
         Block {
             id,
+            // parents: Vec::new(),
             stmts: Vec::new(),
             term: None,
         }
     }
+
+    // pub fn add_parent(&mut self, id: BlockID) {
+    //     self.parents.push(id);
+    // }
 
     pub fn push(&mut self, stmt: Stmt) {
         self.stmts.push(stmt);
@@ -127,7 +141,7 @@ pub struct Local {
 
 impl std::fmt::Display for Local {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} {}", self.mutable, self.tyid)
+        write!(f, "{} {:?}", self.mutable, self.tyid)
     }
 }
 

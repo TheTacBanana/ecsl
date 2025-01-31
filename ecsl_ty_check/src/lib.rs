@@ -12,9 +12,9 @@ use ecsl_error::{ext::EcslErrorExt, EcslError, ErrorLevel};
 use ecsl_gir::cons::Constant;
 use ecsl_gir::expr::Operand;
 use ecsl_gir::{Local, GIR};
-use ecsl_index::{BlockID, LocalID, SymbolID, TyID};
+use ecsl_index::{BlockID, ConstID, LocalID, SymbolID, TyID};
 use ecsl_ty::ctxt::TyCtxt;
-use ecsl_ty::local::LocalTyCtxt;
+use ecsl_ty::local::{self, LocalTyCtxt};
 use ecsl_ty::{GenericsScope, TyIr};
 use ext::IntoTyID;
 use log::{debug, error, trace};
@@ -37,12 +37,8 @@ pub struct TyCheck {
     gir: BTreeMap<TyID, GIR>,
 
     block_stack: Vec<BlockID>,
+    symbols: Vec<BTreeMap<SymbolID, LocalID>>,
     stack: Vec<(TyID, Operand)>,
-}
-
-#[derive(Debug)]
-pub struct Scope {
-    defined: BTreeMap<SymbolID, LocalID>,
 }
 
 impl TyCheck {
@@ -53,6 +49,7 @@ impl TyCheck {
             cur_gir: None,
             gir: Default::default(),
             block_stack: Default::default(),
+            symbols: Default::default(),
             stack: Default::default(),
         }
     }
@@ -65,13 +62,45 @@ impl TyCheck {
         t.into_tyid(&self.ty_ctxt)
     }
 
-    pub fn cur_gir_mut(&mut self) -> &mut GIR {
-        self.gir.get_mut(&self.cur_gir.unwrap()).unwrap()
+    pub fn cur_gir(&self) -> &GIR {
+        self.gir.get(&self.cur_gir.unwrap()).unwrap()
+    }
+
+    pub fn new_block(&mut self) -> BlockID {
+        let block = self
+            .gir
+            .get_mut(&self.cur_gir.unwrap())
+            .unwrap()
+            .new_block();
+        self.block_stack.push(block);
+        self.symbols.push(Default::default());
+        block
+    }
+
+    pub fn pop_block(&mut self) -> BlockID {
+        self.symbols.pop();
+        self.block_stack.pop().unwrap()
+    }
+
+    pub fn new_local(&mut self, local: Local) -> LocalID {
+        self.gir
+            .get_mut(&self.cur_gir.unwrap())
+            .unwrap()
+            .new_local(local)
+    }
+
+    pub fn new_constant(&mut self, cons: Constant) -> ConstID {
+        self.gir
+            .get_mut(&self.cur_gir.unwrap())
+            .unwrap()
+            .new_constant(cons)
     }
 
     pub fn push_stmt_to_cur_block(&mut self, stmt: ecsl_gir::stmt::Stmt) {
         let block_id = self.cur_block();
-        self.cur_gir_mut()
+        self.gir
+            .get_mut(&self.cur_gir.unwrap())
+            .unwrap()
             .get_block_mut(block_id)
             .unwrap()
             .push(stmt);
@@ -99,11 +128,6 @@ impl TyCheck {
     pub fn global(&self) -> &TyCtxt {
         &self.ty_ctxt.global
     }
-
-    // pub fn new_scope(&mut self) {
-    //     debug!("New Scope");
-    //     self.stack.push(Scope::new());
-    // }
 
     // pub fn define_symbol(&mut self, id: SymbolID, span: Span, ty: TyID) {
     //     if self.get_symbol(id).is_some() {
@@ -168,22 +192,6 @@ impl TyCheck {
     // }
 }
 
-impl Scope {
-    pub fn new() -> Self {
-        Self {
-            defined: Default::default(),
-        }
-    }
-
-    // pub fn define_symbol(&mut self, id: SymbolID, ty: TyID) {
-    //     self.defined.insert(id, ty);
-    // }
-
-    // pub fn get_symbol(&self, id: SymbolID) -> Option<&TyID> {
-    //     self.defined.get(&id)
-    // }
-}
-
 impl Visitor for TyCheck {
     fn visit_fn(&mut self, f: &FnDef, _ctxt: FnCtxt) -> VisitorCF {
         // Create GIR for Fn
@@ -197,10 +205,11 @@ impl Visitor for TyCheck {
         };
 
         // Insert Return Type as Local
-        let gir = self.cur_gir_mut();
         _ = match &f.ret {
-            RetTy::None(span) => gir.new_local(Local::new(*span, Mutable::Imm, TyID::BOTTOM)),
-            RetTy::Ty(ty) => gir.new_local(Local::new(ty.span, Mutable::Mut, fn_tyir.ret.unwrap())),
+            RetTy::None(span) => self.new_local(Local::new(*span, Mutable::Imm, TyID::BOTTOM)),
+            RetTy::Ty(ty) => {
+                self.new_local(Local::new(ty.span, Mutable::Mut, fn_tyir.ret.unwrap()))
+            }
         };
 
         // Insert Params as locals
@@ -209,7 +218,7 @@ impl Visitor for TyCheck {
                 ParamKind::SelfValue(_) => todo!(),
                 ParamKind::SelfReference(_) => todo!(),
                 ParamKind::Normal(mutable, _, _) => {
-                    gir.new_local(Local::new(param.span, *mutable, fn_tyir.params[i]));
+                    self.new_local(Local::new(param.span, *mutable, fn_tyir.params[i]));
                 }
             }
         }
@@ -218,16 +227,13 @@ impl Visitor for TyCheck {
 
         self.visit_block(&f.block);
 
-        let gir = self.cur_gir_mut();
-
-        debug!("{}", gir);
+        debug!("{}", self.cur_gir());
 
         VisitorCF::Continue
     }
 
     fn visit_block(&mut self, b: &Block) -> VisitorCF {
-        let id = self.cur_gir_mut().new_block();
-        self.block_stack.push(id);
+        let id = self.new_block();
 
         let cf = walk_block(self, b);
 
@@ -264,9 +270,7 @@ impl Visitor for TyCheck {
                 unify!(lhs, rhs_ty, TyCheckError::AssignWrongType);
 
                 // Create local ID
-                let local_id = self
-                    .cur_gir_mut()
-                    .new_local(Local::new(*span, *mutable, rhs_ty));
+                let local_id = self.new_local(Local::new(*span, *mutable, rhs_ty));
 
                 // Create Assignment Stmt
                 self.push_stmt_to_cur_block(gir::Stmt {
@@ -279,6 +283,20 @@ impl Visitor for TyCheck {
                         }),
                     ),
                 });
+
+                // Insert Ident into local Mapping
+                if let Some(_) = self
+                    .symbols
+                    .last_mut()
+                    .unwrap()
+                    .insert(*symbol_id, local_id)
+                {
+                    self.ty_ctxt.diag.push_error(
+                        EcslError::new(ErrorLevel::Error, TyCheckError::SymbolRedefined)
+                            .with_span(|_| s.span),
+                    );
+                    return VisitorCF::Break;
+                }
             }
 
             _ => todo!(),
@@ -318,11 +336,31 @@ impl Visitor for TyCheck {
         }
 
         let ret_ty = match &e.kind {
-            ExprKind::Ident(symbol_id) => todo!(),
+            ExprKind::Ident(symbol_id) => {
+                // Search all symbols
+                let mut found = None;
+                for symbols in self.symbols.iter().rev() {
+                    if let Some(local) = symbols.get(symbol_id) {
+                        found = Some(*local);
+                        break;
+                    }
+                }
+
+                // Throw error if not found
+                if found.is_none() {
+                    self.ty_ctxt.diag.push_error(
+                        EcslError::new(ErrorLevel::Error, TyCheckError::SymbolDoesntExist)
+                            .with_span(|_| e.span),
+                    );
+                    return VisitorCF::Break;
+                }
+
+                let local = self.cur_gir().get_local(found.unwrap());
+
+                Some((local.tyid, Operand::Move(found.unwrap())))
+            }
             ExprKind::Lit(literal) => {
-                let const_id = self
-                    .cur_gir_mut()
-                    .new_constant(Constant::from_literal(*literal, e.span));
+                let const_id = self.new_constant(Constant::from_literal(*literal, e.span));
 
                 let tyid = self.get_tyid(TyIr::from(*literal));
 
@@ -357,9 +395,7 @@ impl Visitor for TyCheck {
                     return VisitorCF::Break;
                 };
 
-                let local_id = self
-                    .cur_gir_mut()
-                    .new_local(Local::new(e.span, Mutable::Imm, tyid));
+                let local_id = self.new_local(Local::new(e.span, Mutable::Imm, tyid));
 
                 // Create Assignment Stmt
                 self.push_stmt_to_cur_block(gir::Stmt {
@@ -395,9 +431,7 @@ impl Visitor for TyCheck {
                     }
                 };
 
-                let local_id =
-                    self.cur_gir_mut()
-                        .new_local(Local::new(e.span, Mutable::Imm, mapped_ty));
+                let local_id = self.new_local(Local::new(e.span, Mutable::Imm, mapped_ty));
 
                 // Create Assignment Stmt
                 self.push_stmt_to_cur_block(gir::Stmt {
