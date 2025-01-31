@@ -66,6 +66,20 @@ impl TyCtxt {
     pub fn unknown_ty(&self) -> TyID {
         TyID::ZERO
     }
+
+    pub fn is_primitive(&self, id: TyID) -> bool {
+        match self.get_tyir(id) {
+            TyIr::Bool | TyIr::Char | TyIr::Int | TyIr::Float => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_numeric(&self, id: TyID) -> bool {
+        match self.get_tyir(id) {
+            TyIr::Int | TyIr::Float => true,
+            _ => false,
+        }
+    }
 }
 
 pub enum ImportError<'a> {

@@ -124,14 +124,19 @@ impl BinOpKind {
 
     pub fn comparsion(&self) -> bool {
         match self {
-            BinOpKind::And
-            | BinOpKind::Or
-            | BinOpKind::Eq
+            BinOpKind::Eq
             | BinOpKind::Neq
             | BinOpKind::Lt
             | BinOpKind::Leq
             | BinOpKind::Gt
             | BinOpKind::Geq => true,
+            _ => false,
+        }
+    }
+
+    pub fn boolean_logic(&self) -> bool {
+        match self {
+            BinOpKind::And | BinOpKind::Or | BinOpKind::Eq => true,
             _ => false,
         }
     }

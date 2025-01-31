@@ -1,17 +1,19 @@
+use ecsl_ast::expr::UnOpKind;
 use ecsl_ast::parse::{ParamKind, RetTy};
 use ecsl_ast::ty::{Mutable, Ty};
-use ecsl_ast::SourceAST;
 use ecsl_ast::{
     expr::{BinOpKind, Expr, ExprKind, Literal},
     parse::FnDef,
     stmt::{Block, Stmt, StmtKind},
     visit::{walk_block, walk_expr, walk_fn, walk_stmt, FnCtxt, Visitor, VisitorCF},
 };
+use ecsl_ast::{SourceAST, P};
 use ecsl_error::{ext::EcslErrorExt, EcslError, ErrorLevel};
 use ecsl_gir::cons::Constant;
 use ecsl_gir::expr::Operand;
 use ecsl_gir::{Local, GIR};
 use ecsl_index::{BlockID, LocalID, SymbolID, TyID};
+use ecsl_ty::ctxt::TyCtxt;
 use ecsl_ty::local::LocalTyCtxt;
 use ecsl_ty::{GenericsScope, TyIr};
 use ext::IntoTyID;
@@ -92,6 +94,10 @@ impl TyCheck {
         let r = self.pop();
         let l = self.pop();
         (l, r)
+    }
+
+    pub fn global(&self) -> &TyCtxt {
+        &self.ty_ctxt.global
     }
 
     // pub fn new_scope(&mut self) {
@@ -254,9 +260,7 @@ impl Visitor for TyCheck {
 
                 // Unify Types
                 let lhs = self.get_tyid((ty.as_ref(), &self.generic_scope));
-                debug!("{:?}", lhs);
                 let (rhs_ty, rhs_op) = self.pop();
-                debug!("{:?}", rhs_ty);
                 unify!(lhs, rhs_ty, TyCheckError::AssignWrongType);
 
                 // Create local ID
@@ -314,6 +318,7 @@ impl Visitor for TyCheck {
         }
 
         let ret_ty = match &e.kind {
+            ExprKind::Ident(symbol_id) => todo!(),
             ExprKind::Lit(literal) => {
                 let const_id = self
                     .cur_gir_mut()
@@ -335,12 +340,21 @@ impl Visitor for TyCheck {
                 // Unify Types
                 unify!(lhs_ty, rhs_ty, TyCheckError::LHSMatchRHS);
 
-                //TODO: Check types are primitives
+                let numeric = self.global().is_numeric(lhs_ty);
+                let boolean = self.get_tyid(TyIr::Bool) == lhs_ty;
 
-                let tyid = if op.operation() {
+                let tyid = if op.operation() && numeric {
                     lhs_ty
-                } else {
+                } else if op.comparsion() && (numeric || boolean) {
                     self.get_tyid(TyIr::Bool)
+                } else if op.boolean_logic() && boolean {
+                    self.get_tyid(TyIr::Bool)
+                } else {
+                    self.ty_ctxt.diag.push_error(
+                        EcslError::new(ErrorLevel::Error, TyCheckError::InvalidOperation)
+                            .with_span(|_| e.span),
+                    );
+                    return VisitorCF::Break;
                 };
 
                 let local_id = self
@@ -361,8 +375,44 @@ impl Visitor for TyCheck {
 
                 Some((lhs_ty, Operand::Move(local_id)))
             }
-            ExprKind::UnOp(un_op_kind, expr) => todo!(),
-            ExprKind::Ident(symbol_id) => todo!(),
+            ExprKind::UnOp(op, expr) => {
+                // Visit expr
+                self.visit_expr(expr)?;
+                let (e_ty, e_op) = self.pop();
+
+                let bool_ty = self.get_tyid(TyIr::Bool);
+
+                let mapped_ty = match op {
+                    UnOpKind::Not if e_ty == bool_ty => e_ty,
+                    UnOpKind::Neg if self.global().is_numeric(e_ty) => e_ty,
+                    UnOpKind::Deref => todo!(),
+                    _ => {
+                        self.ty_ctxt.diag.push_error(
+                            EcslError::new(ErrorLevel::Error, TyCheckError::InvalidOperation)
+                                .with_span(|_| e.span),
+                        );
+                        return VisitorCF::Break;
+                    }
+                };
+
+                let local_id =
+                    self.cur_gir_mut()
+                        .new_local(Local::new(e.span, Mutable::Imm, mapped_ty));
+
+                // Create Assignment Stmt
+                self.push_stmt_to_cur_block(gir::Stmt {
+                    span: e.span,
+                    kind: gir::StmtKind::Assign(
+                        local_id,
+                        Box::new(gir::Expr {
+                            span: e.span, //TODO: Replace Span
+                            kind: gir::ExprKind::UnOp(*op, e_op),
+                        }),
+                    ),
+                });
+
+                Some((mapped_ty, Operand::Move(local_id)))
+            }
 
             _ => todo!(),
             // ExprKind::Assign(symbol_id, span, expr) => todo!(),
@@ -689,7 +739,7 @@ pub enum TyCheckError {
     SymbolIsNotFunction,
     SymbolRedefined,
     ExpectedBoolean,
-    InvalidBinOp,
+    InvalidOperation,
     AssignWrongType,
     FunctionReturnType,
     ForLoopIterator,
@@ -703,7 +753,7 @@ impl std::fmt::Display for TyCheckError {
             TyCheckError::SymbolDoesntExist => "Symbol could not be found in the current scope",
             TyCheckError::SymbolRedefined => "Symbol is already defined",
             TyCheckError::ExpectedBoolean => "Expected boolean expression",
-            TyCheckError::InvalidBinOp => "Operation cannot be performed",
+            TyCheckError::InvalidOperation => "Operation cannot be performed",
             TyCheckError::LHSMatchRHS => "LHS type must match RHS type of expresion",
             TyCheckError::AssignWrongType => "Cannot assign incorrect type",
             TyCheckError::FunctionReturnType => "Return type for function does not match",
