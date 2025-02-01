@@ -551,20 +551,20 @@ Stmt -> Result<Stmt, ()>:
     | 'ASM' 'LCURLY' 'RCURLY' {
         Ok(Stmt::new($span, StmtKind::ASM(Vec::new())))
     }
-    | 'ASM' 'LCURLY' BytecodeList TrailingComma 'RCURLY' {
+    | 'ASM' 'LCURLY' BytecodeList 'RCURLY' {
         Ok(Stmt::new($span, StmtKind::ASM($3?)))
     }
     ;
 
 BytecodeList -> Result<Vec<InlineBytecode>, ()>:
     Bytecode { Ok(vec![$1?]) }
-    | BytecodeList 'COMMA' Bytecode {
-        flatten($1, $3)
+    | BytecodeList Bytecode {
+        flatten($1, $2)
     }
     ;
 
 Bytecode -> Result<InlineBytecode, ()>:
-    'IDENT' {
+    'IDENT' 'SEMI' {
         Ok(InlineBytecode {
             span: $span,
             ins: BytecodeInstruction {

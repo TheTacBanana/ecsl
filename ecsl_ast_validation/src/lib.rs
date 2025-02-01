@@ -1,3 +1,4 @@
+use asm::BytecodeValidator;
 use attributes::AttributeValidator;
 use casing::CasingWarnings;
 use definitions::TypeDefCollector;
@@ -23,6 +24,7 @@ use log::debug;
 use prelude::{rewrite_use_path, Prelude};
 use std::{path::PathBuf, sync::Arc};
 
+pub mod asm;
 pub mod attributes;
 pub mod casing;
 pub mod definitions;
@@ -61,6 +63,9 @@ pub fn validate_ast(ctxt: &Context, ast: &SourceAST, diag: DiagConn) {
 
     let mut attribute_validator = AttributeValidator::new(ctxt, diag.clone(), ast.file);
     attribute_validator.visit_ast(ast);
+
+    let mut bytecode_validator = BytecodeValidator::new(ctxt, diag.clone(), ast.file);
+    bytecode_validator.visit_ast(ast);
 }
 
 pub fn ast_definitions(ast: &SourceAST, ctxt: &Context, ty_ctxt: Arc<LocalTyCtxt>) {
