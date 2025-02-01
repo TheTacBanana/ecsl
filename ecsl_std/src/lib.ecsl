@@ -5,6 +5,7 @@ use {
     std::bool::bool,
     std::char::char,
     std::lib::drop,
+    std::fmt::{print_int},
 };
 
 fn drop<T>(val: T) { }

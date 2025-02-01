@@ -1,26 +1,33 @@
 use ecsl_ast::expr::UnOpKind;
 use ecsl_ast::parse::{ParamKind, RetTy};
-use ecsl_ast::ty::{Mutable, Ty};
+use ecsl_ast::ty::Mutable;
+use ecsl_ast::SourceAST;
 use ecsl_ast::{
-    expr::{BinOpKind, Expr, ExprKind, Literal},
+    expr::{Expr, ExprKind},
     parse::FnDef,
     stmt::{Block, Stmt, StmtKind},
-    visit::{walk_block, walk_expr, walk_fn, walk_stmt, FnCtxt, Visitor, VisitorCF},
+    visit::{walk_block, FnCtxt, Visitor, VisitorCF},
 };
-use ecsl_ast::{SourceAST, P};
 use ecsl_error::{ext::EcslErrorExt, EcslError, ErrorLevel};
 use ecsl_gir::cons::Constant;
 use ecsl_gir::expr::Operand;
+use ecsl_gir::term::{self, SwitchCase, Terminator, TerminatorKind};
 use ecsl_gir::{Local, GIR};
 use ecsl_index::{BlockID, ConstID, LocalID, SymbolID, TyID};
 use ecsl_ty::ctxt::TyCtxt;
-use ecsl_ty::local::{self, LocalTyCtxt};
+use ecsl_ty::local::LocalTyCtxt;
 use ecsl_ty::{GenericsScope, TyIr};
 use ext::IntoTyID;
-use log::{debug, error, trace};
-use lrpar::Span;
+use log::debug;
 use std::collections::BTreeMap;
 use std::sync::Arc;
+
+mod gir {
+    pub use ecsl_gir::expr::*;
+    pub use ecsl_gir::stmt::*;
+    pub use ecsl_gir::term::*;
+    pub use ecsl_gir::*;
+}
 
 pub mod ext;
 
@@ -77,6 +84,18 @@ impl TyCheck {
         block
     }
 
+    pub fn new_block_without_stack(&mut self) -> BlockID {
+        self.gir
+            .get_mut(&self.cur_gir.unwrap())
+            .unwrap()
+            .new_block()
+    }
+
+    pub fn push_block_stack(&mut self, block: BlockID) {
+        self.block_stack.push(block);
+        self.symbols.push(Default::default());
+    }
+
     pub fn pop_block(&mut self) -> BlockID {
         self.symbols.pop();
         self.block_stack.pop().unwrap()
@@ -110,6 +129,14 @@ impl TyCheck {
         *self.block_stack.last().unwrap()
     }
 
+    pub fn block_mut(&mut self, block: BlockID) -> &mut gir::Block {
+        self.gir
+            .get_mut(&self.cur_gir.unwrap())
+            .unwrap()
+            .get_block_mut(block)
+            .unwrap()
+    }
+
     pub fn push(&mut self, tyid: TyID, operand: Operand) {
         self.stack.push((tyid, operand));
     }
@@ -127,68 +154,6 @@ impl TyCheck {
     pub fn global(&self) -> &TyCtxt {
         &self.ty_ctxt.global
     }
-
-    // pub fn define_symbol(&mut self, id: SymbolID, span: Span, ty: TyID) {
-    //     if self.get_symbol(id).is_some() {
-    //         self.ty_ctxt.diag.push_error(
-    //             EcslError::new(ErrorLevel::Error, TyCheckError::SymbolRedefined)
-    //                 .with_span(|_| span),
-    //         );
-    //     }
-
-    //     debug!("Define symbol {} as {}", id, ty);
-    //     self.stack.last_mut().unwrap().define_symbol(id, ty);
-    // }
-
-    // pub fn use_symbol(&mut self, id: SymbolID, span: Span) -> Option<&TyID> {
-    //     if let Some(symbol) = self.get_symbol(id) {
-    //         Some(symbol)
-    //     } else {
-    //         self.ty_ctxt.diag.push_error(
-    //             EcslError::new(ErrorLevel::Error, TyCheckError::SymbolDoesntExist)
-    //                 .with_span(|_| span),
-    //         );
-    //         None
-    //     }
-    // }
-
-    // pub fn get_symbol(&self, id: SymbolID) -> Option<&TyID> {
-    //     let mut found = None;
-    //     for scope in self.stack.iter().rev() {
-    //         let ty = scope.get_symbol(id);
-    //         if ty.is_some() {
-    //             found = ty;
-    //             break;
-    //         }
-    //     }
-    //     return found;
-    // }
-
-    // pub fn get_tyid_from_ty(&self, ty: &Ty) -> TyID {
-    //     self.ty_ctxt.get_tyid(ty, &self.generic_scope)
-    // }
-
-    // pub fn get_tyir_from_ty(&self, ty: &Ty) -> TyIr {
-    //     self.ty_ctxt
-    //         .global
-    //         .get_tyir(self.ty_ctxt.get_tyid(ty, &self.generic_scope))
-    // }
-
-    // pub fn pop_scope(&mut self) {
-    //     let scope = self.stack.pop().unwrap();
-    //     debug!("Popped scope {:?}", scope);
-    // }
-
-    // pub fn push_id(&mut self, ty: TyID) {
-    //     debug!("Pushed {:?}", ty);
-    //     self.ty_stack.push(ty);
-    // }
-
-    // pub fn push_tyir(&mut self, tyir: TyIr) {
-    //     let ty = self.ty_ctxt.global.tyid_from_tyir(tyir);
-    //     debug!("Pushed {:?}", ty);
-    //     self.ty_stack.push(ty);
-    // }
 }
 
 impl Visitor for TyCheck {
@@ -224,7 +189,7 @@ impl Visitor for TyCheck {
 
         // TODO: Currently not walking generics
 
-        self.visit_block(&f.block);
+        self.visit_block(&f.block)?;
 
         debug!("{}", self.cur_gir());
 
@@ -239,11 +204,7 @@ impl Visitor for TyCheck {
     }
 
     fn visit_stmt(&mut self, s: &Stmt) -> VisitorCF {
-        mod gir {
-            pub use ecsl_gir::expr::*;
-            pub use ecsl_gir::stmt::*;
-            pub use ecsl_gir::term::*;
-        }
+        debug!("{:?}", s);
 
         macro_rules! unify {
             ($l:ident, $r:ident, $err:expr) => {
@@ -306,20 +267,90 @@ impl Visitor for TyCheck {
                 }
             }
             StmtKind::If(expr, block, stmt) => {
-                // Visit expression
-                self.visit_expr(expr)?;
+                enum IfStmt<'a> {
+                    If(&'a Expr, &'a Block),
+                    ElseIf(&'a Expr, &'a Block),
+                    Else(&'a Block),
+                }
 
-                // Unify Types
-                let (cond_ty, cond_op) = self.pop();
+                // Collect all if stmts into enum
+                let mut stmts = Vec::new();
+                stmts.push(IfStmt::If(&expr, &block));
+                let mut next = stmt.as_ref();
+                while let Some(stmt) = next.take() {
+                    match &stmt.kind {
+                        StmtKind::ElseIf(expr, block, stmt) => {
+                            stmts.push(IfStmt::ElseIf(&expr, &block));
+                            next = stmt.as_ref();
+                        }
+                        StmtKind::Else(block) => {
+                            stmts.push(IfStmt::Else(&block));
+                        }
+                        _ => panic!("If Statement in wrong place"),
+                    }
+                }
+
+                // Store bool ty for later
                 let bool_ty = self.get_tyid(TyIr::Bool);
-                unify!(cond_ty, bool_ty, TyCheckError::ExpectedBoolean, expr.span);
 
-                todo!()
+                let mut blocks_to_terminate = Vec::new();
+                // let mut ends_with_else = false;
+                for if_stmt in &stmts {
+                    match if_stmt {
+                        IfStmt::If(expr, block) | IfStmt::ElseIf(expr, block) => {
+                            let cur_block = self.cur_block();
+
+                            // Visit expression
+                            self.visit_expr(expr);
+
+                            // Unify Condition
+                            let (cond_ty, cond_op) = self.pop();
+                            unify!(cond_ty, bool_ty, TyCheckError::ExpectedBoolean, expr.span);
+
+                            // Walk if block
+                            let start_of_block = self.new_block();
+                            walk_block(self, block)?;
+                            let end_of_block = self.pop_block();
+
+                            // Add Block to termination list
+                            blocks_to_terminate.push(end_of_block);
+
+                            let to_next = self.new_block_without_stack();
+                            self.block_mut(cur_block).terminate(Terminator {
+                                kind: TerminatorKind::Switch(
+                                    cond_op,
+                                    vec![
+                                        SwitchCase::Value(0, to_next),
+                                        SwitchCase::Default(start_of_block),
+                                    ],
+                                ),
+                            });
+                            self.push_block_stack(to_next);
+                        }
+                        IfStmt::Else(block) => {
+                            // Walk else block
+                            walk_block(self, block)?;
+                            let end_of_block = self.pop_block();
+
+                            // Add Block to termination list
+                            blocks_to_terminate.push(end_of_block);
+
+                            // Create trailing block
+                            self.new_block();
+                        }
+                    }
+                }
+
+                let cur_block = self.cur_block();
+                for block in &blocks_to_terminate {
+                    self.block_mut(*block).terminate_no_replace(Terminator {
+                        kind: TerminatorKind::Jump(cur_block),
+                    });
+                }
             }
 
+            StmtKind::ElseIf(_, _, _) | StmtKind::Else(_) => panic!("If statement in wrong place"),
             _ => todo!(),
-            StmtKind::ElseIf(expr, block, stmt) => todo!(),
-            StmtKind::Else(block) => todo!(),
             // StmtKind::For(symbol_id, ty, expr, block) => todo!(),
             // StmtKind::While(expr, block) => todo!(),
             // StmtKind::Match(expr, match_arms) => todo!(),

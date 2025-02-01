@@ -1,5 +1,5 @@
 use ecsl_ast::{
-    parse::{Attributes, Opcode},
+    parse::Opcode,
     stmt::{Stmt, StmtKind},
     visit::{Visitor, VisitorCF},
 };

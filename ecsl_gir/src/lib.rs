@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use cfgrammar::Span;
 use cons::Constant;
 use ecsl_ast::ty::Mutable;
-use ecsl_index::{BlockID, ConstID, LocalID, SymbolID, TyID};
+use ecsl_index::{BlockID, ConstID, LocalID, TyID};
 use stmt::Stmt;
 use term::Terminator;
 
@@ -53,6 +53,10 @@ impl GIR {
             consts: Default::default(),
             blocks: Default::default(),
         }
+    }
+
+    pub fn fn_id(&self) -> TyID {
+        self.fn_id
     }
 
     pub fn new_local(&mut self, local: Local) -> LocalID {
@@ -105,6 +109,11 @@ impl std::fmt::Display for Block {
         for s in &self.stmts {
             writeln!(f, "  {}", s)?;
         }
+        if let Some(term) = &self.term {
+            writeln!(f, "  {}", term)?
+        } else {
+            writeln!(f, "  ??",)?
+        }
         Ok(())
     }
 }
@@ -129,6 +138,12 @@ impl Block {
 
     pub fn terminate(&mut self, term: Terminator) {
         self.term = Some(term);
+    }
+
+    pub fn terminate_no_replace(&mut self, term: Terminator) {
+        if self.term.is_none() {
+            self.term = Some(term);
+        }
     }
 }
 
