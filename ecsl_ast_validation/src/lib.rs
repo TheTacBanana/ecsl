@@ -167,7 +167,7 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                     };
 
                     if let Some(tyir) = tyir {
-                        ty_ctxt.global.insert_tyir(tyid, tyir);
+                        unsafe { ty_ctxt.global.insert_tyir(tyid, tyir) };
                         return;
                     }
                 }
@@ -187,14 +187,16 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                     })
                     .collect();
 
-                ty_ctxt.global.insert_tyir(
-                    tyid,
-                    TyIr::Struct(ecsl_ty::StructDef {
-                        id: tyid,
-                        kind: *kind,
-                        fields,
-                    }),
-                );
+                unsafe {
+                    ty_ctxt.global.insert_tyir(
+                        tyid,
+                        TyIr::Struct(ecsl_ty::StructDef {
+                            id: tyid,
+                            kind: *kind,
+                            fields,
+                        }),
+                    )
+                };
 
                 scope.pop();
             }
@@ -230,15 +232,17 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                     ast::RetTy::Ty(ty) => Some(ty_ctxt.get_tyid(&ty, &scope)),
                 };
 
-                ty_ctxt.global.insert_tyir(
-                    tyid,
-                    TyIr::Fn(ecsl_ty::FnDef {
+                unsafe {
+                    ty_ctxt.global.insert_tyir(
                         tyid,
-                        kind: *kind,
-                        params,
-                        ret,
-                    }),
-                );
+                        TyIr::Fn(ecsl_ty::FnDef {
+                            tyid,
+                            kind: *kind,
+                            params,
+                            ret,
+                        }),
+                    )
+                };
 
                 scope.pop();
             }

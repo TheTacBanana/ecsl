@@ -23,6 +23,7 @@ pub enum ExprKind {
     BinOp(BinOpKind, Operand, Operand),
     UnOp(UnOpKind, Operand),
     Reference(Mutable, LocalID),
+    Cast(Operand, TyID),
     Call(TyID, Vec<Operand>),
 }
 
@@ -42,6 +43,7 @@ impl std::fmt::Display for ExprKind {
                 }
                 Ok(())
             }
+            ExprKind::Cast(operand, ty_id) => write!(f, "{} as {}", operand, ty_id),
         }
     }
 }

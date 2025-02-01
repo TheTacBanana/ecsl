@@ -142,7 +142,7 @@ impl LocalTyCtxt {
                         EcslError::new(ErrorLevel::Error, TypeError::UnknownType)
                             .with_span(|_| ty.span),
                     );
-                    self.global.unknown_ty()
+                    TyID::UNKNOWN
                 }
             };
         }

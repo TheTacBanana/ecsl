@@ -1,6 +1,7 @@
 use crate::{local::LocalTyCtxt, TyIr};
 use bimap::BiHashMap;
 use ecsl_index::{GlobalID, SourceFileID, TyID};
+use log::info;
 use std::{
     collections::{btree_map::Entry, BTreeMap},
     sync::{Arc, RwLock},
@@ -21,8 +22,8 @@ impl TyCtxt {
             tyirs: Default::default(),
             cur_id: Default::default(),
         };
-        ty_ctxt.insert_tyir(TyID::UNKNOWN, TyIr::Unknown);
-        ty_ctxt.insert_tyir(TyID::BOTTOM, TyIr::Bottom);
+        ty_ctxt.tyid_from_tyir(TyIr::Unknown);
+        ty_ctxt.tyid_from_tyir(TyIr::Bottom);
         ty_ctxt
     }
 
@@ -42,7 +43,7 @@ impl TyCtxt {
         tyid
     }
 
-    pub fn insert_tyir(&self, id: TyID, tyir: TyIr) {
+    pub unsafe fn insert_tyir(&self, id: TyID, tyir: TyIr) {
         let mut defs = self.tyirs.write().unwrap();
         defs.insert(id, tyir);
     }
@@ -61,10 +62,6 @@ impl TyCtxt {
     pub fn get_tyir(&self, id: TyID) -> TyIr {
         let defs = self.tyirs.read().unwrap();
         defs.get_by_left(&id).unwrap().clone()
-    }
-
-    pub fn unknown_ty(&self) -> TyID {
-        TyID::ZERO
     }
 
     pub fn is_primitive(&self, id: TyID) -> bool {

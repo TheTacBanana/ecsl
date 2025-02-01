@@ -111,7 +111,6 @@ impl TyCheck {
     }
 
     pub fn push(&mut self, tyid: TyID, operand: Operand) {
-        debug!("{:?} {:?}", tyid, operand);
         self.stack.push((tyid, operand));
     }
 
@@ -233,11 +232,9 @@ impl Visitor for TyCheck {
     }
 
     fn visit_block(&mut self, b: &Block) -> VisitorCF {
-        let id = self.new_block();
-
+        self.new_block();
         let cf = walk_block(self, b);
-
-        self.block_stack.pop();
+        self.pop_block();
         cf
     }
 
@@ -250,10 +247,20 @@ impl Visitor for TyCheck {
 
         macro_rules! unify {
             ($l:ident, $r:ident, $err:expr) => {
+                debug!("Stmt Unify {} {}", $l, $r);
                 if $l == TyID::UNKNOWN || $r == TyID::UNKNOWN || $l != $r {
                     self.ty_ctxt
                         .diag
                         .push_error(EcslError::new(ErrorLevel::Error, $err).with_span(|_| s.span));
+                    return VisitorCF::Break;
+                }
+            };
+            ($l:ident, $r:ident, $err:expr, $span:expr) => {
+                debug!("Stmt Unify {} {}", $l, $r);
+                if $l == TyID::UNKNOWN || $r == TyID::UNKNOWN || $l != $r {
+                    self.ty_ctxt
+                        .diag
+                        .push_error(EcslError::new(ErrorLevel::Error, $err).with_span(|_| $span));
                     return VisitorCF::Break;
                 }
             };
@@ -298,11 +305,21 @@ impl Visitor for TyCheck {
                     return VisitorCF::Break;
                 }
             }
+            StmtKind::If(expr, block, stmt) => {
+                // Visit expression
+                self.visit_expr(expr)?;
+
+                // Unify Types
+                let (cond_ty, cond_op) = self.pop();
+                let bool_ty = self.get_tyid(TyIr::Bool);
+                unify!(cond_ty, bool_ty, TyCheckError::ExpectedBoolean, expr.span);
+
+                todo!()
+            }
 
             _ => todo!(),
-            // StmtKind::If(expr, block, stmt) => todo!(),
-            // StmtKind::ElseIf(expr, block, stmt) => todo!(),
-            // StmtKind::Else(block) => todo!(),
+            StmtKind::ElseIf(expr, block, stmt) => todo!(),
+            StmtKind::Else(block) => todo!(),
             // StmtKind::For(symbol_id, ty, expr, block) => todo!(),
             // StmtKind::While(expr, block) => todo!(),
             // StmtKind::Match(expr, match_arms) => todo!(),
@@ -326,6 +343,7 @@ impl Visitor for TyCheck {
 
         macro_rules! unify {
             ($l:ident, $r:ident, $err:expr) => {
+                debug!("Expr Unify {} {}", $l, $r);
                 if $l == TyID::UNKNOWN || $r == TyID::UNKNOWN || $l != $r {
                     self.ty_ctxt
                         .diag
@@ -409,7 +427,7 @@ impl Visitor for TyCheck {
                     ),
                 });
 
-                Some((lhs_ty, Operand::Move(local_id)))
+                Some((tyid, Operand::Move(local_id)))
             }
             ExprKind::UnOp(op, expr) => {
                 // Visit expr
@@ -448,6 +466,9 @@ impl Visitor for TyCheck {
                 Some((mapped_ty, Operand::Move(local_id)))
             }
 
+            // ExprKind::Cast(expr, ty) => {
+
+            // },
             _ => todo!(),
             // ExprKind::Assign(symbol_id, span, expr) => todo!(),
             // ExprKind::Ref(mutable, expr) => todo!(),
@@ -456,7 +477,6 @@ impl Visitor for TyCheck {
             // ExprKind::Struct(ty, field_exprs) => todo!(),
             // ExprKind::Enum(ty, symbol_id, field_exprs) => todo!(),
             // ExprKind::Range(expr, expr1, range_type) => todo!(),
-            // ExprKind::Cast(expr, ty) => todo!(),
             // ExprKind::Field(expr, symbol_id) => todo!(),
             // ExprKind::Function(expr, concrete_generics, symbol_id, exprs) => todo!(),
             // ExprKind::Entity => todo!(),
@@ -464,8 +484,6 @@ impl Visitor for TyCheck {
             // ExprKind::Query(query_expr) => todo!(),
             // ExprKind::Schedule(schedule) => todo!(),
         };
-
-        debug!("{:?}", ret_ty);
 
         if let Some((ty, op)) = ret_ty {
             self.push(ty, op);
