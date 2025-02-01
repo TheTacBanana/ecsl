@@ -149,11 +149,11 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
     for (_, def) in ty_ctxt.defined.read().unwrap().iter() {
         match def {
             Definition::Struct(ast::StructDef {
+                //TODO: Attributes
                 kind,
                 ident,
                 generics,
                 fields,
-                attributes,
                 ..
             }) => {
                 scope.add_opt(generics.clone());
@@ -205,7 +205,14 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
 
                 scope.pop();
             }
-            Definition::Enum(e) => {
+            Definition::Enum(ast::EnumDef {
+                kind: _,
+                ident: _,
+                attributes: _,
+                generics: _,
+                variants: _,
+                ..
+            }) => {
                 debug!("TODO: Enum TyIr");
             }
             Definition::Function(ast::FnDef {

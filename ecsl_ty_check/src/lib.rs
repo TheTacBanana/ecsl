@@ -222,7 +222,7 @@ impl Visitor for TyCheck {
         VisitorCF::Continue
     }
 
-    fn visit_block(&mut self, b: &Block) -> VisitorCF {
+    fn visit_block(&mut self, _: &Block) -> VisitorCF {
         panic!("Dont use this function")
     }
 
@@ -416,12 +416,6 @@ impl Visitor for TyCheck {
     }
 
     fn visit_expr(&mut self, e: &Expr) -> VisitorCF {
-        mod gir {
-            pub use ecsl_gir::expr::*;
-            pub use ecsl_gir::stmt::*;
-            pub use ecsl_gir::term::*;
-        }
-
         macro_rules! unify {
             ($l:expr, $r:expr, $err:expr) => {
                 debug!("Expr Unify {} {}", $l, $r);
@@ -474,7 +468,7 @@ impl Visitor for TyCheck {
 
                 Some((tyid, Operand::Constant(const_id)))
             }
-            ExprKind::Function(None, concrete_generics, symbol_id, exprs) => { //TODO: Generics
+            ExprKind::Function(None, _, symbol_id, exprs) => { //TODO: Generics
                 // Iter over all expressions
                 let mut exprs_tys = Vec::new();
                 for expr in exprs {

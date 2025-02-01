@@ -1,7 +1,6 @@
 use crate::{local::LocalTyCtxt, TyIr};
 use bimap::BiHashMap;
 use ecsl_index::{GlobalID, SourceFileID, TyID};
-use log::info;
 use std::{
     collections::{btree_map::Entry, BTreeMap},
     sync::{Arc, RwLock},

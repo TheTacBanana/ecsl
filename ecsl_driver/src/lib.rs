@@ -150,7 +150,7 @@ impl Driver {
 
         // Perform type checking
         info!("Type Checking");
-        let assoc = (&context, assoc).par_map_assoc(
+        let _ = (&context, assoc).par_map_assoc(
             |_, _, (diag, ast, table, local_ctxt)| {
                 if ast.file.inner() == 8 {
                     info!("Type Checking source file {}", ast.file);
