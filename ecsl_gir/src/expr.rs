@@ -37,18 +37,18 @@ impl std::fmt::Display for ExprKind {
             ExprKind::UnOp(op, operand) => write!(f, "{} {}", op, operand),
             ExprKind::Reference(mutable, local_id) => write!(f, "{} {}", mutable, local_id),
             ExprKind::Call(ty_id, operands) => {
-                write!(f, "{}", ty_id)?;
+                write!(f, "{}(", ty_id)?;
                 for op in operands {
                     write!(f, "{}", op)?;
                 }
-                Ok(())
+                write!(f, ")")
             }
             ExprKind::Cast(operand, ty_id) => write!(f, "{} as {}", operand, ty_id),
         }
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum Operand {
     Unknown,
     Copy(LocalID),

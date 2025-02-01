@@ -10,7 +10,7 @@ use ecsl_ast::{
 use ecsl_context::Context;
 use ecsl_diagnostics::DiagConn;
 use ecsl_error::{ext::EcslErrorExt, EcslError, ErrorLevel};
-use ecsl_index::{FieldID, GlobalID, SourceFileID};
+use ecsl_index::{FieldID, GlobalID, SourceFileID, TyID};
 use ecsl_parse::{source::SourceFile, table::SymbolTable, LexerTy};
 use ecsl_ty::{
     def::Definition,
@@ -233,8 +233,8 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                     .collect();
 
                 let ret = match ret {
-                    ast::RetTy::None(_) => None,
-                    ast::RetTy::Ty(ty) => Some(ty_ctxt.get_tyid(&ty, &scope)),
+                    ast::RetTy::None(_) => TyID::BOTTOM,
+                    ast::RetTy::Ty(ty) => ty_ctxt.get_tyid(&ty, &scope),
                 };
 
                 unsafe {

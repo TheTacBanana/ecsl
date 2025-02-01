@@ -30,6 +30,13 @@ impl FnDef {
             ret: self.ret.clone(),
         }
     }
+
+    pub fn ret_span(&self) -> Span {
+        match &self.ret {
+            RetTy::None(span) => *span,
+            RetTy::Ty(ty) => ty.span,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]

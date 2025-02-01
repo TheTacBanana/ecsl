@@ -145,6 +145,10 @@ impl Block {
             self.term = Some(term);
         }
     }
+
+    pub fn terminated(&self) -> bool {
+        self.term.is_some()
+    }
 }
 
 #[derive(Debug)]

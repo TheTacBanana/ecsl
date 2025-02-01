@@ -88,7 +88,7 @@ pub struct FnDef {
     pub tyid: TyID,
     pub kind: FnKind,
     pub params: Vec<TyID>,
-    pub ret: Option<TyID>,
+    pub ret: TyID,
 }
 
 #[derive(Debug)]

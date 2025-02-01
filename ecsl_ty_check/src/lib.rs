@@ -1,5 +1,5 @@
 use ecsl_ast::expr::UnOpKind;
-use ecsl_ast::parse::{ParamKind, RetTy};
+use ecsl_ast::parse::ParamKind;
 use ecsl_ast::ty::Mutable;
 use ecsl_ast::SourceAST;
 use ecsl_ast::{
@@ -11,7 +11,7 @@ use ecsl_ast::{
 use ecsl_error::{ext::EcslErrorExt, EcslError, ErrorLevel};
 use ecsl_gir::cons::Constant;
 use ecsl_gir::expr::Operand;
-use ecsl_gir::term::{self, SwitchCase, Terminator, TerminatorKind};
+use ecsl_gir::term::{SwitchCase, Terminator, TerminatorKind};
 use ecsl_gir::{Local, GIR};
 use ecsl_index::{BlockID, ConstID, LocalID, SymbolID, TyID};
 use ecsl_ty::ctxt::TyCtxt;
@@ -22,6 +22,7 @@ use log::debug;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
+#[allow(unused)]
 mod gir {
     pub use ecsl_gir::expr::*;
     pub use ecsl_gir::stmt::*;
@@ -169,45 +170,65 @@ impl Visitor for TyCheck {
         };
 
         // Insert Return Type as Local
-        _ = match &f.ret {
-            RetTy::None(span) => self.new_local(Local::new(*span, Mutable::Imm, TyID::BOTTOM)),
-            RetTy::Ty(ty) => {
-                self.new_local(Local::new(ty.span, Mutable::Mut, fn_tyir.ret.unwrap()))
-            }
-        };
+        self.new_local(Local::new(f.ret_span(), Mutable::Mut, fn_tyir.ret));
+
+        // Create symbols for function
+        self.symbols.push(Default::default());
 
         // Insert Params as locals
         for (i, param) in f.params.iter().enumerate() {
             match &param.kind {
                 ParamKind::SelfValue(_) => todo!(),
                 ParamKind::SelfReference(_) => todo!(),
-                ParamKind::Normal(mutable, _, _) => {
-                    self.new_local(Local::new(param.span, *mutable, fn_tyir.params[i]));
+                ParamKind::Normal(mutable, symbol_id, _) => {
+                    let local_id =
+                        self.new_local(Local::new(param.span, *mutable, fn_tyir.params[i]));
+
+                    if let Some(_) = self
+                        .symbols
+                        .last_mut()
+                        .unwrap()
+                        .insert(*symbol_id, local_id)
+                    {
+                        self.ty_ctxt.diag.push_error(
+                            EcslError::new(ErrorLevel::Error, TyCheckError::SymbolRedefined)
+                                .with_span(|_| param.span),
+                        );
+                        return VisitorCF::Break;
+                    }
                 }
             }
         }
 
         // TODO: Currently not walking generics
 
-        self.visit_block(&f.block)?;
+        // Make block and iter
+        self.new_block();
+        walk_block(self, &f.block)?;
+
+        let block = self.block_mut(self.cur_block());
+        if !block.terminated() && fn_tyir.ret == TyID::BOTTOM {
+            block.terminate(Terminator {
+                kind: TerminatorKind::Return,
+            });
+        }
+
+        self.pop_block();
 
         debug!("{}", self.cur_gir());
 
+        // Remove symbols for function
+        self.symbols.pop().unwrap();
         VisitorCF::Continue
     }
 
     fn visit_block(&mut self, b: &Block) -> VisitorCF {
-        self.new_block();
-        let cf = walk_block(self, b);
-        self.pop_block();
-        cf
+        panic!("Dont use this function")
     }
 
     fn visit_stmt(&mut self, s: &Stmt) -> VisitorCF {
-        debug!("{:?}", s);
-
         macro_rules! unify {
-            ($l:ident, $r:ident, $err:expr) => {
+            ($l:expr, $r:expr, $err:expr) => {
                 debug!("Stmt Unify {} {}", $l, $r);
                 if $l == TyID::UNKNOWN || $r == TyID::UNKNOWN || $l != $r {
                     self.ty_ctxt
@@ -216,7 +237,7 @@ impl Visitor for TyCheck {
                     return VisitorCF::Break;
                 }
             };
-            ($l:ident, $r:ident, $err:expr, $span:expr) => {
+            ($l:expr, $r:expr, $err:expr, $span:expr) => {
                 debug!("Stmt Unify {} {}", $l, $r);
                 if $l == TyID::UNKNOWN || $r == TyID::UNKNOWN || $l != $r {
                     self.ty_ctxt
@@ -266,6 +287,7 @@ impl Visitor for TyCheck {
                     return VisitorCF::Break;
                 }
             }
+            StmtKind::ElseIf(_, _, _) | StmtKind::Else(_) => panic!("If statement in wrong place"),
             StmtKind::If(expr, block, stmt) => {
                 enum IfStmt<'a> {
                     If(&'a Expr, &'a Block),
@@ -301,7 +323,7 @@ impl Visitor for TyCheck {
                             let cur_block = self.cur_block();
 
                             // Visit expression
-                            self.visit_expr(expr);
+                            self.visit_expr(expr)?;
 
                             // Unify Condition
                             let (cond_ty, cond_op) = self.pop();
@@ -348,23 +370,51 @@ impl Visitor for TyCheck {
                     });
                 }
             }
+            StmtKind::Expr(expr) => {
+                self.visit_expr(expr)?;
+            }
+            StmtKind::Return(expr) => {
+                let return_ty = self.cur_gir().get_local(LocalID::ZERO).tyid;
 
-            StmtKind::ElseIf(_, _, _) | StmtKind::Else(_) => panic!("If statement in wrong place"),
-            _ => todo!(),
+                if let Some(expr) = expr {
+                    self.visit_expr(expr)?;
+                    let (ty, op) = self.pop();
+
+                    unify!(ty, return_ty, TyCheckError::FunctionReturnType);
+
+                    self.push_stmt_to_cur_block(gir::Stmt {
+                        span: s.span,
+                        kind: gir::StmtKind::Assign(
+                            LocalID::ZERO,
+                            Box::new(gir::Expr {
+                                span: expr.span,
+                                kind: gir::ExprKind::Value(op),
+                            }),
+                        ),
+                    })
+                } else {
+                    unify!(TyID::BOTTOM, return_ty, TyCheckError::FunctionReturnType);
+                }
+
+                let cur_block = self.cur_block();
+                self.block_mut(cur_block).terminate(Terminator {
+                    kind: TerminatorKind::Return,
+                });
+            }
+
+            e => todo!("{e:?}"),
             // StmtKind::For(symbol_id, ty, expr, block) => todo!(),
             // StmtKind::While(expr, block) => todo!(),
             // StmtKind::Match(expr, match_arms) => todo!(),
             // StmtKind::Break => todo!(),
             // StmtKind::Continue => todo!(),
             // StmtKind::Return(expr) => todo!(),
-            // StmtKind::Expr(expr) => todo!(),
             // StmtKind::Semi => todo!(),
         }
 
         VisitorCF::Continue
     }
 
-    #[must_use]
     fn visit_expr(&mut self, e: &Expr) -> VisitorCF {
         mod gir {
             pub use ecsl_gir::expr::*;
@@ -373,12 +423,21 @@ impl Visitor for TyCheck {
         }
 
         macro_rules! unify {
-            ($l:ident, $r:ident, $err:expr) => {
+            ($l:expr, $r:expr, $err:expr) => {
                 debug!("Expr Unify {} {}", $l, $r);
                 if $l == TyID::UNKNOWN || $r == TyID::UNKNOWN || $l != $r {
                     self.ty_ctxt
                         .diag
                         .push_error(EcslError::new(ErrorLevel::Error, $err).with_span(|_| e.span));
+                    return VisitorCF::Break;
+                }
+            };
+            ($l:expr, $r:expr, $err:expr, $span:expr) => {
+                debug!("Expr Unify {} {}", $l, $r);
+                if $l == TyID::UNKNOWN || $r == TyID::UNKNOWN || $l != $r {
+                    self.ty_ctxt
+                        .diag
+                        .push_error(EcslError::new(ErrorLevel::Error, $err).with_span(|_| $span));
                     return VisitorCF::Break;
                 }
             };
@@ -414,6 +473,46 @@ impl Visitor for TyCheck {
                 let tyid = self.get_tyid(TyIr::from(*literal));
 
                 Some((tyid, Operand::Constant(const_id)))
+            }
+            ExprKind::Function(None, concrete_generics, symbol_id, exprs) => { //TODO: Generics
+                // Iter over all expressions
+                let mut exprs_tys = Vec::new();
+                for expr in exprs {
+                    self.visit_expr(expr)?;
+                    let (ty, op) = self.pop();
+                    exprs_tys.push((ty, op, expr.span))
+                }
+
+                // Get TyIr
+                let TyIr::Fn(fn_tyir) = self.get_tyir(*symbol_id) else {
+                    self.ty_ctxt.diag.push_error(
+                        EcslError::new(ErrorLevel::Error, TyCheckError::FunctionDoesntExist)
+                            .with_span(|_| e.span),
+                    );
+                    return VisitorCF::Break;
+                };
+
+                let mut operands = Vec::new();
+                for ((l, op, span), r) in exprs_tys.iter().zip(&fn_tyir.params) {
+                    unify!(*l, *r, TyCheckError::IncorrectFunctionArgument, *span);
+                    operands.push(*op);
+                }
+
+                let local_id = self.new_local(Local::new(e.span, Mutable::Imm, fn_tyir.ret));
+
+                // Create Assignment Stmt
+                self.push_stmt_to_cur_block(gir::Stmt {
+                    span: e.span,
+                    kind: gir::StmtKind::Assign(
+                        local_id,
+                        Box::new(gir::Expr {
+                            span: e.span, //TODO: Replace Span
+                            kind: gir::ExprKind::Call(fn_tyir.tyid, operands),
+                        }),
+                    ),
+                });
+
+                Some((fn_tyir.ret, Operand::Move(local_id)))
             }
             ExprKind::BinOp(op, lhs, rhs) => {
                 // Visit LHS
@@ -496,11 +595,13 @@ impl Visitor for TyCheck {
 
                 Some((mapped_ty, Operand::Move(local_id)))
             }
+            ,
 
             // ExprKind::Cast(expr, ty) => {
 
             // },
             _ => todo!(),
+            // ExprKind::Function(Some(expr), concrete_generics, symbol_id, exprs) => todo!(),
             // ExprKind::Assign(symbol_id, span, expr) => todo!(),
             // ExprKind::Ref(mutable, expr) => todo!(),
             // ExprKind::Array(exprs) => todo!(),
@@ -509,7 +610,6 @@ impl Visitor for TyCheck {
             // ExprKind::Enum(ty, symbol_id, field_exprs) => todo!(),
             // ExprKind::Range(expr, expr1, range_type) => todo!(),
             // ExprKind::Field(expr, symbol_id) => todo!(),
-            // ExprKind::Function(expr, concrete_generics, symbol_id, exprs) => todo!(),
             // ExprKind::Entity => todo!(),
             // ExprKind::Resource => todo!(),
             // ExprKind::Query(query_expr) => todo!(),
@@ -525,294 +625,6 @@ impl Visitor for TyCheck {
         }
     }
 }
-
-// impl Visitor for TyCheck {
-//     fn visit_fn(&mut self, f: &FnDef, _ctxt: FnCtxt) -> VisitorCF {
-//         // debug!("Checking {:?}", f.to_header());
-//         // self.new_scope();
-
-//         let gid = self.ty_ctxt.get_global_id(f.ident).unwrap();
-//         debug!("Fn GID {:?}", gid);
-//         let TyIr::Fn(fn_tyir) = self
-//             .ty_ctxt
-//             .global
-//             .get_tyir(self.ty_ctxt.global.get_or_create_tyid(gid))
-//         else {
-//             panic!("Fn {:?} has not been defined", gid);
-//         };
-//         debug!("{:?}", fn_tyir);
-//         debug!("Int is {:?}", self.ty_ctxt.global.tyid_from_tyir(TyIr::Int));
-
-//         // match &f.ret {
-//         //     RetTy::None(_) => self.push_tyir(TyIr::Bottom),
-//         //     RetTy::Ty(ty) => self.push_id(self.get_tyid_from_ty(ty)),
-//         // }
-
-//         // for (i, param) in f.params.iter().enumerate() {
-//         //     match &param.kind {
-//         //         ParamKind::SelfValue(_) => todo!(),
-//         //         ParamKind::SelfReference(_) => todo!(),
-//         //         ParamKind::Normal(_, symbol_id, _) => {
-//         //             self.define_symbol(*symbol_id, param.span, fn_tyir.params[i]);
-//         //         }
-//         //     }
-//         // }
-
-//         walk_fn(self, f);
-
-//         self.pop_scope();
-//         VisitorCF::Continue
-//     }
-
-//     fn visit_block(&mut self, b: &Block) -> VisitorCF {
-//         self.new_scope();
-//         walk_block(self, b);
-//         self.pop_scope();
-//         VisitorCF::Continue
-//     }
-
-//     fn visit_stmt(&mut self, s: &Stmt) -> VisitorCF {
-//         if let StmtKind::For(id, ty, _, _) = &s.kind {
-//             self.define_symbol(*id, s.span, self.get_tyid_from_ty(&ty));
-//         }
-
-//         let size = self.ty_stack.len();
-//         if walk_stmt(self, s) == VisitorCF::Break {
-//             let _ = self.ty_stack.split_off(size);
-//             debug!("Restore stack to {:?}", self.ty_stack);
-//             return VisitorCF::Break;
-//         }
-
-//         match &s.kind {
-//             StmtKind::Let(_, symbol_id, span, asscribed_ty, _) => {
-//                 let ty = self.pop_ty();
-//                 let asscribed_ty = self.ty_ctxt.get_tyid(asscribed_ty, &self.generic_scope);
-//                 if ty != asscribed_ty {}
-
-//                 self.define_symbol(*symbol_id, *span, ty);
-//                 VisitorCF::Continue
-//             }
-//             StmtKind::If(e, _, _) | StmtKind::ElseIf(e, _, _) => {
-//                 if self.pop_ty() != self.ty_ctxt.global.tyid_from_tyir(TyIr::Bool) {
-//                     self.ty_ctxt.diag.push_error(
-//                         EcslError::new(ErrorLevel::Error, TyCheckError::ExpectedBoolean)
-//                             .with_span(|_| e.span),
-//                     );
-//                 }
-//                 VisitorCF::Continue
-//             }
-//             StmtKind::Else(_) => VisitorCF::Continue,
-//             StmtKind::Return(None) => {
-//                 // Pop the functions return type
-//                 if self.pop_ty() != self.ty_ctxt.global.tyid_from_tyir(TyIr::Bottom) {
-//                     self.ty_ctxt.diag.push_error(
-//                         EcslError::new(ErrorLevel::Error, TyCheckError::FunctionReturnType)
-//                             .with_span(|_| s.span),
-//                     );
-//                 }
-//                 VisitorCF::Continue
-//             }
-//             StmtKind::Return(Some(_)) => {
-//                 // Pop Function Return Type and the Expressions Type
-//                 let (l, r) = self.pop_double_ty();
-//                 if l != r {
-//                     self.ty_ctxt.diag.push_error(
-//                         EcslError::new(ErrorLevel::Error, TyCheckError::FunctionReturnType)
-//                             .with_span(|_| s.span),
-//                     );
-//                 }
-//                 return VisitorCF::Continue;
-//             }
-//             StmtKind::Expr(_) => VisitorCF::Continue,
-//             StmtKind::Semi => VisitorCF::Continue,
-//             StmtKind::For(_, ty, expr, _) => {
-//                 match &expr.kind {
-//                     ExprKind::Range(_, _, _) => (),
-//                     ExprKind::Query(_) => todo!(), //TODO:
-//                     _ => panic!("Non range or query found in for loop"),
-//                 }
-
-//                 let ty = self.get_tyid_from_ty(&ty);
-//                 let over = self.pop_ty();
-//                 if ty != over {
-//                     self.ty_ctxt.diag.push_error(
-//                         EcslError::new(ErrorLevel::Error, TyCheckError::FunctionReturnType)
-//                             .with_span(|_| s.span),
-//                     );
-//                 }
-
-//                 VisitorCF::Continue
-//             }
-
-//             StmtKind::While(_, _) => todo!(),
-//             StmtKind::Match(_, _) => todo!(),
-//             StmtKind::Break => todo!(),
-//             StmtKind::Continue => todo!(),
-//             // e => {
-//             //     error!("Unimplemented {:?}", e);
-//             //     VisitorCF::Continue
-//             // }
-//         }
-//     }
-
-//     fn visit_expr(&mut self, e: &Expr) -> VisitorCF {
-//         let size = self.ty_stack.len();
-//         if walk_expr(self, e) == VisitorCF::Break {
-//             let _ = self.ty_stack.split_off(size);
-//             debug!("Restore stack to {:?}", self.ty_stack);
-//             return VisitorCF::Break;
-//         }
-
-//         match &e.kind {
-//             ExprKind::Assign(symbol_id, span, _) => {
-//                 let expr_ty = self.pop_ty();
-//                 if let Some(ident_ty) = self.use_symbol(*symbol_id, *span) {
-//                     if *ident_ty != expr_ty {
-//                         self.ty_ctxt.diag.push_error(
-//                             EcslError::new(ErrorLevel::Error, TyCheckError::AssignWrongType)
-//                                 .with_span(|_| *span),
-//                         );
-//                         return VisitorCF::Break;
-//                     }
-//                     VisitorCF::Continue
-//                 } else {
-//                     VisitorCF::Break
-//                 }
-//             }
-//             ExprKind::Ident(symbol_id) => {
-//                 if let Some(ty) = self.use_symbol(*symbol_id, e.span) {
-//                     let ty = ty.clone();
-//                     self.push_id(ty);
-//                     VisitorCF::Continue
-//                 } else {
-//                     self.push_tyir(TyIr::Unknown);
-//                     return VisitorCF::Break;
-//                 }
-//             }
-//             ExprKind::Function(None, _, id, args) => {
-//                 let arg_tys = (0..args.len())
-//                     .map(|_| self.pop_ty())
-//                     .rev()
-//                     .collect::<Vec<_>>();
-
-//                 let Some(gid) = self.ty_ctxt.get_global_id(*id) else {
-//                     self.ty_ctxt.diag.push_error(
-//                         EcslError::new(ErrorLevel::Error, TyCheckError::FunctionDoesntExist)
-//                             .with_span(|_| e.span),
-//                     );
-//                     return VisitorCF::Break;
-//                 };
-
-//                 let TyIr::Fn(fn_tyir) = self
-//                     .ty_ctxt
-//                     .global
-//                     .get_tyir(self.ty_ctxt.global.get_or_create_tyid(gid))
-//                 else {
-//                     self.ty_ctxt.diag.push_error(
-//                         EcslError::new(ErrorLevel::Error, TyCheckError::FunctionDoesntExist)
-//                             .with_span(|_| e.span),
-//                     );
-//                     return VisitorCF::Break;
-//                 };
-
-//                 // Compare all parameters
-//                 for (i, (l, r)) in fn_tyir.params.iter().zip(arg_tys).enumerate() {
-//                     trace!("{:?}, {:?}", l, r);
-//                     if *l != r {
-//                         self.ty_ctxt.diag.push_error(
-//                             EcslError::new(
-//                                 ErrorLevel::Error,
-//                                 TyCheckError::IncorrectFunctionArgument,
-//                             )
-//                             .with_span(|_| args[i].span),
-//                         );
-//                     }
-//                 }
-
-//                 VisitorCF::Continue
-//             }
-//             ExprKind::Function(Some(_), _, _, _) => {
-//                 error!("Assoc functions not implemented");
-//                 VisitorCF::Break
-//             }
-//             ExprKind::Lit(literal) => {
-//                 let tyir = match literal {
-//                     Literal::Int => TyIr::Int,
-//                     Literal::Bool => TyIr::Bool,
-//                     Literal::Float => TyIr::Float,
-//                     Literal::Char => TyIr::Char,
-
-//                     Literal::String => todo!(), //TODO:
-//                 };
-//                 self.push_tyir(tyir);
-//                 VisitorCF::Continue
-//             }
-//             ExprKind::BinOp(op, _, _) => {
-//                 let (l, r) = self.pop_double_ty();
-//                 if l != r {
-//                     error!("Invalid bin op {:?}", op);
-//                     self.ty_ctxt.diag.push_error(
-//                         EcslError::new(ErrorLevel::Error, TyCheckError::InvalidBinOp)
-//                             .with_span(|_| e.span),
-//                     );
-
-//                     self.push_id(self.ty_ctxt.global.unknown_ty());
-//                     return VisitorCF::Break;
-//                 }
-
-//                 match op {
-//                     BinOpKind::Add | BinOpKind::Sub | BinOpKind::Mul | BinOpKind::Div => {
-//                         self.push_id(l)
-//                     }
-//                     BinOpKind::And
-//                     | BinOpKind::Or
-//                     | BinOpKind::Eq
-//                     | BinOpKind::Neq
-//                     | BinOpKind::Lt
-//                     | BinOpKind::Leq
-//                     | BinOpKind::Gt
-//                     | BinOpKind::Geq => {
-//                         self.push_tyir(TyIr::Bool);
-//                     }
-//                 }
-
-//                 return VisitorCF::Continue;
-//             }
-//             ExprKind::Range(_, _, _) => {
-//                 let (l, r) = self.pop_double_ty();
-//                 if l != r {
-//                     self.ty_ctxt.diag.push_error(
-//                         EcslError::new(ErrorLevel::Error, TyCheckError::RangeMustEqual)
-//                             .with_span(|_| e.span),
-//                     );
-//                     self.push_tyir(TyIr::Unknown);
-//                     return VisitorCF::Break;
-//                 }
-//                 self.push_id(l);
-//                 VisitorCF::Continue
-//             }
-
-//             e => {
-//                 error!("Unimplemented {:?}", e);
-//                 VisitorCF::Break
-//             } // ExprKind::Ref(mutable, expr) => todo!(),
-//               // ExprKind::UnOp(un_op_kind, expr) => todo!(),
-//               // ExprKind::Array(vec) => todo!(),
-//               // ExprKind::MethodSelf => todo!(),
-//               // ExprKind::Struct(ty, vec) => todo!(),
-//               // ExprKind::Enum(ty, symbol_id, vec) => todo!(),
-//               // ExprKind::Cast(expr, ty) => todo!(),
-//               // ExprKind::Field(expr, symbol_id) => todo!(),
-//               // ExprKind::Function(expr, concrete_generics, symbol_id, vec) => todo!(),
-//               // ExprKind::Entity => todo!(),
-//               // ExprKind::Resource => todo!(),
-//               // ExprKind::Query(query_expr) => todo!(),
-//               // ExprKind::Schedule(schedule) => todo!(),
-//         }
-//     }
-
-//     // fn visit_
-// }
 
 #[derive(Debug, Clone, Copy)]
 pub enum TyCheckError {
