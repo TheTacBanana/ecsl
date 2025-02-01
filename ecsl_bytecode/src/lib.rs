@@ -183,4 +183,6 @@ pub enum Bytecode {
     // OR,
     // /// Bitwise XOR (Byte)
     // XOR,
+    /// Pop integer from stack and print to stdout
+    PRINTI,
 }

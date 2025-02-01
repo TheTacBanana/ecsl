@@ -156,3 +156,14 @@ pub inline fn divl(self: *ProgramThread) !void {
     const b = try self.pop_stack(i64);
     try self.push_stack(i64, @divTrunc(a, b));
 }
+
+pub inline fn printi(self: *ProgramThread) !void {
+    const a = try self.pop_stack(i32);
+    const stdout = std.io.getStdOut().writer();
+    var bw = std.io.bufferedWriter(stdout);
+    const writer = bw.writer();
+    nosuspend {
+        writer.print("{}" ++ "\n", .{a}) catch return;
+        bw.flush() catch return;
+    }
+}

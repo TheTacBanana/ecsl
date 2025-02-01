@@ -1,0 +1,7 @@
+use num::int;
+
+fn print_int(i: int) {
+    asm {
+        PRINTI;
+    }
+}
