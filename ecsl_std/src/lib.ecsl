@@ -1,11 +1,11 @@
 #[prelude]
 use {
-    std::option::Option,
     std::num::{int, float},
     std::bool::bool,
     std::char::char,
     std::lib::drop,
-    std::fmt::{print_int},
+    std::fmt::print_int,
+    std::panic::panic,
 };
 
-fn drop<T>(val: T) { }
+//fn drop<T>(val: T) { }

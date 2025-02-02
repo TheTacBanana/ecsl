@@ -1,0 +1,8 @@
+[package]
+name = "ecsl_codegen"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ecsl_gir = { path = "../ecsl_gir" }
+ecsl_index = { path = "../ecsl_index" }

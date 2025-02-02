@@ -21,7 +21,7 @@ pub struct GIR {
     fn_id: TyID,
     locals: BTreeMap<LocalID, Local>,
     consts: BTreeMap<ConstID, Constant>,
-    blocks: Vec<Block>,
+    blocks: BTreeMap<BlockID, Block>,
 }
 
 impl std::fmt::Display for GIR {
@@ -38,7 +38,7 @@ impl std::fmt::Display for GIR {
         }
         writeln!(f, "")?;
 
-        for block in &self.blocks {
+        for (_, block) in &self.blocks {
             writeln!(f, "{}", block)?;
         }
         Ok(())
@@ -60,7 +60,11 @@ impl GIR {
     }
 
     pub fn new_local(&mut self, local: Local) -> LocalID {
-        let id = LocalID::new(self.locals.len());
+        let id = self
+            .locals
+            .last_entry()
+            .map(|e| *e.key() + LocalID::ONE)
+            .unwrap_or(LocalID::ZERO);
         self.locals.insert(id, local);
         id
     }
@@ -70,7 +74,11 @@ impl GIR {
     }
 
     pub fn new_constant(&mut self, cons: Constant) -> ConstID {
-        let id = ConstID::new(self.consts.len());
+        let id = self
+            .consts
+            .last_entry()
+            .map(|e| *e.key() + ConstID::ONE)
+            .unwrap_or(ConstID::ZERO);
         self.consts.insert(id, cons);
         id
     }
@@ -80,17 +88,29 @@ impl GIR {
     }
 
     pub fn new_block(&mut self) -> BlockID {
-        let id = BlockID::new(self.blocks.len());
-        self.blocks.push(Block::new(id));
+        let id = self
+            .blocks
+            .last_entry()
+            .map(|e| *e.key() + BlockID::ONE)
+            .unwrap_or(BlockID::ZERO);
+        self.blocks.insert(id, Block::new(id));
         id
     }
 
     pub fn get_block(&self, block: BlockID) -> Option<&Block> {
-        self.blocks.get(block.inner())
+        self.blocks.get(&block)
     }
 
     pub fn get_block_mut(&mut self, block: BlockID) -> Option<&mut Block> {
-        self.blocks.get_mut(block.inner())
+        self.blocks.get_mut(&block)
+    }
+
+    pub fn remove_block(&mut self, block: BlockID) -> Option<Block> {
+        self.blocks.remove(&block)
+    }
+
+    pub fn blocks(&self) -> impl Iterator<Item = (&BlockID, &Block)> {
+        self.blocks.iter()
     }
 }
 
@@ -148,6 +168,10 @@ impl Block {
 
     pub fn terminated(&self) -> bool {
         self.term.is_some()
+    }
+
+    pub fn empty(&self) -> bool {
+        self.stmts.is_empty() && self.term.is_none()
     }
 }
 

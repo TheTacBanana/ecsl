@@ -1,5 +1,6 @@
 use ecsl_ast::expr::UnOpKind;
 use ecsl_ast::parse::ParamKind;
+use ecsl_ast::stmt::InlineBytecode;
 use ecsl_ast::ty::Mutable;
 use ecsl_ast::SourceAST;
 use ecsl_ast::{
@@ -401,7 +402,14 @@ impl Visitor for TyCheck {
                     kind: TerminatorKind::Return,
                 });
             }
-
+            StmtKind::ASM(bytecode) => {
+                for InlineBytecode { span, ins } in bytecode {
+                    self.push_stmt_to_cur_block(gir::Stmt {
+                        span: *span,
+                        kind: gir::StmtKind::ASM(ins.clone()),
+                    })
+                }
+            }
             e => todo!("{e:?}"),
             // StmtKind::For(symbol_id, ty, expr, block) => todo!(),
             // StmtKind::While(expr, block) => todo!(),

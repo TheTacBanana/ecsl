@@ -1,0 +1,9 @@
+[package]
+name = "ecsl_gir_pass"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ecsl_gir = { path = "../ecsl_gir" }
+ecsl_ty = { path = "../ecsl_ty" }
+ecsl_index = { path = "../ecsl_index" }

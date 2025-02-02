@@ -1,5 +1,5 @@
 [package]
-name = "ecsl_ast_validation"
+name = "ecsl_ast_pass"
 version = "0.1.0"
 edition = "2021"
 

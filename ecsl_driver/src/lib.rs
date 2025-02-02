@@ -1,6 +1,6 @@
 use anyhow::Result;
 use ecsl_assembler::Assembler;
-use ecsl_ast_validation::{
+use ecsl_ast_pass::{
     ast_definitions, casing_warnings, collect_prelude, generate_definition_tyir, include_prelude,
     validate_ast, validate_imports,
 };
@@ -152,10 +152,8 @@ impl Driver {
         info!("Type Checking");
         let _ = (&context, assoc).par_map_assoc(
             |_, _, (diag, ast, table, local_ctxt)| {
-                if ast.file.inner() == 8 {
-                    info!("Type Checking source file {}", ast.file);
-                    ty_check(&ast, local_ctxt.clone());
-                }
+                info!("Type Checking source file {}", ast.file);
+                ty_check(&ast, local_ctxt.clone());
 
                 Some((diag, ast, table, local_ctxt))
             },

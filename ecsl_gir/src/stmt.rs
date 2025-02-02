@@ -1,5 +1,6 @@
 use crate::{expr::Expr, P};
 use cfgrammar::Span;
+use ecsl_ast::parse::BytecodeInstruction;
 use ecsl_index::LocalID;
 
 #[derive(Debug)]
@@ -18,6 +19,7 @@ impl std::fmt::Display for Stmt {
 pub enum StmtKind {
     Assign(LocalID, P<Expr>),
     Expr(P<Expr>),
+    ASM(BytecodeInstruction),
 }
 
 impl std::fmt::Display for StmtKind {
@@ -25,6 +27,9 @@ impl std::fmt::Display for StmtKind {
         match self {
             StmtKind::Assign(local_id, expr) => write!(f, "{} = {}", local_id, expr),
             StmtKind::Expr(expr) => write!(f, "{}", expr),
+            StmtKind::ASM(ins) => {
+                write!(f, "{:?} {:?}", ins.op, ins.operand)
+            }
         }
     }
 }

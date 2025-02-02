@@ -1,5 +1,3 @@
-use std::ops::{FromResidual, Try};
-
 use crate::{
     data::{EnumDef, FieldDef, StructDef, VariantDef},
     ecs::{QueryExpr, Schedule, ScheduleKind},
@@ -10,6 +8,7 @@ use crate::{
     ty::{ConcreteGenerics, Generics, Ty, TyKind},
     SourceAST,
 };
+use std::ops::{FromResidual, Try};
 
 pub trait Visitor: Sized {
     fn visit_ast(&mut self, s: &SourceAST) -> VisitorCF {

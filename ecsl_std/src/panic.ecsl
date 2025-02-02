@@ -1,2 +1,6 @@
 
-fn panic() { }
+fn panic() {
+    asm {
+        PANIC;
+    }
+}
