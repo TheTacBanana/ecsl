@@ -4,14 +4,16 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+ecsl_index = { path = "../ecsl_index" }
 ecsl_diagnostics = { path = "../ecsl_diagnostics" }
 ecsl_context = { path = "../ecsl_context" }
 ecsl_assembler = { path = "../ecsl_assembler" }
 ecsl_error = { path = "../ecsl_error" }
 ecsl_parse = { path = "../ecsl_parse" }
 ecsl_ast_pass = { path = "../ecsl_ast_pass" }
+ecsl_gir_pass = { path = "../ecsl_gir_pass" }
+ecsl_codegen = { path = "../ecsl_codegen" }
 ecsl_ty = { version = "0.1.0", path = "../ecsl_ty" }
 ecsl_ty_check = { path = "../ecsl_ty_check" }
 anyhow = "1.0.86"
-rayon = "1.10.0"
 log = "0.4.25"

@@ -33,9 +33,10 @@ mod gir {
 
 pub mod ext;
 
-pub fn ty_check(ast: &SourceAST, ty_ctxt: Arc<LocalTyCtxt>) {
+pub fn ty_check(ast: &SourceAST, ty_ctxt: Arc<LocalTyCtxt>) -> BTreeMap<TyID, GIR> {
     let mut ty_check = TyCheck::new(ty_ctxt);
     ty_check.visit_ast(ast);
+    ty_check.to_girs()
 }
 
 pub struct TyCheck {
@@ -61,6 +62,10 @@ impl TyCheck {
             symbols: Default::default(),
             stack: Default::default(),
         }
+    }
+
+    pub fn to_girs(self) -> BTreeMap<TyID, GIR> {
+        self.gir
     }
 
     pub fn get_tyir(&self, t: impl IntoTyID) -> TyIr {
@@ -467,7 +472,7 @@ impl Visitor for TyCheck {
 
                 let local = self.cur_gir().get_local(found.unwrap());
 
-                Some((local.tyid, Operand::Move(found.unwrap())))
+                Some((local.tyid, Operand::Copy(found.unwrap())))
             }
             ExprKind::Lit(literal) => {
                 let const_id = self.new_constant(Constant::from_literal(*literal, e.span));

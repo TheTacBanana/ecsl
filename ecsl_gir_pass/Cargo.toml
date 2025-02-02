@@ -7,3 +7,7 @@ edition = "2021"
 ecsl_gir = { path = "../ecsl_gir" }
 ecsl_ty = { path = "../ecsl_ty" }
 ecsl_index = { path = "../ecsl_index" }
+ecsl_diagnostics = { path = "../ecsl_diagnostics" }
+ecsl_parse = { path = "../ecsl_parse" }
+ecsl_bytecode = { path = "../ecsl_bytecode" }
+log.workspace = true

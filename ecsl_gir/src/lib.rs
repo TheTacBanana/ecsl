@@ -173,6 +173,14 @@ impl Block {
     pub fn empty(&self) -> bool {
         self.stmts.is_empty() && self.term.is_none()
     }
+
+    pub fn stmts(&self) -> impl Iterator<Item = &Stmt> {
+        self.stmts.iter()
+    }
+
+    pub fn term(&self) -> &Terminator {
+        self.term.as_ref().unwrap()
+    }
 }
 
 #[derive(Debug)]

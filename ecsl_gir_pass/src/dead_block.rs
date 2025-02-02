@@ -8,8 +8,11 @@ use crate::GIRPass;
 pub struct DeadBlocks;
 
 impl GIRPass for DeadBlocks {
-    fn apply_pass(&mut self, gir: &mut GIR) {
-        self.visit_gir_mut(gir);
+    type PassInput<'a> = ();
+    type PassResult = ();
+
+    fn apply_pass(gir: &mut GIR, _: Self::PassInput<'_>) -> () {
+        DeadBlocks {}.visit_gir_mut(gir);
     }
 }
 

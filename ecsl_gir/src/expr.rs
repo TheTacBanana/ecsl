@@ -1,5 +1,5 @@
 use cfgrammar::Span;
-use ecsl_ast::{
+pub use ecsl_ast::{
     expr::{BinOpKind, UnOpKind},
     ty::Mutable,
 };

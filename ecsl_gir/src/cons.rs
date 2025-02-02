@@ -1,5 +1,5 @@
 use cfgrammar::Span;
-use ecsl_ast::expr::Literal;
+pub use ecsl_ast::expr::Literal;
 
 #[derive(Debug)]
 pub struct Constant {

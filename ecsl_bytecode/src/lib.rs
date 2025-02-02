@@ -1,4 +1,13 @@
+use std::usize;
+
 use ecsl_bytecode_derive::Bytecode;
+use ecsl_index::{BlockID, TyID};
+
+#[derive(Debug)]
+pub struct FunctionBytecode {
+    pub tyid: TyID,
+    pub ins: Vec<BytecodeInstruction>,
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct BytecodeInstruction {
@@ -12,8 +21,25 @@ impl std::fmt::Display for BytecodeInstruction {
     }
 }
 
+impl BytecodeInstruction {
+    pub fn new<const N: usize>(op: Opcode, operands: [Immediate; N]) -> Self {
+        Self {
+            op,
+            operand: Vec::from(operands),
+        }
+    }
+
+    pub fn size_of(&self) -> usize {
+        self.operand.iter().fold(1, |l, r| l + r.size_of())
+    }
+}
+
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum Immediate {
+    // Used temporarily in compilation
+    AddressOf(TyID),
+    LabelOf(BlockID),
+
     Byte(i8),
     UByte(u8),
     Int(i32),
@@ -25,6 +51,21 @@ pub enum Immediate {
 }
 
 impl Immediate {
+    pub fn size_of(&self) -> usize {
+        match self {
+            Immediate::AddressOf(_) => 8,
+            Immediate::LabelOf(_) => 8,
+            Immediate::Byte(_) => 1,
+            Immediate::UByte(_) => 1,
+            Immediate::Int(_) => 4,
+            Immediate::UInt(_) => 4,
+            Immediate::Float(_) => 4,
+            Immediate::Long(_) => 8,
+            Immediate::ULong(_) => 8,
+            Immediate::Double(_) => 8,
+        }
+    }
+
     pub fn to_u8(self) -> Option<u8> {
         unsafe {
             match self {
@@ -110,6 +151,8 @@ pub enum Bytecode {
     // CMPL,
     /// Unconditional Jump
     JMP(u64),
+    /// Unconditional Relative Jump
+    JRE(u64),
     /// Jump Equal to 0
     JEZ(u64),
     /// Jump Not 0

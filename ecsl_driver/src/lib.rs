@@ -4,13 +4,15 @@ use ecsl_ast_pass::{
     ast_definitions, casing_warnings, collect_prelude, generate_definition_tyir, include_prelude,
     validate_ast, validate_imports,
 };
+use ecsl_codegen::CodeGen;
 use ecsl_context::{Context, MapAssocExt};
 use ecsl_diagnostics::{Diagnostics, DiagnosticsExt};
 use ecsl_error::{ext::EcslErrorExt, EcslError};
+use ecsl_gir_pass::{const_eval::ConstEval, dead_block::DeadBlocks, GIRPass};
 use ecsl_parse::parse_file;
 use ecsl_ty::{ctxt::TyCtxt, local::LocalTyCtxtExt};
 use ecsl_ty_check::ty_check;
-use log::info;
+use log::{debug, info};
 use std::{collections::BTreeMap, path::PathBuf, sync::Arc, time::Instant};
 
 pub struct Driver;
@@ -150,12 +152,31 @@ impl Driver {
 
         // Perform type checking
         info!("Type Checking");
-        let _ = (&context, assoc).par_map_assoc(
+        let assoc = (&context, assoc).par_map_assoc(
             |_, _, (diag, ast, table, local_ctxt)| {
                 info!("Type Checking source file {}", ast.file);
-                ty_check(&ast, local_ctxt.clone());
+                let girs = ty_check(&ast, local_ctxt.clone());
 
-                Some((diag, ast, table, local_ctxt))
+                Some((diag, ast, table, local_ctxt, girs))
+            },
+            || diag.finish_stage(lexer_func),
+        )?;
+
+        info!("GIR Passes");
+        let assoc = (&context, assoc).par_map_assoc(
+            |_, src, (diag, ast, table, local_ctxt, mut girs)| {
+                let lexer = lexers.get(&src.id).unwrap();
+
+                for (_, gir) in girs.iter_mut() {
+                    DeadBlocks::apply_pass(gir, ());
+                    let consts = ConstEval::apply_pass(gir, lexer);
+
+                    let bytecode = CodeGen::apply_pass(gir, consts);
+
+                    debug!("{:?}", bytecode);
+                }
+
+                Some((diag, ast, table, local_ctxt, girs))
             },
             || diag.finish_stage(lexer_func),
         )?;
