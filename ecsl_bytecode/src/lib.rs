@@ -118,6 +118,14 @@ pub enum Bytecode {
     /// Duplicate the top 4 bytes
     DUP,
 
+    /// Load the 4 bytes from [BP + offset] and push to the top of the stack
+    LDR(u64),
+    /// Pop the top 4 bytes from top of stack to the signed offset from the BP
+    STR(u64),
+
+    /// Set the SP to the [BP + offset]
+    SETSPR(u64),
+
     /// Push the PC (8 bytes) to the stack and jump to the address
     /// Arguments should be pushed in Left-to-Right before the return address
     /// Restoring the arguments from the stack is the callee's responsibility
@@ -131,12 +139,12 @@ pub enum Bytecode {
     /// Panic with no message //TODO: Pointer to string
     PANIC,
 
-    // /// Push the byte immediate value
-    // PSHIB(u8),
+    /// Push the byte immediate value
+    PSHIB(u8),
     /// Push the immediate value
     PSHI(u32),
-    // /// Push the long immediate value
-    // PSHIL(u64),
+    /// Push the long immediate value
+    PSHIL(u64),
 
     // /// Load N bytes from the address onto the stack
     // LD(u64, u64),

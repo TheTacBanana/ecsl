@@ -1,9 +1,11 @@
+#![feature(let_chains)]
 use asm::BytecodeValidator;
 use attributes::AttributeValidator;
 use casing::CasingWarnings;
 use definitions::TypeDefCollector;
 use ecsl_ast::{
     item::{Item, ItemKind},
+    parse::{Attribute, AttributeValue},
     visit::Visitor,
     SourceAST,
 };
@@ -149,11 +151,11 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
     for (_, def) in ty_ctxt.defined.read().unwrap().iter() {
         match def {
             Definition::Struct(ast::StructDef {
-                //TODO: Attributes
                 kind,
                 ident,
                 generics,
                 fields,
+                attributes,
                 ..
             }) => {
                 scope.add_opt(generics.clone());
@@ -162,7 +164,9 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                     .global
                     .get_or_create_tyid(GlobalID::new(*ident, ty_ctxt.file));
 
-                if let Some(symbol) = ty_ctxt.table.get_symbol(*ident) {
+                if let Some(symbol) = ty_ctxt.table.get_symbol(*ident)
+                    && let Some(builtin_size) = attributes.get_value(AttributeValue::Builtin)
+                {
                     let tyir = match symbol.name.as_str() {
                         "int" => Some(TyIr::Int),
                         "float" => Some(TyIr::Float),
@@ -173,6 +177,7 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
 
                     if let Some(tyir) = tyir {
                         unsafe { ty_ctxt.global.insert_tyir(tyid, tyir) };
+                        ty_ctxt.global.insert_size(tyid, builtin_size);
                         return;
                     }
                 }

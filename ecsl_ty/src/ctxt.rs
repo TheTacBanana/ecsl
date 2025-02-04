@@ -1,6 +1,7 @@
 use crate::{local::LocalTyCtxt, TyIr};
 use bimap::BiHashMap;
 use ecsl_index::{GlobalID, SourceFileID, TyID};
+use log::debug;
 use std::{
     collections::{btree_map::Entry, BTreeMap},
     sync::{Arc, RwLock},
@@ -11,6 +12,8 @@ pub struct TyCtxt {
     pub mappings: RwLock<BTreeMap<GlobalID, TyID>>,
     pub tyirs: RwLock<BiHashMap<TyID, TyIr>>,
     pub cur_id: RwLock<usize>,
+
+    pub sizes: RwLock<BTreeMap<TyID, usize>>,
 }
 
 impl TyCtxt {
@@ -20,9 +23,11 @@ impl TyCtxt {
             mappings: Default::default(),
             tyirs: Default::default(),
             cur_id: Default::default(),
+            sizes: Default::default(),
         };
         ty_ctxt.tyid_from_tyir(TyIr::Unknown);
         ty_ctxt.tyid_from_tyir(TyIr::Bottom);
+        ty_ctxt.insert_size(TyID::BOTTOM, 0);
         ty_ctxt
     }
 
@@ -61,6 +66,32 @@ impl TyCtxt {
     pub fn get_tyir(&self, id: TyID) -> TyIr {
         let defs = self.tyirs.read().unwrap();
         defs.get_by_left(&id).unwrap().clone()
+    }
+
+    pub fn insert_size(&self, id: TyID, size: usize) {
+        let mut sizes = self.sizes.write().unwrap();
+        debug!("{:?} {:?}", id, size);
+        sizes.insert(id, size);
+    }
+
+    pub fn get_size(&self, id: TyID) -> usize {
+        let sizes = self.sizes.read().unwrap();
+        if let Some(size) = sizes.get(&id) {
+            return *size;
+        }
+
+        let tyir = self.get_tyir(id);
+        match tyir {
+            TyIr::Ref(_, _) => 8,
+            e => panic!("{e:?}"),
+            // TyIr::String => todo!(),
+            // TyIr::Struct(struct_def) => todo!(),
+            // TyIr::Enum(enum_def) => todo!(),
+            // TyIr::Fn(fn_def) => todo!(),
+            // TyIr::Array(ty_id, _) => todo!(),
+            // TyIr::ArrayRef(mutable, ty_id) => todo!(),
+            // TyIr::GenericParam(_) => todo!(),
+        }
     }
 
     pub fn is_primitive(&self, id: TyID) -> bool {

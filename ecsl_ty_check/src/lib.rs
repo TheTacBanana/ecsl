@@ -13,7 +13,7 @@ use ecsl_error::{ext::EcslErrorExt, EcslError, ErrorLevel};
 use ecsl_gir::cons::Constant;
 use ecsl_gir::expr::Operand;
 use ecsl_gir::term::{SwitchCase, Terminator, TerminatorKind};
-use ecsl_gir::{Local, GIR};
+use ecsl_gir::{Local, LocalKind, GIR};
 use ecsl_index::{BlockID, ConstID, LocalID, SymbolID, TyID};
 use ecsl_ty::ctxt::TyCtxt;
 use ecsl_ty::local::LocalTyCtxt;
@@ -176,7 +176,12 @@ impl Visitor for TyCheck {
         };
 
         // Insert Return Type as Local
-        self.new_local(Local::new(f.ret_span(), Mutable::Mut, fn_tyir.ret));
+        self.new_local(Local::new(
+            f.ret_span(),
+            Mutable::Mut,
+            fn_tyir.ret,
+            LocalKind::Ret,
+        ));
 
         // Create symbols for function
         self.symbols.push(Default::default());
@@ -187,8 +192,12 @@ impl Visitor for TyCheck {
                 ParamKind::SelfValue(_) => todo!(),
                 ParamKind::SelfReference(_) => todo!(),
                 ParamKind::Normal(mutable, symbol_id, _) => {
-                    let local_id =
-                        self.new_local(Local::new(param.span, *mutable, fn_tyir.params[i]));
+                    let local_id = self.new_local(Local::new(
+                        param.span,
+                        *mutable,
+                        fn_tyir.params[i],
+                        LocalKind::Arg,
+                    ));
 
                     if let Some(_) = self
                         .symbols
@@ -265,7 +274,7 @@ impl Visitor for TyCheck {
                 unify!(lhs, rhs_ty, TyCheckError::AssignWrongType);
 
                 // Create local ID
-                let local_id = self.new_local(Local::new(*span, *mutable, rhs_ty));
+                let local_id = self.new_local(Local::new(*span, *mutable, rhs_ty, LocalKind::Let));
 
                 // Create Assignment Stmt
                 self.push_stmt_to_cur_block(gir::Stmt {
@@ -505,7 +514,7 @@ impl Visitor for TyCheck {
                     operands.push(*op);
                 }
 
-                let local_id = self.new_local(Local::new(e.span, Mutable::Imm, fn_tyir.ret));
+                let local_id = self.new_local(Local::new(e.span, Mutable::Imm, fn_tyir.ret, LocalKind::Temp));
 
                 // Create Assignment Stmt
                 self.push_stmt_to_cur_block(gir::Stmt {
@@ -550,7 +559,7 @@ impl Visitor for TyCheck {
                     return VisitorCF::Break;
                 };
 
-                let local_id = self.new_local(Local::new(e.span, Mutable::Imm, tyid));
+                let local_id = self.new_local(Local::new(e.span, Mutable::Imm, tyid, LocalKind::Temp));
 
                 // Create Assignment Stmt
                 self.push_stmt_to_cur_block(gir::Stmt {
@@ -586,7 +595,7 @@ impl Visitor for TyCheck {
                     }
                 };
 
-                let local_id = self.new_local(Local::new(e.span, Mutable::Imm, mapped_ty));
+                let local_id = self.new_local(Local::new(e.span, Mutable::Imm, mapped_ty, LocalKind::Temp));
 
                 // Create Assignment Stmt
                 self.push_stmt_to_cur_block(gir::Stmt {

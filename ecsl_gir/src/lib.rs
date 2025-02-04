@@ -112,6 +112,10 @@ impl GIR {
     pub fn blocks(&self) -> impl Iterator<Item = (&BlockID, &Block)> {
         self.blocks.iter()
     }
+
+    pub fn locals(&self) -> impl Iterator<Item = (&LocalID, &Local)> {
+        self.locals.iter()
+    }
 }
 
 // Individual block
@@ -188,20 +192,30 @@ pub struct Local {
     pub span: Span,
     pub mutable: Mutable,
     pub tyid: TyID,
+    pub kind: LocalKind,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum LocalKind {
+    Ret,
+    Arg,
+    Temp,
+    Let,
 }
 
 impl std::fmt::Display for Local {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} {:?}", self.mutable, self.tyid)
+        write!(f, "{:?} {} {:?}", self.kind, self.mutable, self.tyid)
     }
 }
 
 impl Local {
-    pub fn new(span: Span, mutable: Mutable, tyid: TyID) -> Self {
+    pub fn new(span: Span, mutable: Mutable, tyid: TyID, kind: LocalKind) -> Self {
         Self {
             span,
             mutable,
             tyid,
+            kind,
         }
     }
 }

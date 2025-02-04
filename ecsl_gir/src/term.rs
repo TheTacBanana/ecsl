@@ -41,7 +41,7 @@ impl std::fmt::Display for TerminatorKind {
 
 #[derive(Debug)]
 pub enum SwitchCase {
-    Value(u8, BlockID),
+    Value(i32, BlockID),
     Default(BlockID),
 }
 

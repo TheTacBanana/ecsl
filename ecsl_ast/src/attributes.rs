@@ -22,6 +22,22 @@ impl Attributes {
         self.attributes.iter().find(|x| x.kind == *attr).is_some()
     }
 
+    pub fn get_marker(&self, marker: AttributeMarker) -> bool {
+        self.attributes()
+            .find(|&x| match x.kind {
+                AttributeKind::Marker(m) => m == marker,
+                _ => false,
+            })
+            .is_some()
+    }
+
+    pub fn get_value(&self, value: AttributeValue) -> Option<usize> {
+        self.attributes().find_map(|x| match x.kind {
+            AttributeKind::Value(v, i) if v == value => Some(i),
+            _ => None,
+        })
+    }
+
     pub fn remove_attribute(&mut self, attr: &AttributeKind) {
         self.attributes.retain(|a| a.kind != *attr);
     }
@@ -73,7 +89,7 @@ impl PartialEq for Attribute {
 #[derive(Debug, Clone)]
 pub enum AttributeKind {
     Marker(AttributeMarker),
-    Value(AttributeValue, u32),
+    Value(AttributeValue, usize),
 }
 
 impl PartialEq for AttributeKind {

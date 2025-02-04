@@ -26,7 +26,10 @@ impl IntoTyID for GlobalID {
 
 impl IntoTyID for SymbolID {
     fn into_tyid(self, ty_ctxt: &LocalTyCtxt) -> TyID {
-        ty_ctxt.get_global_id(self).unwrap().into_tyid(ty_ctxt)
+        match ty_ctxt.get_global_id(self) {
+            Some(gid) => gid.into_tyid(ty_ctxt),
+            None => TyID::UNKNOWN,
+        }
     }
 }
 

@@ -171,7 +171,7 @@ impl Driver {
                     DeadBlocks::apply_pass(gir, ());
                     let consts = ConstEval::apply_pass(gir, lexer);
 
-                    let bytecode = CodeGen::apply_pass(gir, consts);
+                    let bytecode = CodeGen::apply_pass(gir, (local_ctxt.clone(), consts));
 
                     debug!("{:?}", bytecode);
                 }
