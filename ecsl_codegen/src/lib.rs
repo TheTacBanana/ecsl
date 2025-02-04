@@ -134,6 +134,15 @@ impl CodeGen {
                                             BinOpKind::Add => {
                                                 ins.push(BytecodeInstruction::new(Opcode::ADDI, []))
                                             }
+                                            BinOpKind::Sub => {
+                                                ins.push(BytecodeInstruction::new(Opcode::SUBI, []))
+                                            }
+                                            BinOpKind::Mul => {
+                                                ins.push(BytecodeInstruction::new(Opcode::MULI, []))
+                                            }
+                                            BinOpKind::Div => {
+                                                ins.push(BytecodeInstruction::new(Opcode::DIVI, []))
+                                            }
                                             BinOpKind::Eq => {
                                                 ins.push(BytecodeInstruction::new(
                                                     Opcode::CMPI,
@@ -141,10 +150,6 @@ impl CodeGen {
                                                 ));
                                             }
                                             _ => panic!(),
-                                            // BinOpKind::Add => todo!(),
-                                            // BinOpKind::Sub => todo!(),
-                                            // BinOpKind::Mul => todo!(),
-                                            // BinOpKind::Div => todo!(),
                                             // BinOpKind::And => todo!(),
                                             // BinOpKind::Or => todo!(),
                                             // BinOpKind::Neq => todo!(),
@@ -154,10 +159,18 @@ impl CodeGen {
                                             // BinOpKind::Geq => todo!(),
                                         }
                                     }
+                                    ExprKind::Call(ty_id, operands) => {
+                                        for op in operands {
+                                            ins.push(self.load_operand(*op));
+                                        }
+                                        ins.push(BytecodeInstruction::new(
+                                            Opcode::CALL,
+                                            [Immediate::AddressOf(*ty_id)],
+                                        ));
+                                    }
                                     ExprKind::UnOp(un_op_kind, operand) => todo!(),
                                     ExprKind::Reference(mutable, local_id) => todo!(),
                                     ExprKind::Cast(operand, ty_id) => todo!(),
-                                    ExprKind::Call(ty_id, operands) => todo!(),
                                 }
 
                                 ins.push(self.store_local(*local_id));
@@ -246,8 +259,8 @@ impl CodeGen {
             Immediate::LabelOf(_) => BytecodeInstruction::new(Opcode::PSHIL, [*cons]),
             Immediate::Int(_) => BytecodeInstruction::new(Opcode::PSHI, [*cons]),
             Immediate::Byte(_) => BytecodeInstruction::new(Opcode::PSHIB, [*cons]),
-            _ => panic!(),
-            // Immediate::UByte(_) => todo!(),
+            Immediate::UByte(_) => BytecodeInstruction::new(Opcode::PSHIB, [*cons]),
+            e => panic!("{:?}", e),
             // Immediate::UInt(_) => todo!(),
             // Immediate::Float(_) => todo!(),
             // Immediate::Long(_) => todo!(),
