@@ -41,6 +41,22 @@ pub fn callcu(self: *ProgramThread, addr: u64, unwind: u64) !void {
     self.sp = addr;
 }
 
+pub inline fn ldr(self: *ProgramThread, offset: u64) !void {
+    const a: i64 = @bitCast(offset);
+    const value = self.read_stack_at_offset(u32, a);
+    try self.push_stack(u32, value);
+}
+
+pub inline fn str(self: *ProgramThread, offset: u64) !void {
+    const a: i64 = @bitCast(offset);
+    const b: u32 = try self.pop_stack(u32);
+    try self.write_stack_at_offset(u32, b, a);
+}
+
+pub inline fn setsp(self: *ProgramThread, offset: u64) !void {
+    self.sp = offset;
+}
+
 pub inline fn ret(self: *ProgramThread) !void {
     _ = self.call_stack.pop();
     const ret_address = try self.pop_stack(u64);
@@ -51,8 +67,16 @@ pub inline fn panic(self: *ProgramThread) void {
     self.state.err = ProgramThread.ProgramError.PanicNoMessage;
 }
 
+pub inline fn pshib(self: *ProgramThread, a: u8) !void {
+    try self.push_stack(u8, a);
+}
+
 pub inline fn pshi(self: *ProgramThread, a: u32) !void {
     try self.push_stack(u32, a);
+}
+
+pub inline fn pshil(self: *ProgramThread, a: u64) !void {
+    try self.push_stack(u64, a);
 }
 
 pub inline fn cmpi(self: *ProgramThread) !void {

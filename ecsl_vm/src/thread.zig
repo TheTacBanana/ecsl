@@ -116,6 +116,15 @@ pub const ProgramThread = struct {
         return op;
     }
 
+    pub inline fn get_bp(self: *ProgramThread) u64 {
+        return self.call_stack.getLast().stack_frame_base;
+    }
+
+    pub inline fn offset_from_bp(self: *ProgramThread, offset: i64) u64 {
+        const bp: i64 = @intCast(self.get_bp());
+        return @intCast(bp + offset); // This might fail if your stack is 8192 Petabytes Big
+    }
+
     pub inline fn next_immediate(self: *ProgramThread, comptime T: type) T {
         const pc = self.pc;
         const bin = self.vm_ptr.binary;
@@ -175,6 +184,33 @@ pub const ProgramThread = struct {
         return @bitCast(val);
     }
 
+    // Read type of comptime size from stack
+    pub inline fn read_stack_at_offset(self: *ProgramThread, comptime T: type, offset: i64) T {
+        // Pointer to bottom of value
+        const temp_sp = self.offset_from_bp(offset);
+        // Get slice of stack
+        const stack_slice = self.stack[temp_sp..][0..@sizeOf(T)];
+        // Create copy destination
+        var val = [_]u8{0} ** @sizeOf(T);
+        // Copy slice
+        @memcpy(&val, stack_slice);
+        // Cast value
+        return @bitCast(val);
+    }
+
+    // TODO: CHeck this works
+    pub inline fn write_stack_at_offset(self: *ProgramThread, comptime T: type, val: T, offset: i64) ProgramError!void {
+        // Guard against stack overflow
+        const temp_sp = self.offset_from_bp(offset);
+        if (temp_sp >= self.stack.len) {
+            return error.StackOverflow;
+        }
+
+        const bytes: [@sizeOf(T)]u8 = @bitCast(val);
+        const stack_slice = self.stack[self.sp..][0..@sizeOf(T)];
+        @memcpy(stack_slice, &bytes);
+    }
+
     pub inline fn clear_stack(self: *ProgramThread, new_sp: u64) void {
         // Ensure valid clear
         if (new_sp > self.sp) {
@@ -207,6 +243,8 @@ pub const ProgramThread = struct {
                 _ = self.unwrap_call_stack(self.state.err.?);
                 return ProgramStatus.ErrorOrPanic;
             };
+
+            std.log.debug("{}", .{op});
 
             // Execute the opcode
             Opcode.execute(self, op) catch |err| {
