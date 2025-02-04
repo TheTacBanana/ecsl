@@ -1,4 +1,4 @@
-use ecsl_bytecode::{Bytecode, BytecodeInstruction, FunctionBytecode, Immediate, Opcode};
+use ecsl_bytecode::{ext::BytecodeExt, BytecodeInstruction, FunctionBytecode, Immediate, Opcode};
 use ecsl_gir::{
     expr::{BinOpKind, ExprKind, Operand},
     stmt::StmtKind,
@@ -8,7 +8,6 @@ use ecsl_gir::{
 use ecsl_gir_pass::{const_eval::ConstMap, GIRPass};
 use ecsl_index::{BlockID, ConstID, LocalID};
 use ecsl_ty::local::LocalTyCtxt;
-use log::debug;
 use std::{
     collections::{BTreeMap, HashSet},
     sync::Arc,
@@ -59,8 +58,6 @@ impl CodeGen {
         let post = locals.split_off(first_non_arg);
         let pre = locals;
 
-        debug!("{:?} {:?}", pre, post);
-
         // Assign offsets for ret and args
         let mut pre_offset = -8;
         for (i, l) in pre.iter().rev() {
@@ -69,7 +66,6 @@ impl CodeGen {
                 continue;
             }
             pre_offset -= size as i64;
-            debug!("Pre {:?} with offset {:?}", i, pre_offset);
             self.offsets.insert(
                 **i,
                 StackOffset {
@@ -86,7 +82,6 @@ impl CodeGen {
             if size == 0 || l.kind == LocalKind::Temp {
                 continue;
             }
-            debug!("Post {:?} with offset {:?} size {:?}", i, post_offset, size);
             self.offsets.insert(
                 **i,
                 StackOffset {
@@ -98,8 +93,10 @@ impl CodeGen {
         }
 
         // Instruction to set the SP
-        let set_sp = BytecodeInstruction::new(Opcode::SETSPR, [Immediate::Long(post_offset)]);
+        let set_sp =
+            BytecodeInstruction::new(Opcode::SETSP, [Immediate::ULong(post_offset as u64)]);
 
+        let mut visit_order = Vec::new();
         let mut visited = HashSet::new();
         let mut frontier = vec![BlockID::ZERO];
         let mut next_frontier = Vec::new();
@@ -107,14 +104,13 @@ impl CodeGen {
             if frontier.is_empty() {
                 break;
             }
-            debug!("{:?}", frontier);
-
             for block_id in frontier.iter() {
                 if visited.contains(block_id) {
                     continue;
                 }
                 // Set block as visited
                 visited.insert(*block_id);
+                visit_order.push(*block_id);
 
                 {
                     let mut ins = Vec::new();
@@ -233,14 +229,37 @@ impl CodeGen {
             frontier = std::mem::take(&mut next_frontier);
         }
 
+        // Remove all No Ops
         for (_, block) in self.blocks.iter_mut() {
             block.retain(|i| i.op != Opcode::NOP);
         }
-        debug!("{:#?}", self.blocks);
+
+        // Instructions
+        let mut ins = vec![set_sp];
+
+        // Calculate sizes and offsets
+        let sizes = self
+            .blocks
+            .iter()
+            .map(|(i, b)| (*i, b.bytecode_size()))
+            .collect::<BTreeMap<_, _>>();
+        let mut offsets = BTreeMap::new();
+        visit_order.iter().fold(0, |cur_offset, block_id| {
+            offsets.insert(*block_id, cur_offset);
+            cur_offset + sizes.get(block_id).unwrap()
+        });
+
+        // Concat blocks into sequence
+        for block_id in &visit_order {
+            let block = self.blocks.remove(block_id).unwrap();
+            ins.extend_from_slice(&block);
+        }
 
         FunctionBytecode {
             tyid: gir.fn_id(),
-            ins: Vec::new(),
+            total_size: ins.bytecode_size(),
+            block_offsets: offsets,
+            ins,
         }
     }
 

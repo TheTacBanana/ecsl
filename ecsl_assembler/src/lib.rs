@@ -1,9 +1,10 @@
 use std::collections::BTreeMap;
-use std::io::{prelude::*, SeekFrom};
+use std::io::{self, prelude::*, SeekFrom};
 use std::marker::PhantomData;
+use std::sync::RwLock;
 use std::{fs::File, path::PathBuf};
 
-use ecsl_bytecode::{Bytecode, FunctionBytecode};
+use ecsl_bytecode::{Bytecode, FunctionBytecode, Immediate};
 use ecsl_index::TyID;
 use header::{FileType, SectionPointer, SectionType};
 use log::debug;
@@ -13,20 +14,17 @@ pub mod header;
 pub struct Assembler<T> {
     _phantom: PhantomData<T>,
 
-    pub path: PathBuf,
-    pub temp_path: PathBuf,
-    pub file: File,
+    path: PathBuf,
+    temp_path: PathBuf,
+    file: File,
 
-    pub major_version: u32,
-    pub minor_version: u32,
-    pub file_type: FileType,
+    file_type: FileType,
 
-    pub functions: BTreeMap<TyID, FunctionBytecode>,
-    pub function_offsets: BTreeMap<TyID, usize>,
+    const_data: Vec<u8>,
 
-    pub const_data: Vec<u8>,
+    functions: RwLock<BTreeMap<TyID, FunctionBytecode>>,
 
-    pub sections: Vec<SectionPointer>,
+    sections: Vec<SectionPointer>,
 }
 
 pub struct Pre;
@@ -55,11 +53,8 @@ impl<T> Assembler<T> {
             path: self.path,
             temp_path: self.temp_path,
             file: self.file,
-            major_version: self.major_version,
-            minor_version: self.minor_version,
             file_type: self.file_type,
             functions: self.functions,
-            function_offsets: self.function_offsets,
             const_data: self.const_data,
             sections: self.sections,
         }
@@ -69,18 +64,17 @@ impl<T> Assembler<T> {
 impl Assembler<Pre> {
     pub fn new(name: String, root_path: &PathBuf) -> Self {
         let mut path = root_path.clone();
-        path.push(format!("target/{:?}.ecsb", name));
+        path.push(format!("target/{}.ecsb", name));
 
         let mut temp_path = path.clone();
         temp_path.set_extension("ecsb.temp");
 
         let _ = std::fs::remove_file(&temp_path);
-        let file = File::create_new(&temp_path).unwrap();
+        std::fs::create_dir_all(temp_path.parent().unwrap()).unwrap();
+        let file = File::create(&temp_path).unwrap();
 
         Self {
             _phantom: Default::default(),
-            major_version: Self::MAJOR_VERSION,
-            minor_version: Self::MINOR_VERSION,
             path,
             temp_path,
             file,
@@ -88,63 +82,103 @@ impl Assembler<Pre> {
             const_data: Vec::new(),
             sections: Vec::new(),
             functions: Default::default(),
-            function_offsets: Default::default(),
         }
     }
 
     /// Write header excluding entrypoint and section header
-    pub fn write_temp_header(mut self) -> Assembler<ConstData> {
+    pub fn write_temp_header(mut self) -> std::io::Result<Assembler<ConstData>> {
         // Write magic bytes
-        self.file.write(&Self::MAGIC_BYTES).unwrap();
+        self.file.write(&Self::MAGIC_BYTES)?;
 
         // Write Versions
-        self.file.write(&self.major_version.to_be_bytes()).unwrap();
-        self.file.write(&self.minor_version.to_be_bytes()).unwrap();
+        self.file.write(&Self::MAJOR_VERSION.to_be_bytes())?;
+        self.file.write(&Self::MINOR_VERSION.to_be_bytes())?;
 
         // Write File Type
-        self.file
-            .write(&(self.file_type as u32).to_be_bytes())
-            .unwrap();
+        self.file.write(&(self.file_type as u32).to_be_bytes())?;
 
         // Write entry point and section header as 0 to be written later
-        self.file.write(&0u64.to_be_bytes()).unwrap();
-        self.file.write(&0u64.to_be_bytes()).unwrap();
+        self.file.write(&0u64.to_be_bytes())?;
+        self.file.write(&0u64.to_be_bytes())?;
 
-        self.cast()
+        Ok(self.cast())
     }
 }
 
 impl Assembler<ConstData> {
     /// Write the const data section
-    pub fn write_const_data(self) -> Assembler<Executable> {
+    pub fn write_const_data(self) -> std::io::Result<Assembler<Executable>> {
         debug!("TODO: Write Const Data");
-        self.cast()
+        Ok(self.cast())
     }
 }
 
 impl Assembler<Executable> {
-    pub fn include_function(&mut self, byt: FunctionBytecode) {
-        self.functions.insert(byt.tyid, byt);
+    pub fn include_function(&self, byt: FunctionBytecode) {
+        let mut funcs = self.functions.write().unwrap();
+        funcs.insert(byt.tyid, byt);
     }
 
     /// Write function bytecode
     pub fn write_bytecode(mut self) -> std::io::Result<Assembler<Out>> {
         let start_pos = self.offset_to_alignment()?;
 
-        let inst = vec![
-            Bytecode::PSHI(3),
-            Bytecode::PSHI(2),
-            Bytecode::ADDI,
-            Bytecode::HALT,
-        ];
-
-        let mut bytes = Vec::new();
-
-        for i in inst {
-            bytes.extend(i.to_bytes());
+        let mut functions = self.functions.get_mut().unwrap();
+        let mut function_offsets = BTreeMap::new();
+        let mut total_offset = 0;
+        for (fid, byt) in functions.iter() {
+            function_offsets.insert(*fid, total_offset);
+            total_offset = (total_offset + byt.total_size as u64).next_multiple_of(8);
         }
 
-        self.file.write(&bytes)?;
+        // Rewrite Jumps
+        for (fid, byt) in functions.iter_mut() {
+            let func_offset = function_offsets.get(&fid).unwrap();
+            for ins in byt.ins.iter_mut() {
+                for op in ins.operand.iter_mut() {
+                    match op {
+                        Immediate::AddressOf(ty_id) => {
+                            *op =
+                                Immediate::ULong(start_pos + *function_offsets.get(&ty_id).unwrap())
+                        }
+                        Immediate::LabelOf(block_id) => {
+                            *op = Immediate::ULong(
+                                start_pos
+                                    + *func_offset
+                                    + *byt.block_offsets.get(block_id).unwrap() as u64,
+                            );
+                        }
+                        _ => (),
+                    }
+                }
+            }
+        }
+
+        // Func buffer
+        let mut buffer = vec![0_u8; total_offset as usize];
+
+        // TODO: Remove cloning
+        for (fid, byt) in functions {
+            let func_offset = function_offsets.get(fid).unwrap();
+
+            let mut bytecode_bin = Vec::new();
+            for ins in byt.ins.iter() {
+                let bytes = &ins.clone().to_bytecode().unwrap().to_bytes();
+                bytecode_bin.extend_from_slice(bytes);
+            }
+
+            unsafe {
+                std::ptr::copy_nonoverlapping(
+                    bytecode_bin.as_ptr(),
+                    (buffer[*func_offset as usize..]).as_mut_ptr(),
+                    bytecode_bin.len(),
+                );
+            }
+        }
+
+        debug!("{:#?}", buffer);
+
+        self.file.write(&buffer)?;
         let end_pos = self.file.seek(SeekFrom::End(0))?;
 
         self.sections.push(SectionPointer {

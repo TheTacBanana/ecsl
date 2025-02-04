@@ -1,12 +1,26 @@
-use std::usize;
-
 use ecsl_bytecode_derive::Bytecode;
 use ecsl_index::{BlockID, TyID};
+use std::{collections::BTreeMap, usize};
+
+pub mod ext;
 
 #[derive(Debug)]
 pub struct FunctionBytecode {
     pub tyid: TyID,
+    pub total_size: usize,
+    pub block_offsets: BTreeMap<BlockID, usize>,
     pub ins: Vec<BytecodeInstruction>,
+}
+
+impl FunctionBytecode {
+    // pub fn to_bytes(self) -> Vec<u8> {
+    //     let bytes = Vec::new();
+    //     for i in self.ins {
+    //         bytes.extend_from_slice(i.to_bytecode());
+
+    //         total += i.size_of();
+    //     }
+    // }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -27,10 +41,6 @@ impl BytecodeInstruction {
             op,
             operand: Vec::from(operands),
         }
-    }
-
-    pub fn size_of(&self) -> usize {
-        self.operand.iter().fold(1, |l, r| l + r.size_of())
     }
 }
 
@@ -124,7 +134,7 @@ pub enum Bytecode {
     STR(u64),
 
     /// Set the SP to the [BP + offset]
-    SETSPR(u64),
+    SETSP(u64),
 
     /// Push the PC (8 bytes) to the stack and jump to the address
     /// Arguments should be pushed in Left-to-Right before the return address
@@ -159,8 +169,8 @@ pub enum Bytecode {
     // CMPL,
     /// Unconditional Jump
     JMP(u64),
-    /// Unconditional Relative Jump
-    JRE(u64),
+    // /// Unconditional Relative Jump
+    // JRE(u64),
     /// Jump Equal to 0
     JEZ(u64),
     /// Jump Not 0
