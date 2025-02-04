@@ -1,9 +1,6 @@
 use anyhow::Result;
 use ecsl_assembler::Assembler;
-use ecsl_ast_pass::{
-    ast_definitions, casing_warnings, collect_prelude, generate_definition_tyir, include_prelude,
-    validate_ast, validate_imports,
-};
+use ecsl_ast_pass::*;
 use ecsl_codegen::CodeGen;
 use ecsl_context::{Context, MapAssocExt};
 use ecsl_diagnostics::{Diagnostics, DiagnosticsExt};
@@ -162,8 +159,31 @@ impl Driver {
             || diag.finish_stage(lexer_func),
         )?;
 
-        info!("GIR Passes");
-        let assoc = (&context, assoc).par_map_assoc(
+        // Get the entry point
+        info!("Get entry point");
+        let entry_point = {
+            let main_file = context
+                .get_source_file_from_crate(&"main".into(), context.config().root_id)
+                .unwrap();
+            let assoc = &assoc.assoc.get(&main_file).unwrap();
+            get_entry_point(&assoc.1, assoc.3.clone())
+        };
+        let Some(entry_point) = entry_point else {
+            diag.finish_stage(lexer_func);
+            return Ok(());
+        };
+
+        let root_config = context.config().root_config();
+        let assembler = Assembler::new(
+            root_config.name().to_string(),
+            &root_config.bundle_toml_path(),
+        );
+
+        let assembler = assembler.write_temp_header().unwrap();
+        let assembler = assembler.write_const_data().unwrap();
+
+        info!("GIR Passes and Code Gen");
+        let _ = (&context, assoc).par_map_assoc(
             |_, src, (diag, ast, table, local_ctxt, mut girs)| {
                 let lexer = lexers.get(&src.id).unwrap();
 
@@ -172,8 +192,7 @@ impl Driver {
                     let consts = ConstEval::apply_pass(gir, lexer);
 
                     let bytecode = CodeGen::apply_pass(gir, (local_ctxt.clone(), consts));
-
-                    debug!("{:?}", bytecode);
+                    assembler.include_function(bytecode);
                 }
 
                 Some((diag, ast, table, local_ctxt, girs))
@@ -181,14 +200,9 @@ impl Driver {
             || diag.finish_stage(lexer_func),
         )?;
 
-        let root_config = context.config().root_config();
-        let assembler = Assembler::new(
-            root_config.name().to_string(),
-            &root_config.bundle_toml_path(),
-        );
+        let assember = assembler.write_bytecode(entry_point.0).unwrap();
 
-        assembler.output(path.clone()).unwrap();
-
+        assember.output().unwrap();
         Ok(())
     }
 }

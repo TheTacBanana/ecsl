@@ -120,10 +120,10 @@ impl Assembler<Executable> {
     }
 
     /// Write function bytecode
-    pub fn write_bytecode(mut self) -> std::io::Result<Assembler<Out>> {
+    pub fn write_bytecode(mut self, entry_point: TyID) -> std::io::Result<Assembler<Out>> {
         let start_pos = self.offset_to_alignment()?;
 
-        let mut functions = self.functions.get_mut().unwrap();
+        let functions = self.functions.get_mut().unwrap();
         let mut function_offsets = BTreeMap::new();
         let mut total_offset = 0;
         for (fid, byt) in functions.iter() {
@@ -187,8 +187,10 @@ impl Assembler<Executable> {
             address: start_pos,
         });
 
+        let entry_point = start_pos + function_offsets.get(&entry_point).unwrap();
+
         self.file.seek(SeekFrom::Start(0x10))?;
-        self.file.write(&start_pos.to_be_bytes())?;
+        self.file.write(&entry_point.to_be_bytes())?;
         self.file.seek(SeekFrom::End(0))?;
 
         Ok(self.cast())

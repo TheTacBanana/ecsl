@@ -20,6 +20,7 @@ use ecsl_ty::{
     local::LocalTyCtxt,
     FieldDef, GenericsScope, TyIr,
 };
+use entry_point::{EntryPoint, EntryPointError, EntryPointKind};
 use fn_validator::FnValidator;
 use import_collector::ImportCollector;
 use log::debug;
@@ -30,6 +31,7 @@ pub mod asm;
 pub mod attributes;
 pub mod casing;
 pub mod definitions;
+pub mod entry_point;
 pub mod fn_validator;
 pub mod import_collector;
 pub mod prelude;
@@ -264,5 +266,29 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                 scope.pop();
             }
         };
+    }
+}
+
+pub fn get_entry_point(
+    ast: &SourceAST,
+    ty_ctxt: Arc<LocalTyCtxt>,
+) -> Option<(TyID, EntryPointKind)> {
+    let mut entry_point = EntryPoint::new(ty_ctxt);
+    entry_point.visit_ast(ast);
+
+    if entry_point.entry_points.len() > 1 {
+        entry_point.ty_ctxt.diag.push_error(EcslError::new(
+            ErrorLevel::Error,
+            EntryPointError::MultipleEntryPoints,
+        ));
+        None
+    } else if entry_point.entry_points.len() == 0 {
+        entry_point.ty_ctxt.diag.push_error(EcslError::new(
+            ErrorLevel::Error,
+            EntryPointError::NoEntryPoints,
+        ));
+        None
+    } else {
+        Some(entry_point.entry_points[0])
     }
 }
