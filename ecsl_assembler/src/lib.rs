@@ -1,96 +1,135 @@
+use std::collections::BTreeMap;
 use std::io::{prelude::*, SeekFrom};
+use std::marker::PhantomData;
 use std::{fs::File, path::PathBuf};
 
-use ecsl_bytecode::Bytecode;
+use ecsl_bytecode::{Bytecode, FunctionBytecode};
+use ecsl_index::TyID;
 use header::{FileType, SectionPointer, SectionType};
+use log::debug;
 
 pub mod header;
 
-pub struct Assembler {
+pub struct Assembler<T> {
+    _phantom: PhantomData<T>,
+
+    pub path: PathBuf,
+    pub temp_path: PathBuf,
+    pub file: File,
+
     pub major_version: u32,
     pub minor_version: u32,
     pub file_type: FileType,
+
+    pub functions: BTreeMap<TyID, FunctionBytecode>,
+    pub function_offsets: BTreeMap<TyID, usize>,
 
     pub const_data: Vec<u8>,
 
     pub sections: Vec<SectionPointer>,
 }
 
-impl Assembler {
+pub struct Pre;
+pub struct ConstData;
+pub struct Executable;
+pub struct Out;
+
+impl<T> Assembler<T> {
     pub const MAGIC_BYTES: &[u8] = &[0x45, 0x43, 0x53, 0x4C];
     pub const ALIGNMENT: u64 = 32;
+    pub const MAJOR_VERSION: u32 = 1;
+    pub const MINOR_VERSION: u32 = 0;
 
-    pub fn new() -> Self {
-        Self {
-            major_version: 1,
-            minor_version: 0,
-            file_type: FileType::Executable,
-            const_data: Vec::new(),
-            sections: Vec::new(),
-        }
-    }
-
-    pub fn output(mut self, mut file_path: PathBuf) -> std::io::Result<()> {
-        file_path.push("out.ecsb");
-
-        let mut temp_path = file_path.clone();
-        temp_path.set_extension("ecsb.temp");
-
-        {
-            let _ = std::fs::remove_file(&temp_path);
-            let mut file = File::create_new(&temp_path)?;
-
-            // Write header excluding entrypoint and section header
-            self.write_temp_header(&mut file)?;
-
-            //TODO: Write the const data section
-
-            //TODO: Write the component info
-
-            //TODO: Write the bytecode
-            self.write_bytecode(&mut file)?;
-
-            //TODO: Write the system info
-
-            // Write the section header at the end of the file and
-            // ammend the section header address
-            self.write_section_header(&mut file)?;
-        }
-
-        std::fs::rename(&temp_path, &file_path)?;
-        let _ = std::fs::remove_file(&temp_path);
-
-        Ok(())
-    }
-
-    fn offset_to_alignment(&mut self, file: &mut File) -> std::io::Result<u64> {
-        let start_of_header = file
+    fn offset_to_alignment(&mut self) -> std::io::Result<u64> {
+        let start_of_header = self
+            .file
             .seek(SeekFrom::Current(0))?
             .next_multiple_of(Self::ALIGNMENT);
-        file.seek(SeekFrom::Start(start_of_header))?;
+        self.file.seek(SeekFrom::Start(start_of_header))?;
         Ok(start_of_header)
     }
 
-    fn write_temp_header(&mut self, file: &mut File) -> std::io::Result<()> {
-        // Write magic bytes
-        file.write(&Self::MAGIC_BYTES)?;
+    fn cast<U>(self) -> Assembler<U> {
+        Assembler {
+            _phantom: Default::default(),
+            path: self.path,
+            temp_path: self.temp_path,
+            file: self.file,
+            major_version: self.major_version,
+            minor_version: self.minor_version,
+            file_type: self.file_type,
+            functions: self.functions,
+            function_offsets: self.function_offsets,
+            const_data: self.const_data,
+            sections: self.sections,
+        }
+    }
+}
 
-        // Write Versions
-        file.write(&self.major_version.to_be_bytes())?;
-        file.write(&self.minor_version.to_be_bytes())?;
+impl Assembler<Pre> {
+    pub fn new(name: String, root_path: &PathBuf) -> Self {
+        let mut path = root_path.clone();
+        path.push(format!("target/{:?}.ecsb", name));
 
-        // Write File Type
-        file.write(&(self.file_type as u32).to_be_bytes())?;
+        let mut temp_path = path.clone();
+        temp_path.set_extension("ecsb.temp");
 
-        // Write entry point and section header as 0 to be written later
-        file.write(&0u64.to_be_bytes())?;
-        file.write(&0u64.to_be_bytes())?;
+        let _ = std::fs::remove_file(&temp_path);
+        let file = File::create_new(&temp_path).unwrap();
 
-        Ok(())
+        Self {
+            _phantom: Default::default(),
+            major_version: Self::MAJOR_VERSION,
+            minor_version: Self::MINOR_VERSION,
+            path,
+            temp_path,
+            file,
+            file_type: FileType::Executable,
+            const_data: Vec::new(),
+            sections: Vec::new(),
+            functions: Default::default(),
+            function_offsets: Default::default(),
+        }
     }
 
-    fn write_bytecode(&mut self, file: &mut File) -> std::io::Result<()> {
-        let start_pos = self.offset_to_alignment(file)?;
+    /// Write header excluding entrypoint and section header
+    pub fn write_temp_header(mut self) -> Assembler<ConstData> {
+        // Write magic bytes
+        self.file.write(&Self::MAGIC_BYTES).unwrap();
+
+        // Write Versions
+        self.file.write(&self.major_version.to_be_bytes()).unwrap();
+        self.file.write(&self.minor_version.to_be_bytes()).unwrap();
+
+        // Write File Type
+        self.file
+            .write(&(self.file_type as u32).to_be_bytes())
+            .unwrap();
+
+        // Write entry point and section header as 0 to be written later
+        self.file.write(&0u64.to_be_bytes()).unwrap();
+        self.file.write(&0u64.to_be_bytes()).unwrap();
+
+        self.cast()
+    }
+}
+
+impl Assembler<ConstData> {
+    /// Write the const data section
+    pub fn write_const_data(self) -> Assembler<Executable> {
+        debug!("TODO: Write Const Data");
+        self.cast()
+    }
+}
+
+impl Assembler<Executable> {
+    pub fn include_function(&mut self, byt: FunctionBytecode) {
+        self.functions.insert(byt.tyid, byt);
+    }
+
+    /// Write function bytecode
+    pub fn write_bytecode(mut self) -> std::io::Result<Assembler<Out>> {
+        let start_pos = self.offset_to_alignment()?;
 
         let inst = vec![
             Bytecode::PSHI(3),
@@ -105,8 +144,8 @@ impl Assembler {
             bytes.extend(i.to_bytes());
         }
 
-        file.write(&bytes)?;
-        let end_pos = file.seek(SeekFrom::End(0))?;
+        self.file.write(&bytes)?;
+        let end_pos = self.file.seek(SeekFrom::End(0))?;
 
         self.sections.push(SectionPointer {
             section_type: SectionType::ExecutableCode,
@@ -114,18 +153,23 @@ impl Assembler {
             address: start_pos,
         });
 
-        file.seek(SeekFrom::Start(0x10))?;
-        file.write(&start_pos.to_be_bytes())?;
-        file.seek(SeekFrom::End(0))?;
+        self.file.seek(SeekFrom::Start(0x10))?;
+        self.file.write(&start_pos.to_be_bytes())?;
+        self.file.seek(SeekFrom::End(0))?;
 
-        Ok(())
+        Ok(self.cast())
     }
+}
 
-    fn write_section_header(&mut self, file: &mut File) -> std::io::Result<()> {
-        let start_pos = self.offset_to_alignment(file)?;
+impl Assembler<Out> {
+    /// Write the section header at the end of the file and
+    /// ammend the section header address
+    /// Rename the file
+    pub fn output(mut self) -> std::io::Result<()> {
+        let start_pos = self.offset_to_alignment()?;
 
         let len = self.sections.len() as u64;
-        file.write(&len.to_be_bytes())?;
+        self.file.write(&len.to_be_bytes())?;
 
         for SectionPointer {
             section_type,
@@ -133,13 +177,16 @@ impl Assembler {
             address,
         } in &self.sections
         {
-            file.write(&(*section_type as u32).to_be_bytes())?;
-            file.write(&length.to_be_bytes())?;
-            file.write(&address.to_be_bytes())?;
+            self.file.write(&(*section_type as u32).to_be_bytes())?;
+            self.file.write(&length.to_be_bytes())?;
+            self.file.write(&address.to_be_bytes())?;
         }
 
-        file.seek(SeekFrom::Start(0x18))?;
-        file.write(&start_pos.to_be_bytes())?;
+        self.file.seek(SeekFrom::Start(0x18))?;
+        self.file.write(&start_pos.to_be_bytes())?;
+
+        std::fs::rename(&self.temp_path, &self.path)?;
+        let _ = std::fs::remove_file(&self.temp_path);
 
         Ok(())
     }

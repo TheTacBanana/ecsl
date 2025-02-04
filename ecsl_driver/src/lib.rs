@@ -181,7 +181,12 @@ impl Driver {
             || diag.finish_stage(lexer_func),
         )?;
 
-        let assembler = Assembler::new();
+        let root_config = context.config().root_config();
+        let assembler = Assembler::new(
+            root_config.name().to_string(),
+            &root_config.bundle_toml_path(),
+        );
+
         assembler.output(path.clone()).unwrap();
 
         Ok(())

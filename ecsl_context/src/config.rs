@@ -93,6 +93,10 @@ impl EcslConfig {
         Ok(config)
     }
 
+    pub fn root_config(&self) -> &EcslPackage {
+        self.packages.get(&CrateID::ONE).unwrap()
+    }
+
     fn load_bundle_toml(path: &PathBuf) -> EcslResult<BundleToml> {
         info!("Loading Bundle.toml from path {:?}", path);
 
