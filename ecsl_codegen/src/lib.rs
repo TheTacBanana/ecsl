@@ -8,6 +8,7 @@ use ecsl_gir::{
 use ecsl_gir_pass::{const_eval::ConstMap, GIRPass};
 use ecsl_index::{BlockID, ConstID, LocalID};
 use ecsl_ty::{local::LocalTyCtxt, TyIr};
+use log::debug;
 use std::{
     collections::{BTreeMap, HashSet},
     sync::Arc,
@@ -209,15 +210,16 @@ impl CodeGen {
                             }
                         }
                         TerminatorKind::Switch(operand, switch_cases) => {
+                            debug!("{:?}", switch_cases);
                             for case in switch_cases {
-                                ins.push(self.load_operand(*operand));
                                 match case {
                                     SwitchCase::Value(value, block_id) => {
+                                        ins.push(self.load_operand(*operand));
                                         ins.push(BytecodeInstruction::new(
-                                            Opcode::PSHI,
-                                            [Immediate::Int(*value)],
+                                            Opcode::PSHIB,
+                                            [Immediate::Byte(*value as i8)],
                                         ));
-                                        ins.push(BytecodeInstruction::new(Opcode::CMPI, []));
+                                        ins.push(BytecodeInstruction::new(Opcode::CMPB, []));
                                         ins.push(BytecodeInstruction::new(
                                             Opcode::JEZ,
                                             [Immediate::LabelOf(*block_id)],
@@ -280,10 +282,16 @@ impl CodeGen {
             .map(|(i, b)| (*i, b.bytecode_size()))
             .collect::<BTreeMap<_, _>>();
         let mut offsets = BTreeMap::new();
-        visit_order.iter().fold(0, |cur_offset, block_id| {
-            offsets.insert(*block_id, cur_offset);
-            cur_offset + sizes.get(block_id).unwrap()
-        });
+        visit_order
+            .iter()
+            .fold(ins.bytecode_size(), |cur_offset, block_id| {
+                offsets.insert(*block_id, cur_offset);
+                cur_offset + sizes.get(block_id).unwrap()
+            });
+        debug!("{:#?}", self.blocks);
+        debug!("{:?}", visit_order);
+        debug!("{:?}", sizes);
+        debug!("{:?}", offsets);
 
         // Concat blocks into sequence
         for block_id in &visit_order {

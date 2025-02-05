@@ -6,11 +6,7 @@ pub trait BytecodeExt {
 
 impl BytecodeExt for FunctionBytecode {
     fn bytecode_size(&self) -> usize {
-        let mut total = 0;
-        for i in &self.ins {
-            total += i.bytecode_size();
-        }
-        return total;
+        self.ins.iter().fold(0, |l, r| l + r.bytecode_size())
     }
 }
 

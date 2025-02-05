@@ -162,10 +162,13 @@ impl Assembler<Executable> {
             let func_offset = function_offsets.get(fid).unwrap();
             debug!("{:?} at offset {}", fid, start_pos + func_offset);
 
+            let mut temp_offset = 0;
+
             let mut bytecode_bin = Vec::new();
             for ins in byt.ins.iter() {
-                debug!("{:?}", ins);
+                debug!("{:?} {:?}", start_pos + func_offset + temp_offset, ins);
                 let bytes = &ins.clone().to_bytecode().unwrap().to_bytes();
+                temp_offset += bytes.len() as u64;
                 bytecode_bin.extend_from_slice(bytes);
             }
 

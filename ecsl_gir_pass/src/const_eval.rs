@@ -51,9 +51,9 @@ impl<'a> Visitor for ConstEval<'a> {
             match c.kind {
                 Literal::Int => Immediate::Int(s.parse().unwrap()),
                 Literal::Float => Immediate::Float(s.parse().unwrap()),
-                Literal::Bool => Immediate::UByte(match s {
-                    "true" => 1u8,
-                    "false" => 0u8,
+                Literal::Bool => Immediate::Byte(match s {
+                    "true" => 1i8,
+                    "false" => 0i8,
                     _ => panic!("Cannot parse {:?} as bool", s),
                 }),
                 Literal::Char => Immediate::UByte({

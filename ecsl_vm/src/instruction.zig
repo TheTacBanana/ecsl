@@ -82,6 +82,20 @@ pub inline fn pshil(self: *ProgramThread, a: u64) !void {
     try self.push_stack(u64, a);
 }
 
+pub inline fn cmpb(self: *ProgramThread) !void {
+    const a = try self.pop_stack(i8);
+    const b = try self.pop_stack(i8);
+    if (a == b) {
+        try self.push_stack(i8, 0);
+    } else if (a < b) {
+        try self.push_stack(i8, -1);
+    } else if (b < a) {
+        try self.push_stack(i8, 1);
+    } else {
+        unreachable;
+    }
+}
+
 pub inline fn cmpi(self: *ProgramThread) !void {
     const a = try self.pop_stack(i32);
     const b = try self.pop_stack(i32);
@@ -97,7 +111,7 @@ pub inline fn cmpi(self: *ProgramThread) !void {
 }
 
 pub inline fn jmp(self: *ProgramThread, addr: u64) void {
-    self.sp = addr;
+    self.pc = addr;
 }
 
 pub inline fn jez(self: *ProgramThread, addr: u64) !void {

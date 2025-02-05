@@ -173,8 +173,8 @@ pub enum Bytecode {
     // LD(u64, u64),
     // /// Store the top N bytes from the stack at the address
     // ST(u64, u64),
-    // /// Compare 2 Bytes and push 1 byte
-    // CMPB,
+    /// Compare 2 Bytes and push 1 byte
+    CMPB,
     /// Compare 2 Integers and push 1 byte
     /// -1 if a < b, 0 if eq, 1 if b < a
     CMPI,
