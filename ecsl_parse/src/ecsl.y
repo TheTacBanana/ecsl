@@ -186,7 +186,7 @@ FnDef -> Result<FnDef, ()>:
             params: $5?,
             ret: $7?,
             block: $8?,
-        })
+       })
     }
     ;
 
@@ -572,6 +572,30 @@ Bytecode -> Result<InlineBytecode, ()>:
                 operand: Vec::new(),
             }
         })
+    }
+    | 'IDENT' ImmediateList 'SEMI' {
+        Ok(InlineBytecode {
+            span: $span,
+            ins: BytecodeInstruction {
+                op: Opcode::from_str(table.string($1.map_err(|_| ())?.span()).as_str()),
+                operand: $2?,
+            }
+        })
+    }
+    ;
+
+ImmediateList -> Result<Vec<Immediate>, ()>:
+    Immediate { Ok(vec![$1?]) }
+    | ImmediateList Immediate {
+        flatten($1, $2)
+    }
+    ;
+
+Immediate -> Result<Immediate, ()>:
+    'HASH' 'IDENT' {
+        Ok(Immediate::SymbolOf(
+            table.usage($2.map_err(|_| ())?.span(), SymbolKind::Local)
+        ))
     }
     ;
 

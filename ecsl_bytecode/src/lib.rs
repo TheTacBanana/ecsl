@@ -1,5 +1,5 @@
 use ecsl_bytecode_derive::Bytecode;
-use ecsl_index::{BlockID, TyID};
+use ecsl_index::{BlockID, LocalID, SymbolID, TyID};
 use std::{collections::BTreeMap, usize};
 
 pub mod ext;
@@ -49,6 +49,8 @@ pub enum Immediate {
     // Used temporarily in compilation
     AddressOf(TyID),
     LabelOf(BlockID),
+    LocalOf(LocalID),
+    SymbolOf(SymbolID),
 
     Byte(i8),
     UByte(u8),
@@ -65,6 +67,9 @@ impl Immediate {
         match self {
             Immediate::AddressOf(_) => 8,
             Immediate::LabelOf(_) => 8,
+            Immediate::LocalOf(_) => 8,
+            Immediate::SymbolOf(_) => 8,
+
             Immediate::Byte(_) => 1,
             Immediate::UByte(_) => 1,
             Immediate::Int(_) => 4,
