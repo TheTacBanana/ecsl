@@ -169,9 +169,11 @@ impl Driver {
             get_entry_point(&assoc.1, assoc.3.clone())
         };
         let Some(entry_point) = entry_point else {
-            diag.finish_stage(lexer_func);
+            diag.finish_stage(lexer_func)?;
             return Ok(());
         };
+
+        ty_ctxt.insert_entry_point(entry_point.0);
 
         let root_config = context.config().root_config();
         let assembler = Assembler::new(

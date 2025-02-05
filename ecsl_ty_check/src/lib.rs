@@ -1,5 +1,5 @@
 use ecsl_ast::expr::UnOpKind;
-use ecsl_ast::parse::ParamKind;
+use ecsl_ast::parse::{Immediate, ParamKind};
 use ecsl_ast::stmt::InlineBytecode;
 use ecsl_ast::ty::Mutable;
 use ecsl_ast::SourceAST;
@@ -160,6 +160,17 @@ impl TyCheck {
 
     pub fn global(&self) -> &TyCtxt {
         &self.ty_ctxt.global
+    }
+
+    pub fn find_symbol(&self, symbol_id: SymbolID) -> Option<LocalID> {
+        let mut found = None;
+        for symbols in self.symbols.iter().rev() {
+            if let Some(local) = symbols.get(&symbol_id) {
+                found = Some(*local);
+                break;
+            }
+        }
+        return found;
     }
 }
 
@@ -418,6 +429,27 @@ impl Visitor for TyCheck {
             }
             StmtKind::ASM(bytecode) => {
                 for InlineBytecode { span, ins } in bytecode {
+                    let mut ins = ins.clone();
+                    for i in ins.operand.iter_mut() {
+                        if let Immediate::SymbolOf(symbol_id) = i {
+                            let found = self.find_symbol(*symbol_id);
+
+                            // Throw error if not found
+                            if found.is_none() {
+                                self.ty_ctxt.diag.push_error(
+                                    EcslError::new(
+                                        ErrorLevel::Error,
+                                        TyCheckError::SymbolDoesntExist,
+                                    )
+                                    .with_span(|_| *span),
+                                );
+                                return VisitorCF::Break;
+                            }
+
+                            *i = Immediate::LocalOf(found.unwrap());
+                        }
+                    }
+
                     self.push_stmt_to_cur_block(gir::Stmt {
                         span: *span,
                         kind: gir::StmtKind::ASM(ins.clone()),
@@ -462,13 +494,7 @@ impl Visitor for TyCheck {
         let ret_ty = match &e.kind {
             ExprKind::Ident(symbol_id) => {
                 // Search all symbols
-                let mut found = None;
-                for symbols in self.symbols.iter().rev() {
-                    if let Some(local) = symbols.get(symbol_id) {
-                        found = Some(*local);
-                        break;
-                    }
-                }
+                let found = self.find_symbol(*symbol_id);
 
                 // Throw error if not found
                 if found.is_none() {
@@ -644,6 +670,7 @@ impl Visitor for TyCheck {
 
 #[derive(Debug, Clone, Copy)]
 pub enum TyCheckError {
+    SymbolDoesntExistBytecode,
     SymbolDoesntExist,
     FunctionDoesntExist,
     IncorrectFunctionArgument,
@@ -674,6 +701,9 @@ impl std::fmt::Display for TyCheckError {
             TyCheckError::SymbolIsNotFunction => "Symbol is not a function",
             TyCheckError::IncorrectFunctionArgument => {
                 "Type of argument does not match Type of signature"
+            }
+            TyCheckError::SymbolDoesntExistBytecode => {
+                "Symbol specified in bytecode does not exist"
             }
         };
         write!(f, "{}", s)

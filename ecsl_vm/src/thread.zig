@@ -101,7 +101,7 @@ pub const ProgramThread = struct {
         while (i > 0) {
             i -= 1;
             const frame = self.call_stack.pop();
-            std.log.err("at Func Address 0x{X} : ({d})", .{ frame.func_address, i });
+            std.log.err("at Func Address {d} : ({d})", .{ frame.func_address, i });
         }
 
         self.state.status = ProgramStatus.ErrorOrPanic;
@@ -112,6 +112,7 @@ pub const ProgramThread = struct {
     pub inline fn next_opcode(self: *ProgramThread) ProgramPanic!Opcode {
         const op_byte = self.vm_ptr.binary[self.pc];
         const op = try Opcode.from_byte(op_byte);
+        std.log.debug("{} {}", .{ self.pc, op });
         self.pc += 1;
         return op;
     }
@@ -129,11 +130,14 @@ pub const ProgramThread = struct {
         const pc = self.pc;
         const bin = self.vm_ptr.binary;
         var array = [_]u8{0} ** @sizeOf(T);
+
         for (array, 0..) |_, i| {
             array[i] = bin[pc + i];
         }
         self.pc += @sizeOf(T);
-        return @bitCast(array);
+        const val: T = @bitCast(array);
+        std.log.debug("Imm {}", .{val});
+        return val;
     }
 
     // Push comptime type to stack
@@ -152,6 +156,8 @@ pub const ProgramThread = struct {
 
     // Pop type of comptime size from stack
     pub inline fn pop_stack(self: *ProgramThread, comptime T: type) ProgramPanic!T {
+        // std.log.debug("{} {}", .{ self.get_bp(), self.sp });
+
         // Check for type larger than stack
         if (@sizeOf(T) > self.sp) {
             return error.EmptyStack;
@@ -167,7 +173,9 @@ pub const ProgramThread = struct {
         @memcpy(&val, stack_slice);
         @memset(stack_slice, 0);
         // Cast value
-        return @bitCast(val);
+        const val_cast: T = @bitCast(val);
+        std.log.debug("{}", .{val_cast});
+        return val_cast;
     }
 
     // Read type of comptime size from stack
@@ -188,6 +196,7 @@ pub const ProgramThread = struct {
     pub inline fn read_stack_at_offset(self: *ProgramThread, comptime T: type, offset: i64) T {
         // Pointer to bottom of value
         const temp_sp = self.offset_from_bp(offset);
+        // std.log.debug("bp {} offset {}", .{ self.get_bp(), temp_sp });
         // Get slice of stack
         const stack_slice = self.stack[temp_sp..][0..@sizeOf(T)];
         // Create copy destination
@@ -198,7 +207,6 @@ pub const ProgramThread = struct {
         return @bitCast(val);
     }
 
-    // TODO: CHeck this works
     pub inline fn write_stack_at_offset(self: *ProgramThread, comptime T: type, val: T, offset: i64) ProgramError!void {
         // Guard against stack overflow
         const temp_sp = self.offset_from_bp(offset);
@@ -207,7 +215,7 @@ pub const ProgramThread = struct {
         }
 
         const bytes: [@sizeOf(T)]u8 = @bitCast(val);
-        const stack_slice = self.stack[self.sp..][0..@sizeOf(T)];
+        const stack_slice = self.stack[temp_sp..][0..@sizeOf(T)];
         @memcpy(stack_slice, &bytes);
     }
 
@@ -231,9 +239,10 @@ pub const ProgramThread = struct {
 
         self.call_stack.append(StackFrame{
             .func_address = from,
-            .stack_frame_base = self.sp,
+            .stack_frame_base = 8,
             .unwind_addr = null,
         }) catch unreachable;
+        self.sp = 8;
 
         while (true) {
             // Get next opcode
@@ -243,8 +252,6 @@ pub const ProgramThread = struct {
                 _ = self.unwrap_call_stack(self.state.err.?);
                 return ProgramStatus.ErrorOrPanic;
             };
-
-            std.log.debug("{}", .{op});
 
             // Execute the opcode
             Opcode.execute(self, op) catch |err| {

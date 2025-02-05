@@ -22,45 +22,44 @@ pub inline fn dup(self: *ProgramThread) !void {
 }
 
 pub fn call(self: *ProgramThread, addr: u64) !void {
-    try self.push_stack(u64, addr);
+    try self.push_stack(u64, self.pc);
     self.call_stack.append(StackFrame{
         .func_address = addr,
         .stack_frame_base = self.sp,
         .unwind_addr = null,
     }) catch return;
-    self.sp = addr;
+    self.pc = addr;
 }
 
 pub fn callcu(self: *ProgramThread, addr: u64, unwind: u64) !void {
-    try self.push_stack(u64, addr);
+    try self.push_stack(u64, self.pc);
     self.call_stack.append(StackFrame{
         .func_address = addr,
         .stack_frame_base = self.sp,
         .unwind_addr = unwind,
     }) catch return;
-    self.sp = addr;
+    self.pc = addr;
 }
 
-pub inline fn ldr(self: *ProgramThread, offset: u64) !void {
-    const a: i64 = @bitCast(offset);
-    const value = self.read_stack_at_offset(u32, a);
+pub inline fn ldr(self: *ProgramThread, offset: i64) !void {
+    const value = self.read_stack_at_offset(u32, offset);
     try self.push_stack(u32, value);
 }
 
-pub inline fn str(self: *ProgramThread, offset: u64) !void {
-    const a: i64 = @bitCast(offset);
+pub inline fn str(self: *ProgramThread, offset: i64) !void {
     const b: u32 = try self.pop_stack(u32);
-    try self.write_stack_at_offset(u32, b, a);
+    try self.write_stack_at_offset(u32, b, offset);
 }
 
 pub inline fn setsp(self: *ProgramThread, offset: u64) !void {
-    self.sp = offset;
+    self.sp = self.get_bp() + offset;
 }
 
 pub inline fn ret(self: *ProgramThread) !void {
-    _ = self.call_stack.pop();
+    const stack_frame = self.call_stack.pop();
+    self.sp = stack_frame.stack_frame_base;
     const ret_address = try self.pop_stack(u64);
-    self.sp = ret_address;
+    self.pc = ret_address;
 }
 
 pub inline fn panic(self: *ProgramThread) void {
@@ -182,7 +181,9 @@ pub inline fn divl(self: *ProgramThread) !void {
 }
 
 pub inline fn printi(self: *ProgramThread) !void {
-    const a = try self.pop_stack(i32);
+    std.log.debug("{} {}", .{ self.get_bp(), self.sp });
+    const a: i32 = try self.pop_stack(i32);
+
     const stdout = std.io.getStdOut().writer();
     var bw = std.io.bufferedWriter(stdout);
     const writer = bw.writer();

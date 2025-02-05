@@ -160,9 +160,11 @@ impl Assembler<Executable> {
         // TODO: Remove cloning
         for (fid, byt) in functions {
             let func_offset = function_offsets.get(fid).unwrap();
+            debug!("{:?} at offset {}", fid, start_pos + func_offset);
 
             let mut bytecode_bin = Vec::new();
             for ins in byt.ins.iter() {
+                debug!("{:?}", ins);
                 let bytes = &ins.clone().to_bytecode().unwrap().to_bytes();
                 bytecode_bin.extend_from_slice(bytes);
             }
@@ -175,8 +177,6 @@ impl Assembler<Executable> {
                 );
             }
         }
-
-        debug!("{:#?}", buffer);
 
         self.file.write(&buffer)?;
         let end_pos = self.file.seek(SeekFrom::End(0))?;

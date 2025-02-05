@@ -92,10 +92,6 @@ impl CodeGen {
             post_offset += size as i64;
         }
 
-        // Instruction to set the SP
-        let set_sp =
-            BytecodeInstruction::new(Opcode::SETSP, [Immediate::ULong(post_offset as u64)]);
-
         let mut visit_order = Vec::new();
         let mut visited = HashSet::new();
         let mut frontier = vec![BlockID::ZERO];
@@ -163,6 +159,9 @@ impl CodeGen {
                                             Opcode::CALL,
                                             [Immediate::AddressOf(*ty_id)],
                                         ));
+                                        for _ in operands {
+                                            ins.push(BytecodeInstruction::new(Opcode::POP, []));
+                                        }
                                     }
                                     ExprKind::UnOp(un_op_kind, operand) => todo!(),
                                     ExprKind::Reference(mutable, local_id) => todo!(),
@@ -171,7 +170,16 @@ impl CodeGen {
 
                                 ins.push(self.store_local(*local_id));
                             }
-                            StmtKind::ASM(i) => ins.push(i.clone()),
+                            StmtKind::ASM(byt) => {
+                                let mut byt = byt.clone();
+                                for imm in byt.operand.iter_mut() {
+                                    if let Immediate::LocalOf(local_id) = imm {
+                                        let offset = self.offsets.get(&local_id).unwrap();
+                                        *imm = Immediate::Long(offset.offset)
+                                    }
+                                }
+                                ins.push(byt)
+                            }
                             StmtKind::Expr(expr) => todo!(),
                         }
                     }
@@ -182,7 +190,11 @@ impl CodeGen {
                             [Immediate::LabelOf(*block_id)],
                         )),
                         TerminatorKind::Return => {
-                            ins.push(BytecodeInstruction::new(Opcode::RET, []))
+                            if gir.fn_id() == self.ty_ctxt.global.entry_point() {
+                                ins.push(BytecodeInstruction::new(Opcode::HALT, []));
+                            } else {
+                                ins.push(BytecodeInstruction::new(Opcode::RET, []))
+                            }
                         }
                         TerminatorKind::Switch(operand, switch_cases) => {
                             for case in switch_cases {
@@ -235,7 +247,19 @@ impl CodeGen {
         }
 
         // Instructions
-        let mut ins = vec![set_sp];
+        let mut ins = Vec::new();
+
+        if gir.fn_id() == self.ty_ctxt.global.entry_point() {
+            post_offset += 8;
+        }
+
+        // Set the SP offset
+        if post_offset > 0 {
+            ins.push(BytecodeInstruction::new(
+                Opcode::SETSP,
+                [Immediate::ULong(post_offset as u64)],
+            ));
+        }
 
         // Calculate sizes and offsets
         let sizes = self

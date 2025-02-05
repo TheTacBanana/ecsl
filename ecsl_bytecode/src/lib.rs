@@ -105,11 +105,17 @@ impl Immediate {
     pub fn to_u64(self) -> Option<u64> {
         unsafe {
             match self {
-                Immediate::Long(v) => Some(std::mem::transmute(v)),
                 Immediate::ULong(v) => Some(std::mem::transmute(v)),
                 Immediate::Double(v) => Some(std::mem::transmute(v)),
                 _ => None,
             }
+        }
+    }
+
+    pub fn to_i64(self) -> Option<i64> {
+        match self {
+            Immediate::Long(v) => Some(v),
+            _ => None,
         }
     }
 }
@@ -134,9 +140,9 @@ pub enum Bytecode {
     DUP,
 
     /// Load the 4 bytes from [BP + offset] and push to the top of the stack
-    LDR(u64),
+    LDR(i64),
     /// Pop the top 4 bytes from top of stack to the signed offset from the BP
-    STR(u64),
+    STR(i64),
 
     /// Set the SP to the [BP + offset]
     SETSP(u64),

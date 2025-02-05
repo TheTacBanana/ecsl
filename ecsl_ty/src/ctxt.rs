@@ -12,8 +12,8 @@ pub struct TyCtxt {
     pub mappings: RwLock<BTreeMap<GlobalID, TyID>>,
     pub tyirs: RwLock<BiHashMap<TyID, TyIr>>,
     pub cur_id: RwLock<usize>,
-
     pub sizes: RwLock<BTreeMap<TyID, usize>>,
+    pub entry_point: RwLock<Option<TyID>>,
 }
 
 impl TyCtxt {
@@ -24,6 +24,7 @@ impl TyCtxt {
             tyirs: Default::default(),
             cur_id: Default::default(),
             sizes: Default::default(),
+            entry_point: Default::default(),
         };
         ty_ctxt.tyid_from_tyir(TyIr::Unknown);
         ty_ctxt.tyid_from_tyir(TyIr::Bottom);
@@ -72,6 +73,16 @@ impl TyCtxt {
         let mut sizes = self.sizes.write().unwrap();
         debug!("{:?} {:?}", id, size);
         sizes.insert(id, size);
+    }
+
+    pub fn insert_entry_point(&self, id: TyID) {
+        let mut entry = self.entry_point.write().unwrap();
+        *entry = Some(id)
+    }
+
+    pub fn entry_point(&self) -> TyID {
+        let entry = self.entry_point.read().unwrap();
+        entry.unwrap()
     }
 
     pub fn get_size(&self, id: TyID) -> usize {
