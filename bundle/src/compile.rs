@@ -1,11 +1,11 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, process::Command};
 
 use clap::Args;
 use ecsl_driver::Driver;
-use log::info;
+use log::{debug, info};
 
 use crate::cli::CommandTrait;
-use anyhow::{Ok, Result};
+use anyhow::Result;
 
 #[derive(Debug, Args)]
 pub struct Compile {
@@ -20,10 +20,26 @@ impl Compile {
 }
 
 impl CommandTrait for Compile {
-    fn execute(&mut self) -> Result<()> {
+    type In = bool;
+    type Out = ();
+
+    fn execute(&mut self, run: bool) -> Result<()> {
         self.std = std::path::absolute(&self.std).unwrap();
-        info!("Running Driver");
-        let _ = Driver::run(self.std.clone());
+        debug!("Running Driver");
+        let out = Driver::run(self.std.clone());
+
+        if !run {
+            return Ok(());
+        }
+
+        if let Ok(path) = out {
+            info!("Invoking VM");
+            Command::new("../zig-out/bin/ecslvm")
+                .args([path])
+                .spawn()
+                .unwrap();
+        }
+
         Ok(())
     }
 }

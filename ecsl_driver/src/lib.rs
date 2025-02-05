@@ -15,40 +15,40 @@ use std::{collections::BTreeMap, path::PathBuf, sync::Arc, time::Instant};
 pub struct Driver;
 
 impl Driver {
-    pub fn run(std_path: PathBuf) -> Result<(), ()> {
+    pub fn run(std_path: PathBuf) -> Result<PathBuf, ()> {
         let start_time = Instant::now();
 
         let diag = Arc::new(Diagnostics::new());
 
-        _ = Driver::inner(std_path, diag.clone());
+        let path = Driver::inner(std_path, diag.clone());
         diag.finish_stage(|_| ())?;
 
         info!("Compilation took {:?}", start_time.elapsed());
 
-        Ok(())
+        Ok(path?)
     }
 
-    fn inner(std_path: PathBuf, diag: Arc<Diagnostics>) -> Result<(), ()> {
-        info!("Starting compilation");
+    fn inner(std_path: PathBuf, diag: Arc<Diagnostics>) -> Result<PathBuf, ()> {
+        debug!("Starting compilation");
 
         // Create the context and load all dependencies of the target program
-        info!("Creating context and loading dependencies");
+        debug!("Creating context and loading dependencies");
         let path = std::env::current_dir().unwrap();
         let (context, assoc) = match Context::new(path.clone(), std_path, diag.empty_conn()) {
             Ok(ctx) => ctx,
             Err(e) => {
                 diag.push_error(e);
                 diag.finish_stage(|_| ())?;
-                return Ok(());
+                return Err(());
             }
         };
         diag.finish_stage(|_| ())?;
 
         // Create lexers externally due to lifetimes
-        info!("Lexing source files");
+        info!("Lexing");
         let mut lexers = BTreeMap::new();
         for (id, src) in context.sources() {
-            info!("Lexing source file {}", src.id);
+            debug!("Lexing source file {}", src.id);
             let lexer = src.lexer();
             lexers.insert(id, lexer);
         }
@@ -66,10 +66,10 @@ impl Driver {
         };
 
         // Parse all files
-        info!("Parsing Files");
+        info!("Parsing");
         let assoc = (&context, assoc).par_map_assoc(
             |_, src, _| {
-                info!("Parsing source file {}", src.id);
+                debug!("Parsing source file {}", src.id);
                 let lexer = lexers.get(&src.id).unwrap();
                 let diag = diag.new_conn(src.id);
 
@@ -84,7 +84,7 @@ impl Driver {
         )?;
 
         // Process the std prelude
-        info!("Getting prelude from std");
+        debug!("Getting prelude from std");
         let prelude = {
             let std_lib = context
                 .get_source_file_from_crate(&"lib".into(), context.config().std_id)
@@ -94,11 +94,11 @@ impl Driver {
         };
 
         // Include the std prelude in all files outside of std
-        info!("Including prelude into all files");
+        debug!("Including prelude into all files");
         let assoc = (&context, assoc).par_map_assoc(
             |ctxt, src, (diag, mut ast, table)| {
                 if !ctxt.in_std(src.id) {
-                    info!("Including prelude for source file {}", src.id);
+                    debug!("Including prelude for source file {}", src.id);
 
                     let lexer = lexers.get(&prelude.id).unwrap();
                     include_prelude(&prelude, &mut ast, table.clone(), lexer);
@@ -110,7 +110,7 @@ impl Driver {
         )?;
 
         // AST validation, Collect Definitions and Casing Warnings
-        info!("Validating AST, Collect Definitions and Casing Warnings");
+        info!("AST Passes");
         let ty_ctxt = Arc::new(TyCtxt::new());
         let assoc = (&context, assoc).par_map_assoc(
             |ctxt, src, (diag, ast, table)| {
@@ -126,7 +126,7 @@ impl Driver {
         )?;
 
         // Verify imports
-        info!("Verifying imports");
+        debug!("Verifying imports");
         let assoc = (&context, assoc).par_map_assoc(
             |ctxt, src, (diag, ast, table, local_ctxt)| {
                 validate_imports(src, &ctxt, local_ctxt.clone());
@@ -151,7 +151,7 @@ impl Driver {
         info!("Type Checking");
         let assoc = (&context, assoc).par_map_assoc(
             |_, _, (diag, ast, table, local_ctxt)| {
-                info!("Type Checking source file {}", ast.file);
+                debug!("Type Checking source file {}", ast.file);
                 let girs = ty_check(&ast, local_ctxt.clone());
 
                 Some((diag, ast, table, local_ctxt, girs))
@@ -160,7 +160,7 @@ impl Driver {
         )?;
 
         // Get the entry point
-        info!("Get entry point");
+        debug!("Get entry point");
         let entry_point = {
             let main_file = context
                 .get_source_file_from_crate(&"main".into(), context.config().root_id)
@@ -170,7 +170,7 @@ impl Driver {
         };
         let Some(entry_point) = entry_point else {
             diag.finish_stage(lexer_func)?;
-            return Ok(());
+            return Err(());
         };
 
         ty_ctxt.insert_entry_point(entry_point.0);
@@ -184,7 +184,7 @@ impl Driver {
         let assembler = assembler.write_temp_header().unwrap();
         let assembler = assembler.write_const_data().unwrap();
 
-        info!("GIR Passes and Code Gen");
+        info!("GIR Passes");
         let _ = (&context, assoc).par_map_assoc(
             |_, src, (diag, ast, table, local_ctxt, mut girs)| {
                 let lexer = lexers.get(&src.id).unwrap();
@@ -204,7 +204,6 @@ impl Driver {
 
         let assember = assembler.write_bytecode(entry_point.0).unwrap();
 
-        assember.output().unwrap();
-        Ok(())
+        Ok(assember.output().unwrap())
     }
 }

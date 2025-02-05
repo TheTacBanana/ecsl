@@ -201,7 +201,7 @@ impl Assembler<Out> {
     /// Write the section header at the end of the file and
     /// ammend the section header address
     /// Rename the file
-    pub fn output(mut self) -> std::io::Result<()> {
+    pub fn output(mut self) -> std::io::Result<PathBuf> {
         let start_pos = self.offset_to_alignment()?;
 
         let len = self.sections.len() as u64;
@@ -224,6 +224,6 @@ impl Assembler<Out> {
         std::fs::rename(&self.temp_path, &self.path)?;
         let _ = std::fs::remove_file(&self.temp_path);
 
-        Ok(())
+        Ok(self.path)
     }
 }
