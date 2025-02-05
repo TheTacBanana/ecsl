@@ -146,6 +146,8 @@ pub enum Bytecode {
 
     /// Set the SP to the [BP + offset]
     SETSP(u64),
+    /// Set the SP to [SP + offset]
+    SETSPR(i64),
 
     /// Push the PC (8 bytes) to the stack and jump to the address
     /// Arguments should be pushed in Left-to-Right before the return address

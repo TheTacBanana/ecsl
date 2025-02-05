@@ -55,6 +55,10 @@ pub inline fn setsp(self: *ProgramThread, offset: u64) !void {
     self.sp = self.get_bp() + offset;
 }
 
+pub inline fn setspr(self: *ProgramThread, offset: i64) !void {
+    self.sp = @intCast(@as(i64, @intCast(self.sp)) + offset);
+}
+
 pub inline fn ret(self: *ProgramThread) !void {
     const stack_frame = self.call_stack.pop();
     self.sp = stack_frame.stack_frame_base;
@@ -181,7 +185,7 @@ pub inline fn divl(self: *ProgramThread) !void {
 }
 
 pub inline fn printi(self: *ProgramThread) !void {
-    std.log.debug("{} {}", .{ self.get_bp(), self.sp });
+    // std.log.debug("{} {}", .{ self.get_bp(), self.sp });
     const a: i32 = try self.pop_stack(i32);
 
     const stdout = std.io.getStdOut().writer();

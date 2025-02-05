@@ -142,6 +142,8 @@ pub const ProgramThread = struct {
 
     // Push comptime type to stack
     pub inline fn push_stack(self: *ProgramThread, comptime T: type, val: T) ProgramError!void {
+        std.log.debug("Push {}", .{val});
+
         // Guard against stack overflow
         const new_sp = self.sp + @sizeOf(T);
         if (new_sp >= self.stack.len) {
@@ -174,7 +176,7 @@ pub const ProgramThread = struct {
         @memset(stack_slice, 0);
         // Cast value
         const val_cast: T = @bitCast(val);
-        std.log.debug("{}", .{val_cast});
+        std.log.debug("Pop {}", .{val_cast});
         return val_cast;
     }
 

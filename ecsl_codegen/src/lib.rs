@@ -7,7 +7,7 @@ use ecsl_gir::{
 };
 use ecsl_gir_pass::{const_eval::ConstMap, GIRPass};
 use ecsl_index::{BlockID, ConstID, LocalID};
-use ecsl_ty::local::LocalTyCtxt;
+use ecsl_ty::{local::LocalTyCtxt, TyIr};
 use std::{
     collections::{BTreeMap, HashSet},
     sync::Arc,
@@ -152,6 +152,18 @@ impl CodeGen {
                                         }
                                     }
                                     ExprKind::Call(ty_id, operands) => {
+                                        let TyIr::Fn(f) = self.ty_ctxt.global.get_tyir(*ty_id)
+                                        else {
+                                            panic!()
+                                        };
+                                        let size = self.ty_ctxt.global.get_size(f.ret);
+                                        if size > 0 {
+                                            ins.push(BytecodeInstruction::new(
+                                                Opcode::SETSPR,
+                                                [Immediate::Long(size as i64)],
+                                            ));
+                                        }
+
                                         for op in operands {
                                             ins.push(self.load_operand(*op));
                                         }
