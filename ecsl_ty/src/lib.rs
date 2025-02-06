@@ -1,6 +1,11 @@
 use std::collections::BTreeMap;
 
-use ecsl_ast::{data::DataKind, expr::Literal, parse::FnKind, ty::Mutable};
+use ecsl_ast::{
+    data::DataKind,
+    expr::{Literal, RangeType},
+    parse::FnKind,
+    ty::Mutable,
+};
 use ecsl_index::{FieldID, SymbolID, TyID, VariantID};
 
 pub mod ctxt;
@@ -24,8 +29,10 @@ pub enum TyIr {
     Int,
     /// Intrinsic float type
     Float,
-    // Intrinsic string type
+    /// Intrinsic string type
     String,
+    /// Range over a numeric type
+    Range(TyID, RangeType),
     /// Reference to another type
     Ref(Mutable, TyID),
     /// A struct type

@@ -53,8 +53,8 @@ impl CodeGen {
         let first_non_arg = locals
             .iter()
             .position(|(_, l)| match l.kind {
-                LocalKind::Temp | LocalKind::Let => true,
-                _ => false,
+                LocalKind::Temp | LocalKind::Let | LocalKind::Internal => true,
+                LocalKind::Arg | LocalKind::Ret => false,
             })
             .unwrap_or(locals.len());
 

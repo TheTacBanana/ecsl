@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use cfgrammar::Span;
 use cons::Constant;
-use ecsl_ast::ty::Mutable;
+use ecsl_ast::{parse::Immediate, ty::Mutable};
 use ecsl_index::{BlockID, ConstID, LocalID, TyID};
 use stmt::Stmt;
 use term::Terminator;
@@ -21,6 +21,7 @@ pub struct GIR {
     fn_id: TyID,
     locals: BTreeMap<LocalID, Local>,
     consts: BTreeMap<ConstID, Constant>,
+    internal_consts: BTreeMap<ConstID, Immediate>,
     blocks: BTreeMap<BlockID, Block>,
 }
 
@@ -51,6 +52,7 @@ impl GIR {
             fn_id,
             locals: Default::default(),
             consts: Default::default(),
+            internal_consts: Default::default(),
             blocks: Default::default(),
         }
     }
@@ -201,6 +203,7 @@ pub enum LocalKind {
     Arg,
     Temp,
     Let,
+    Internal,
 }
 
 impl std::fmt::Display for Local {

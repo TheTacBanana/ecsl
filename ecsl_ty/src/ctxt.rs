@@ -4,7 +4,7 @@ use ecsl_index::{GlobalID, SourceFileID, TyID};
 use log::debug;
 use std::{
     collections::{btree_map::Entry, BTreeMap},
-    sync::{Arc, RwLock},
+    sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard},
 };
 
 pub struct TyCtxt {
@@ -86,14 +86,23 @@ impl TyCtxt {
     }
 
     pub fn get_size(&self, id: TyID) -> usize {
-        let sizes = self.sizes.read().unwrap();
+        let mut sizes = self.sizes.write().unwrap();
         if let Some(size) = sizes.get(&id) {
             return *size;
         }
 
+        self.internal_get_size(id, &mut sizes)
+    }
+
+    fn internal_get_size(
+        &self,
+        id: TyID,
+        sizes: &mut RwLockWriteGuard<BTreeMap<TyID, usize>>,
+    ) -> usize {
         let tyir = self.get_tyir(id);
-        match tyir {
+        let size = match tyir {
             TyIr::Ref(_, _) => 8,
+            TyIr::Range(tyid, _) => self.internal_get_size(tyid, sizes),
             e => panic!("{e:?}"),
             // TyIr::String => todo!(),
             // TyIr::Struct(struct_def) => todo!(),
@@ -102,7 +111,9 @@ impl TyCtxt {
             // TyIr::Array(ty_id, _) => todo!(),
             // TyIr::ArrayRef(mutable, ty_id) => todo!(),
             // TyIr::GenericParam(_) => todo!(),
-        }
+        };
+        sizes.insert(id, size);
+        size
     }
 
     pub fn is_primitive(&self, id: TyID) -> bool {

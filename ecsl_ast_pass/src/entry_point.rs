@@ -33,10 +33,7 @@ impl Visitor for EntryPoint {
         let kind = match (symbol.name.as_str(), f.kind) {
             ("main", FnKind::Fn) => Some(EntryPointKind::MainFn),
             ("main", FnKind::Sys) => Some(EntryPointKind::MainSys),
-            (s, _) => {
-                debug!("{:?}", s);
-                None
-            }
+            (_, _) => None,
         };
         let Some(entry_point) = kind else {
             return VisitorCF::Continue;

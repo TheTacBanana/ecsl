@@ -1,4 +1,4 @@
-use ecsl_ast::expr::UnOpKind;
+use ecsl_ast::expr::{BinOpKind, RangeType, UnOpKind};
 use ecsl_ast::parse::{Immediate, ParamKind};
 use ecsl_ast::stmt::InlineBytecode;
 use ecsl_ast::ty::Mutable;
@@ -143,6 +143,17 @@ impl TyCheck {
             .unwrap()
             .get_block_mut(block)
             .unwrap()
+    }
+
+    pub fn terminate_with_new_block(
+        &mut self,
+        f: impl FnOnce(&mut ecsl_gir::Block, BlockID),
+    ) -> BlockID {
+        let orig_block = self.cur_block();
+        let next_block = self.new_block_without_stack();
+        f(self.block_mut(orig_block), next_block);
+        self.push_block_stack(next_block);
+        next_block
     }
 
     pub fn push(&mut self, tyid: TyID, operand: Operand) {
@@ -457,8 +468,161 @@ impl Visitor for TyCheck {
                     })
                 }
             }
+            StmtKind::For(symbol_id, ty, expr, block) => {
+                let ExprKind::Range(lhs, rhs, range_type) = &expr.kind else {
+                    panic!()
+                };
+
+                // Visit LHS
+                self.visit_expr(lhs.as_ref())?;
+                let (lhs_ty, lhs_op) = self.pop();
+
+                // Visit RHS
+                self.visit_expr(rhs.as_ref())?;
+                let (rhs_ty, rhs_op) = self.pop();
+
+                // Get For loop iterator Ty
+                let iterator_tyid = self.get_tyid((ty.as_ref(), &self.generic_scope));
+
+                // Unify Types
+                unify!(lhs_ty, rhs_ty, TyCheckError::RangeMustEqual);
+                unify!(iterator_tyid, lhs_ty, TyCheckError::ForLoopIterator);
+
+                // Create local ID
+                let iterator_local_id = self.new_local(Local::new(
+                    s.span,
+                    Mutable::Mut,
+                    iterator_tyid,
+                    LocalKind::Let,
+                ));
+
+                // Create Assignment Stmt
+                self.push_stmt_to_cur_block(gir::Stmt {
+                    span: s.span,
+                    kind: gir::StmtKind::Assign(
+                        iterator_local_id,
+                        Box::new(gir::Expr {
+                            span: expr.span, //TODO: Replace Span
+                            kind: gir::ExprKind::Value(lhs_op),
+                        }),
+                    ),
+                });
+
+                let internal_max = self.new_local(Local::new(
+                    rhs.span,
+                    Mutable::Imm,
+                    rhs_ty,
+                    LocalKind::Internal,
+                ));
+
+                // Create Max Value
+                self.push_stmt_to_cur_block(gir::Stmt {
+                    span: s.span,
+                    kind: gir::StmtKind::Assign(
+                        internal_max,
+                        Box::new(gir::Expr {
+                            span: expr.span, //TODO: Replace Span
+                            kind: gir::ExprKind::Value(rhs_op),
+                        }),
+                    ),
+                });
+
+                // Insert Ident into local Mapping
+                if let Some(_) = self
+                    .symbols
+                    .last_mut()
+                    .unwrap()
+                    .insert(*symbol_id, iterator_local_id)
+                {
+                    self.ty_ctxt.diag.push_error(
+                        EcslError::new(ErrorLevel::Error, TyCheckError::SymbolRedefined)
+                            .with_span(|_| s.span),
+                    );
+                    return VisitorCF::Break;
+                }
+
+                // Jump to next block
+                let cond_block = self.terminate_with_new_block(|block, next| {
+                    block.terminate(Terminator {
+                        kind: TerminatorKind::Jump(next),
+                    })
+                });
+
+                let comparison =
+                    self.new_local(Local::new(expr.span, Mutable::Imm, lhs_ty, LocalKind::Temp));
+
+                self.push_stmt_to_cur_block(gir::Stmt {
+                    span: s.span,
+                    kind: gir::StmtKind::Assign(
+                        comparison,
+                        Box::new(gir::Expr {
+                            span: expr.span,
+                            kind: gir::ExprKind::BinOp(
+                                BinOp(
+                                    OperandKind::Int,
+                                    match range_type {
+                                        RangeType::Exclusive => BinOpKind::Lt,
+                                        RangeType::Inclusive => BinOpKind::Leq,
+                                    },
+                                ),
+                                Operand::Copy(iterator_local_id),
+                                Operand::Copy(internal_max),
+                            ),
+                        }),
+                    ),
+                });
+
+                let leave_block = self.new_block_without_stack();
+
+                let _start_of_block = self.terminate_with_new_block(|block, next| {
+                    block.terminate(Terminator {
+                        kind: TerminatorKind::Switch(
+                            Operand::Move(comparison),
+                            vec![
+                                SwitchCase::Value(Immediate::Bool(true), next),
+                                SwitchCase::Default(leave_block),
+                            ],
+                        ),
+                    });
+                });
+
+                walk_block(self, block)?;
+                let _increment_block = self.terminate_with_new_block(|block, next| {
+                    block.terminate_no_replace(Terminator {
+                        kind: TerminatorKind::Jump(next),
+                    });
+                });
+
+                let one_const = self.new_constant(Constant::Internal {
+                    imm: Immediate::Int(1),
+                });
+
+                self.push_stmt_to_cur_block(gir::Stmt {
+                    span: s.span,
+                    kind: gir::StmtKind::Assign(
+                        iterator_local_id,
+                        Box::new(gir::Expr {
+                            span: expr.span,
+                            kind: gir::ExprKind::BinOp(
+                                BinOp(OperandKind::Int, BinOpKind::Add),
+                                Operand::Copy(iterator_local_id),
+                                Operand::Constant(one_const),
+                            ),
+                        }),
+                    ),
+                });
+
+                self.block_mut(self.cur_block()).terminate(Terminator {
+                    kind: TerminatorKind::Jump(cond_block),
+                });
+
+                self.push_block_stack(leave_block);
+
+                // panic!("{}", self.cur_gir())
+
+                // todo!("{}", self.cur_gir());
+            }
             e => todo!("{e:?}"),
-            // StmtKind::For(symbol_id, ty, expr, block) => todo!(),
             // StmtKind::While(expr, block) => todo!(),
             // StmtKind::Match(expr, match_arms) => todo!(),
             // StmtKind::Break => todo!(),
@@ -512,7 +676,7 @@ impl Visitor for TyCheck {
             }
             ExprKind::Lit(literal) => {
                 let tyid = self.get_tyid(TyIr::from(*literal));
-                let const_id = self.new_constant(Constant {
+                let const_id = self.new_constant(Constant::External {
                     span: e.span,
                     tyid,
                     kind: *literal,
@@ -722,6 +886,9 @@ impl Visitor for TyCheck {
 
                 Some((to_tyid, Operand::Move(local_id)))
             }
+            ExprKind::Range(_, _, _) => {
+                panic!()
+            }
             _ => todo!(),
             // ExprKind::Function(Some(expr), concrete_generics, symbol_id, exprs) => todo!(),
             // ExprKind::Assign(symbol_id, span, expr) => todo!(),
@@ -730,7 +897,6 @@ impl Visitor for TyCheck {
             // ExprKind::MethodSelf => todo!(),
             // ExprKind::Struct(ty, field_exprs) => todo!(),
             // ExprKind::Enum(ty, symbol_id, field_exprs) => todo!(),
-            // ExprKind::Range(expr, expr1, range_type) => todo!(),
             // ExprKind::Field(expr, symbol_id) => todo!(),
             // ExprKind::Entity => todo!(),
             // ExprKind::Resource => todo!(),

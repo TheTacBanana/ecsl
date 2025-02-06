@@ -197,7 +197,7 @@ pub struct FieldExpr {
     pub expr: P<Expr>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum RangeType {
     Exclusive,
     Inclusive,
