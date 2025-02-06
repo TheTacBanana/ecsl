@@ -512,11 +512,16 @@ impl Visitor for TyCheck {
             }
             ExprKind::Lit(literal) => {
                 let tyid = self.get_tyid(TyIr::from(*literal));
-                let const_id = self.new_constant(Constant{ span: e.span, tyid, kind: *literal });
+                let const_id = self.new_constant(Constant {
+                    span: e.span,
+                    tyid,
+                    kind: *literal,
+                });
 
                 Some((tyid, Operand::Constant(const_id)))
             }
-            ExprKind::Function(None, _, symbol_id, exprs) => { //TODO: Generics
+            ExprKind::Function(None, _, symbol_id, exprs) => {
+                //TODO: Generics
                 // Get TyIr
                 let TyIr::Fn(fn_tyir) = self.get_tyir(*symbol_id) else {
                     self.ty_ctxt.diag.push_error(
@@ -531,7 +536,7 @@ impl Visitor for TyCheck {
                 if ret_size > 0 {
                     self.push_stmt_to_cur_block(gir::Stmt {
                         span: e.span,
-                        kind: gir::StmtKind::ASM(ins!(SETSPR, Immediate::Long(ret_size)))
+                        kind: gir::StmtKind::ASM(ins!(SETSPR, Immediate::Long(ret_size))),
                     });
                 }
 
@@ -549,7 +554,12 @@ impl Visitor for TyCheck {
                     operands.push(*op);
                 }
 
-                let local_id = self.new_local(Local::new(e.span, Mutable::Imm, fn_tyir.ret, LocalKind::Temp));
+                let local_id = self.new_local(Local::new(
+                    e.span,
+                    Mutable::Imm,
+                    fn_tyir.ret,
+                    LocalKind::Temp,
+                ));
 
                 // Create Assignment Stmt
                 self.push_stmt_to_cur_block(gir::Stmt {
@@ -598,10 +608,11 @@ impl Visitor for TyCheck {
                     TyIr::Bool => OperandKind::Bool,
                     TyIr::Int => OperandKind::Int,
                     TyIr::Float => OperandKind::Float,
-                    _ => panic!()
+                    _ => panic!(),
                 };
 
-                let local_id = self.new_local(Local::new(e.span, Mutable::Imm, tyid, LocalKind::Temp));
+                let local_id =
+                    self.new_local(Local::new(e.span, Mutable::Imm, tyid, LocalKind::Temp));
 
                 // Create Assignment Stmt
                 self.push_stmt_to_cur_block(gir::Stmt {
@@ -641,10 +652,11 @@ impl Visitor for TyCheck {
                     TyIr::Bool => OperandKind::Bool,
                     TyIr::Int => OperandKind::Int,
                     TyIr::Float => OperandKind::Float,
-                    _ => panic!()
+                    _ => panic!(),
                 };
 
-                let local_id = self.new_local(Local::new(e.span, Mutable::Imm, mapped_ty, LocalKind::Temp));
+                let local_id =
+                    self.new_local(Local::new(e.span, Mutable::Imm, mapped_ty, LocalKind::Temp));
 
                 // Create Assignment Stmt
                 self.push_stmt_to_cur_block(gir::Stmt {
@@ -660,11 +672,56 @@ impl Visitor for TyCheck {
 
                 Some((mapped_ty, Operand::Move(local_id)))
             }
-            ,
+            ExprKind::Cast(expr, ty) => {
+                // Visit expr
+                self.visit_expr(expr)?;
+                let (e_ty, e_op) = self.pop();
 
-            // ExprKind::Cast(expr, ty) => {
+                let from = self.get_tyir(e_ty);
+                let to_tyid = self.get_tyid((ty.as_ref(), &self.generic_scope));
+                let to_tyir = self.get_tyir(to_tyid);
 
-            // },
+                use ecsl_gir::expr::{Expr, ExprKind};
+                let expr = match (from, to_tyir) {
+                    (TyIr::Int, TyIr::Float) => {
+                        ExprKind::Cast(e_op, OperandKind::Int, OperandKind::Float)
+                    }
+                    (TyIr::Float, TyIr::Int) => {
+                        ExprKind::Cast(e_op, OperandKind::Float, OperandKind::Int)
+                    }
+                    (l, r) if l == r => {
+                        self.ty_ctxt.diag.push_error(
+                            EcslError::new(ErrorLevel::Error, TyCheckError::RedundantCast)
+                                .with_span(|_| e.span),
+                        );
+                        return VisitorCF::Break;
+                    }
+                    (_, _) => {
+                        self.ty_ctxt.diag.push_error(
+                            EcslError::new(ErrorLevel::Error, TyCheckError::InvalidCast)
+                                .with_span(|_| e.span),
+                        );
+                        return VisitorCF::Break;
+                    }
+                };
+
+                let local_id =
+                    self.new_local(Local::new(e.span, Mutable::Imm, to_tyid, LocalKind::Temp));
+
+                // Create Assignment Stmt
+                self.push_stmt_to_cur_block(gir::Stmt {
+                    span: e.span,
+                    kind: gir::StmtKind::Assign(
+                        local_id,
+                        Box::new(Expr {
+                            span: e.span,
+                            kind: expr,
+                        }),
+                    ),
+                });
+
+                Some((to_tyid, Operand::Move(local_id)))
+            }
             _ => todo!(),
             // ExprKind::Function(Some(expr), concrete_generics, symbol_id, exprs) => todo!(),
             // ExprKind::Assign(symbol_id, span, expr) => todo!(),
@@ -700,6 +757,8 @@ pub enum TyCheckError {
     SymbolRedefined,
     ExpectedBoolean,
     InvalidOperation,
+    InvalidCast,
+    RedundantCast,
     AssignWrongType,
     FunctionReturnType,
     ForLoopIterator,
@@ -727,6 +786,8 @@ impl std::fmt::Display for TyCheckError {
             TyCheckError::SymbolDoesntExistBytecode => {
                 "Symbol specified in bytecode does not exist"
             }
+            TyCheckError::InvalidCast => "Cannot perform cast between types",
+            TyCheckError::RedundantCast => "Cast is redundant",
         };
         write!(f, "{}", s)
     }
