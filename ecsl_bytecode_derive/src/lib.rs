@@ -110,6 +110,7 @@ fn generate(e: &DataEnum) -> TokenStream {
 
     quote! {
         #[derive(Debug, Clone, Copy, Eq, PartialEq)]
+        #[allow(non_camel_case_types)]
         pub enum Opcode {
             #(#variant_names),*
         }

@@ -9,9 +9,10 @@ use ecsl_ast::{
     stmt::{Block, Stmt, StmtKind},
     visit::{walk_block, FnCtxt, Visitor, VisitorCF},
 };
+use ecsl_bytecode::ins;
 use ecsl_error::{ext::EcslErrorExt, EcslError, ErrorLevel};
 use ecsl_gir::cons::Constant;
-use ecsl_gir::expr::Operand;
+use ecsl_gir::expr::{BinOp, Operand, OperandKind, UnOp};
 use ecsl_gir::term::{SwitchCase, Terminator, TerminatorKind};
 use ecsl_gir::{Local, LocalKind, GIR};
 use ecsl_index::{BlockID, ConstID, LocalID, SymbolID, TyID};
@@ -368,8 +369,8 @@ impl Visitor for TyCheck {
                                 kind: TerminatorKind::Switch(
                                     cond_op,
                                     vec![
-                                        SwitchCase::Value(0, to_next),
-                                        SwitchCase::Default(start_of_block),
+                                        SwitchCase::Value(Immediate::Bool(true), start_of_block),
+                                        SwitchCase::Default(to_next),
                                     ],
                                 ),
                             });
@@ -510,21 +511,12 @@ impl Visitor for TyCheck {
                 Some((local.tyid, Operand::Copy(found.unwrap())))
             }
             ExprKind::Lit(literal) => {
-                let const_id = self.new_constant(Constant::from_literal(*literal, e.span));
-
                 let tyid = self.get_tyid(TyIr::from(*literal));
+                let const_id = self.new_constant(Constant{ span: e.span, tyid, kind: *literal });
 
                 Some((tyid, Operand::Constant(const_id)))
             }
             ExprKind::Function(None, _, symbol_id, exprs) => { //TODO: Generics
-                // Iter over all expressions
-                let mut exprs_tys = Vec::new();
-                for expr in exprs {
-                    self.visit_expr(expr)?;
-                    let (ty, op) = self.pop();
-                    exprs_tys.push((ty, op, expr.span))
-                }
-
                 // Get TyIr
                 let TyIr::Fn(fn_tyir) = self.get_tyir(*symbol_id) else {
                     self.ty_ctxt.diag.push_error(
@@ -533,6 +525,23 @@ impl Visitor for TyCheck {
                     );
                     return VisitorCF::Break;
                 };
+
+                // Preallocate the size of the retun value on the stack
+                let ret_size = self.ty_ctxt.global.get_size(fn_tyir.ret) as i64;
+                if ret_size > 0 {
+                    self.push_stmt_to_cur_block(gir::Stmt {
+                        span: e.span,
+                        kind: gir::StmtKind::ASM(ins!(SETSPR, Immediate::Long(ret_size)))
+                    });
+                }
+
+                // Iter over all expressions
+                let mut exprs_tys = Vec::new();
+                for expr in exprs {
+                    self.visit_expr(expr)?;
+                    let (ty, op) = self.pop();
+                    exprs_tys.push((ty, op, expr.span))
+                }
 
                 let mut operands = Vec::new();
                 for ((l, op, span), r) in exprs_tys.iter().zip(&fn_tyir.params) {
@@ -585,6 +594,13 @@ impl Visitor for TyCheck {
                     return VisitorCF::Break;
                 };
 
+                let op_kind = match self.get_tyir(lhs_ty) {
+                    TyIr::Bool => OperandKind::Bool,
+                    TyIr::Int => OperandKind::Int,
+                    TyIr::Float => OperandKind::Float,
+                    _ => panic!()
+                };
+
                 let local_id = self.new_local(Local::new(e.span, Mutable::Imm, tyid, LocalKind::Temp));
 
                 // Create Assignment Stmt
@@ -594,7 +610,7 @@ impl Visitor for TyCheck {
                         local_id,
                         Box::new(gir::Expr {
                             span: e.span, //TODO: Replace Span
-                            kind: gir::ExprKind::BinOp(*op, lhs_op, rhs_op),
+                            kind: gir::ExprKind::BinOp(BinOp(op_kind, *op), lhs_op, rhs_op),
                         }),
                     ),
                 });
@@ -621,6 +637,13 @@ impl Visitor for TyCheck {
                     }
                 };
 
+                let op_kind = match self.get_tyir(e_ty) {
+                    TyIr::Bool => OperandKind::Bool,
+                    TyIr::Int => OperandKind::Int,
+                    TyIr::Float => OperandKind::Float,
+                    _ => panic!()
+                };
+
                 let local_id = self.new_local(Local::new(e.span, Mutable::Imm, mapped_ty, LocalKind::Temp));
 
                 // Create Assignment Stmt
@@ -630,7 +653,7 @@ impl Visitor for TyCheck {
                         local_id,
                         Box::new(gir::Expr {
                             span: e.span, //TODO: Replace Span
-                            kind: gir::ExprKind::UnOp(*op, e_op),
+                            kind: gir::ExprKind::UnOp(UnOp(op_kind, *op), e_op),
                         }),
                     ),
                 });
@@ -662,7 +685,6 @@ impl Visitor for TyCheck {
             self.push(ty, op);
             VisitorCF::Continue
         } else {
-            self.push(TyID::UNKNOWN, Operand::Unknown);
             VisitorCF::Break
         }
     }

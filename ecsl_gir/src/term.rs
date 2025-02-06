@@ -1,3 +1,4 @@
+use ecsl_ast::parse::Immediate;
 use ecsl_index::BlockID;
 
 use crate::expr::Operand;
@@ -41,14 +42,14 @@ impl std::fmt::Display for TerminatorKind {
 
 #[derive(Debug)]
 pub enum SwitchCase {
-    Value(i32, BlockID),
+    Value(Immediate, BlockID),
     Default(BlockID),
 }
 
 impl std::fmt::Display for SwitchCase {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            SwitchCase::Value(v, block_id) => write!(f, "{} -> {}", v, block_id),
+            SwitchCase::Value(v, block_id) => write!(f, "{:?} -> {}", v, block_id),
             SwitchCase::Default(block_id) => write!(f, "default -> {}", block_id),
         }
     }

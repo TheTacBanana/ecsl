@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 ecsl_ast = { path = "../ecsl_ast" }
+ecsl_bytecode = { path = "../ecsl_bytecode" }
 ecsl_ty = { path = "../ecsl_ty" }
 ecsl_error = { path = "../ecsl_error" }
 ecsl_index = { path = "../ecsl_index" }

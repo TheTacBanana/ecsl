@@ -1,13 +1,15 @@
-use ecsl_bytecode::{ext::BytecodeExt, BytecodeInstruction, FunctionBytecode, Immediate, Opcode};
+use ecsl_bytecode::{
+    ext::BytecodeExt, ins, BytecodeInstruction, FunctionBytecode, Immediate, Opcode,
+};
 use ecsl_gir::{
-    expr::{BinOpKind, ExprKind, Operand},
+    expr::{BinOp, BinOpKind, ExprKind, Operand, OperandKind, UnOp, UnOpKind},
     stmt::StmtKind,
     term::{SwitchCase, TerminatorKind},
-    LocalKind, GIR, P,
+    LocalKind, GIR,
 };
 use ecsl_gir_pass::{const_eval::ConstMap, GIRPass};
 use ecsl_index::{BlockID, ConstID, LocalID};
-use ecsl_ty::{local::LocalTyCtxt, TyIr};
+use ecsl_ty::local::LocalTyCtxt;
 use log::debug;
 use std::{
     collections::{BTreeMap, HashSet},
@@ -110,78 +112,82 @@ impl CodeGen {
                 visit_order.push(*block_id);
 
                 {
-                    let mut ins = Vec::new();
+                    let mut instrs = Vec::new();
                     let block = gir.get_block(*block_id).unwrap();
                     for s in block.stmts() {
                         match &s.kind {
                             StmtKind::Assign(local_id, expr) => {
                                 match &expr.kind {
                                     ExprKind::Value(operand) => {
-                                        ins.push(self.load_operand(*operand));
+                                        instrs.push(self.load_operand(*operand));
                                     }
-                                    ExprKind::BinOp(bin_op_kind, lhs, rhs) => {
-                                        ins.push(self.load_operand(*lhs));
-                                        ins.push(self.load_operand(*rhs));
+                                    ExprKind::BinOp(op, lhs, rhs) => {
+                                        instrs.push(self.load_operand(*lhs));
+                                        instrs.push(self.load_operand(*rhs));
 
-                                        match bin_op_kind {
-                                            BinOpKind::Add => {
-                                                ins.push(BytecodeInstruction::new(Opcode::ADDI, []))
-                                            }
-                                            BinOpKind::Sub => {
-                                                ins.push(BytecodeInstruction::new(Opcode::SUBI, []))
-                                            }
-                                            BinOpKind::Mul => {
-                                                ins.push(BytecodeInstruction::new(Opcode::MULI, []))
-                                            }
-                                            BinOpKind::Div => {
-                                                ins.push(BytecodeInstruction::new(Opcode::DIVI, []))
-                                            }
-                                            BinOpKind::Eq => {
-                                                ins.push(BytecodeInstruction::new(
-                                                    Opcode::CMPI,
-                                                    [],
-                                                ));
-                                            }
-                                            _ => panic!(),
-                                            // BinOpKind::And => todo!(),
-                                            // BinOpKind::Or => todo!(),
-                                            // BinOpKind::Neq => todo!(),
-                                            // BinOpKind::Lt => todo!(),
-                                            // BinOpKind::Leq => todo!(),
-                                            // BinOpKind::Gt => todo!(),
-                                            // BinOpKind::Geq => todo!(),
-                                        }
+                                        use OperandKind as OpKind;
+                                        instrs.push(match op {
+                                            BinOp(OpKind::Int, BinOpKind::Add) => ins!(ADD_I),
+                                            BinOp(OpKind::Int, BinOpKind::Sub) => ins!(SUB_I),
+                                            BinOp(OpKind::Int, BinOpKind::Mul) => ins!(MUL_I),
+                                            BinOp(OpKind::Int, BinOpKind::Div) => ins!(DIV_I),
+                                            BinOp(OpKind::Int, BinOpKind::Eq) => ins!(EQ_I),
+                                            BinOp(OpKind::Int, BinOpKind::Neq) => ins!(NEQ_I),
+                                            BinOp(OpKind::Int, BinOpKind::Lt) => ins!(LT_I),
+                                            BinOp(OpKind::Int, BinOpKind::Leq) => ins!(LEQ_I),
+                                            BinOp(OpKind::Int, BinOpKind::Gt) => ins!(GT_I),
+                                            BinOp(OpKind::Int, BinOpKind::Geq) => ins!(GEQ_I),
+
+                                            BinOp(OpKind::Float, BinOpKind::Add) => ins!(ADD_F),
+                                            BinOp(OpKind::Float, BinOpKind::Sub) => ins!(SUB_F),
+                                            BinOp(OpKind::Float, BinOpKind::Mul) => ins!(MUL_F),
+                                            BinOp(OpKind::Float, BinOpKind::Div) => ins!(DIV_F),
+                                            BinOp(OpKind::Float, BinOpKind::Eq) => ins!(EQ_F),
+                                            BinOp(OpKind::Float, BinOpKind::Neq) => ins!(NEQ_F),
+                                            BinOp(OpKind::Float, BinOpKind::Lt) => ins!(LT_F),
+                                            BinOp(OpKind::Float, BinOpKind::Leq) => ins!(LEQ_F),
+                                            BinOp(OpKind::Float, BinOpKind::Gt) => ins!(GT_F),
+                                            BinOp(OpKind::Float, BinOpKind::Geq) => ins!(GEQ_F),
+
+                                            BinOp(OperandKind::Bool, BinOpKind::Eq) => ins!(EQ_B),
+                                            BinOp(OperandKind::Bool, BinOpKind::Neq) => ins!(NEQ_B),
+                                            BinOp(OperandKind::Bool, BinOpKind::And) => ins!(AND_B),
+                                            BinOp(OperandKind::Bool, BinOpKind::Or) => ins!(OR_B),
+
+                                            e => panic!("{:?}", e),
+                                        });
                                     }
                                     ExprKind::Call(ty_id, operands) => {
-                                        let TyIr::Fn(f) = self.ty_ctxt.global.get_tyir(*ty_id)
-                                        else {
-                                            panic!()
-                                        };
-                                        let size = self.ty_ctxt.global.get_size(f.ret);
-                                        if size > 0 {
-                                            ins.push(BytecodeInstruction::new(
-                                                Opcode::SETSPR,
-                                                [Immediate::Long(size as i64)],
-                                            ));
-                                        }
-
                                         for op in operands {
-                                            ins.push(self.load_operand(*op));
+                                            instrs.push(self.load_operand(*op));
                                         }
-                                        ins.push(BytecodeInstruction::new(
-                                            Opcode::CALL,
-                                            [Immediate::AddressOf(*ty_id)],
-                                        ));
+                                        instrs.push(ins!(CALL, Immediate::AddressOf(*ty_id)));
                                         for _ in operands {
-                                            ins.push(BytecodeInstruction::new(Opcode::POP, []));
+                                            instrs.push(ins!(POP));
                                         }
                                     }
-                                    ExprKind::UnOp(un_op_kind, operand) => todo!(),
+                                    ExprKind::UnOp(op, operand) => {
+                                        instrs.push(self.load_operand(*operand));
+
+                                        instrs.push(match op {
+                                            UnOp(OperandKind::Int, UnOpKind::Neg) => ins!(NEG_I),
+                                            UnOp(OperandKind::Float, UnOpKind::Neg) => ins!(NEG_F),
+                                            UnOp(OperandKind::Bool, UnOpKind::Not) => ins!(NOT_B),
+                                            e => panic!("{:?}", e),
+                                        })
+                                    }
+                                    ExprKind::Cast(operand, from, to) => {
+                                        instrs.push(self.load_operand(*operand));
+                                        instrs.push(match (from, to) {
+                                            (OperandKind::Int, OperandKind::Float) => ins!(ITF),
+                                            (OperandKind::Float, OperandKind::Int) => ins!(FTI),
+                                            e => panic!("{:?}", e),
+                                        })
+                                    }
                                     ExprKind::Reference(mutable, local_id) => todo!(),
-                                    ExprKind::Cast(operand, ty_id) => todo!(),
                                 }
 
-                                ins.push(self.store_local(*local_id));
+                                instrs.push(self.store_local(*local_id));
                             }
                             StmtKind::ASM(byt) => {
                                 let mut byt = byt.clone();
@@ -191,22 +197,22 @@ impl CodeGen {
                                         *imm = Immediate::Long(offset.offset)
                                     }
                                 }
-                                ins.push(byt)
+                                instrs.push(byt)
                             }
                             StmtKind::Expr(expr) => todo!(),
                         }
                     }
 
                     match &block.term().kind {
-                        TerminatorKind::Jump(block_id) => ins.push(BytecodeInstruction::new(
+                        TerminatorKind::Jump(block_id) => instrs.push(BytecodeInstruction::new(
                             Opcode::JMP,
                             [Immediate::LabelOf(*block_id)],
                         )),
                         TerminatorKind::Return => {
                             if gir.fn_id() == self.ty_ctxt.global.entry_point() {
-                                ins.push(BytecodeInstruction::new(Opcode::HALT, []));
+                                instrs.push(BytecodeInstruction::new(Opcode::HALT, []));
                             } else {
-                                ins.push(BytecodeInstruction::new(Opcode::RET, []))
+                                instrs.push(BytecodeInstruction::new(Opcode::RET, []))
                             }
                         }
                         TerminatorKind::Switch(operand, switch_cases) => {
@@ -214,29 +220,35 @@ impl CodeGen {
                             for case in switch_cases {
                                 match case {
                                     SwitchCase::Value(value, block_id) => {
-                                        ins.push(self.load_operand(*operand));
-                                        ins.push(BytecodeInstruction::new(
-                                            Opcode::PSHIB,
-                                            [Immediate::Byte(*value as i8)],
-                                        ));
-                                        ins.push(BytecodeInstruction::new(Opcode::CMPB, []));
-                                        ins.push(BytecodeInstruction::new(
-                                            Opcode::JEZ,
-                                            [Immediate::LabelOf(*block_id)],
-                                        ));
+                                        instrs.push(self.load_operand(*operand));
+
+                                        instrs.extend(match value {
+                                            Immediate::Bool(_) => {
+                                                vec![ins!(JMPT, Immediate::LabelOf(*block_id))]
+                                            }
+                                            Immediate::Int(_) => vec![
+                                                ins!(PSHI, *value),
+                                                ins!(EQ_I),
+                                                ins!(JMPT, Immediate::LabelOf(*block_id)),
+                                            ],
+                                            Immediate::Float(_) => vec![
+                                                ins!(PSHI, *value),
+                                                ins!(EQ_F),
+                                                ins!(JMPT, Immediate::LabelOf(*block_id)),
+                                            ],
+
+                                            e => panic!("{:?}", e),
+                                        })
                                     }
                                     SwitchCase::Default(block_id) => {
-                                        ins.push(BytecodeInstruction::new(
-                                            Opcode::JMP,
-                                            [Immediate::LabelOf(*block_id)],
-                                        ))
+                                        instrs.push(ins!(JMP, Immediate::LabelOf(*block_id)))
                                     }
                                 }
                             }
                         }
                     }
 
-                    self.blocks.insert(*block_id, ins);
+                    self.blocks.insert(*block_id, instrs);
                 }
 
                 // Extend frontier
@@ -311,21 +323,20 @@ impl CodeGen {
         match operand {
             Operand::Copy(local_id) | Operand::Move(local_id) => self.load_local(local_id),
             Operand::Constant(const_id) => self.load_const(const_id),
-            Operand::Unknown => panic!(),
         }
     }
 
     pub fn load_const(&self, cons: ConstID) -> BytecodeInstruction {
         let cons = self.const_map.get(&cons).unwrap();
         match cons {
-            Immediate::AddressOf(_) => BytecodeInstruction::new(Opcode::PSHIL, [*cons]),
-            Immediate::LabelOf(_) => BytecodeInstruction::new(Opcode::PSHIL, [*cons]),
-            Immediate::Int(_) => BytecodeInstruction::new(Opcode::PSHI, [*cons]),
-            Immediate::Byte(_) => BytecodeInstruction::new(Opcode::PSHIB, [*cons]),
-            Immediate::UByte(_) => BytecodeInstruction::new(Opcode::PSHIB, [*cons]),
+            Immediate::AddressOf(_) => ins!(PSHI_L, *cons),
+            Immediate::LabelOf(_) => ins!(PSHI_L, *cons),
+            Immediate::Int(_) => ins!(PSHI, *cons),
+            Immediate::Bool(_) => ins!(PSHI_B, *cons),
+            Immediate::UByte(_) => ins!(PSHI_B, *cons),
+            Immediate::Float(_) => ins!(PSHI, *cons),
             e => panic!("{:?}", e),
             // Immediate::UInt(_) => todo!(),
-            // Immediate::Float(_) => todo!(),
             // Immediate::Long(_) => todo!(),
             // Immediate::ULong(_) => todo!(),
             // Immediate::Double(_) => todo!(),
@@ -347,65 +358,4 @@ impl CodeGen {
             BytecodeInstruction::new(Opcode::NOP, [])
         }
     }
-
-    // pub fn generate_block(&mut self, gir: &GIR, block: &Block) -> Vec<BytecodeInstruction> {
-    //     let mut instructions = Vec::new();
-    //     for s in block.stmts() {
-    //         match &s.kind {
-    //             StmtKind::ASM(ins) => {
-    //                 instructions.push(ins.clone());
-    //             }
-    //             StmtKind::Assign(local_id, expr) => {}
-    //             StmtKind::Expr(expr) => todo!(),
-    //         }
-    //     }
-    //     let term = block.term();
-    //     instructions.extend(self.generate_term(gir, term));
-    //     instructions
-    // }
-
-    // pub fn generate_expr(
-    //     &mut self,
-    //     gir: &GIR,
-    //     expr: &Expr,
-    // ) -> impl IntoIterator<Item = BytecodeInstruction> {
-    //     match expr.kind {
-    //         ExprKind::Value(Operand::Constant(const_id)) => {
-    //             let c = self.const_map.get(&const_id).unwrap();
-    //             BytecodeInstruction::new(Opcode::PSHI, [*c]);
-    //         }
-    //         ExprKind::Value(Operand::Move(local_id)) => {
-    //             panic!()
-    //         }
-    //         ExprKind::Value(Operand::Copy(local_id)) => {
-    //             panic!()
-    //         }
-    //         ExprKind::Value(Operand::Unknown) => {
-    //             panic!()
-    //         }
-    //         ExprKind::BinOp(bin_op_kind, operand, operand1) => match bin_op_kind {},
-    //         ExprKind::UnOp(un_op_kind, operand) => todo!(),
-    //         ExprKind::Call(ty_id, operands) => todo!(),
-
-    //         ExprKind::Reference(mutable, local_id) => todo!(),
-    //         ExprKind::Cast(operand, ty_id) => todo!(),
-    //     }
-    // }
-
-    // pub fn generate_term(
-    //     &mut self,
-    //     gir: &GIR,
-    //     term: &Terminator,
-    // ) -> impl IntoIterator<Item = BytecodeInstruction> {
-    //     match &term.kind {
-    //         TerminatorKind::Jump(block_id) => [BytecodeInstruction::new(
-    //             Opcode::JRE,
-    //             [Immediate::LabelOf(*block_id)],
-    //         )],
-    //         TerminatorKind::Return => [BytecodeInstruction::new(Opcode::RET, [])],
-    //         TerminatorKind::Switch(operand, switch_cases) => {
-    //             todo!()
-    //         }
-    //     }
-    // }
 }

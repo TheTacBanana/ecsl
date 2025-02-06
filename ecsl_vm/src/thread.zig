@@ -156,6 +156,12 @@ pub const ProgramThread = struct {
         self.sp = new_sp;
     }
 
+    pub inline fn pop_pair(self: *ProgramThread, comptime T: type) ProgramPanic!struct { l: T, r: T } {
+        const r = try self.pop_stack(T);
+        const l = try self.pop_stack(T);
+        return .{ .l = l, .r = r };
+    }
+
     // Pop type of comptime size from stack
     pub inline fn pop_stack(self: *ProgramThread, comptime T: type) ProgramPanic!T {
         // std.log.debug("{} {}", .{ self.get_bp(), self.sp });

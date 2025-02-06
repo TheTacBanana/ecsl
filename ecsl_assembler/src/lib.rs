@@ -1,10 +1,10 @@
 use std::collections::BTreeMap;
-use std::io::{self, prelude::*, SeekFrom};
+use std::io::{prelude::*, SeekFrom};
 use std::marker::PhantomData;
 use std::sync::RwLock;
 use std::{fs::File, path::PathBuf};
 
-use ecsl_bytecode::{Bytecode, FunctionBytecode, Immediate};
+use ecsl_bytecode::{FunctionBytecode, Immediate};
 use ecsl_index::TyID;
 use header::{FileType, SectionPointer, SectionType};
 use log::debug;

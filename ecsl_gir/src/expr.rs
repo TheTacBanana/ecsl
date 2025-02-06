@@ -1,8 +1,6 @@
 use cfgrammar::Span;
-pub use ecsl_ast::{
-    expr::{BinOpKind, UnOpKind},
-    ty::Mutable,
-};
+pub use ecsl_ast::expr::{BinOpKind, UnOpKind};
+pub use ecsl_ast::ty::Mutable;
 use ecsl_index::{ConstID, LocalID, TyID};
 
 #[derive(Debug)]
@@ -20,10 +18,11 @@ impl std::fmt::Display for Expr {
 #[derive(Debug)]
 pub enum ExprKind {
     Value(Operand),
-    BinOp(BinOpKind, Operand, Operand),
-    UnOp(UnOpKind, Operand),
+    BinOp(BinOp, Operand, Operand),
+    UnOp(UnOp, Operand),
     Reference(Mutable, LocalID),
-    Cast(Operand, TyID),
+    /// From To
+    Cast(Operand, OperandKind, OperandKind),
     Call(TyID, Vec<Operand>),
 }
 
@@ -32,9 +31,9 @@ impl std::fmt::Display for ExprKind {
         match self {
             ExprKind::Value(operand) => write!(f, "{}", operand),
             ExprKind::BinOp(op, lhs, rhs) => {
-                write!(f, "{} {} {}", lhs, op, rhs)
+                write!(f, "{} {:?} {}", lhs, op, rhs)
             }
-            ExprKind::UnOp(op, operand) => write!(f, "{} {}", op, operand),
+            ExprKind::UnOp(op, operand) => write!(f, "{:?} {}", op, operand),
             ExprKind::Reference(mutable, local_id) => write!(f, "{} {}", mutable, local_id),
             ExprKind::Call(ty_id, operands) => {
                 write!(f, "{}(", ty_id)?;
@@ -43,14 +42,13 @@ impl std::fmt::Display for ExprKind {
                 }
                 write!(f, ")")
             }
-            ExprKind::Cast(operand, ty_id) => write!(f, "{} as {}", operand, ty_id),
+            ExprKind::Cast(operand, from, to) => write!(f, "{} -> {:?} as {:?}", operand, from, to),
         }
     }
 }
 
 #[derive(Debug, Clone, Copy)]
 pub enum Operand {
-    Unknown,
     Copy(LocalID),
     Move(LocalID),
     Constant(ConstID),
@@ -59,10 +57,22 @@ pub enum Operand {
 impl std::fmt::Display for Operand {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Operand::Unknown => write!(f, "??"),
             Operand::Copy(local_id) => write!(f, "{} Copied", local_id),
             Operand::Move(local_id) => write!(f, "{} Moved", local_id),
             Operand::Constant(const_id) => write!(f, "C{}", const_id),
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BinOp(pub OperandKind, pub BinOpKind);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct UnOp(pub OperandKind, pub UnOpKind);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OperandKind {
+    Bool,
+    Int,
+    Float,
 }

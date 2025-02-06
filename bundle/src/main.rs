@@ -1,7 +1,7 @@
 use anyhow::Result;
 use clap::Parser;
 use cli::{Cli, CommandTrait};
-use log::{debug, info};
+use log::debug;
 
 pub mod cli;
 pub mod compile;
