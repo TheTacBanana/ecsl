@@ -37,6 +37,8 @@ impl CommandTrait for Compile {
             Command::new("../zig-out/bin/ecslvm")
                 .args([path])
                 .spawn()
+                .unwrap()
+                .wait()
                 .unwrap();
         }
 

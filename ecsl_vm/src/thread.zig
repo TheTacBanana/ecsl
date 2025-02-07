@@ -2,6 +2,7 @@ const std = @import("std");
 const vm = @import("vm.zig");
 const Opcode = @import("opcode.zig").Opcode;
 const ins = @import("instruction.zig");
+const build_options = @import("build_options");
 
 pub const ProgramThread = struct {
     vm_ptr: *const vm.EcslVM,
@@ -126,7 +127,7 @@ pub const ProgramThread = struct {
         return @intCast(bp + offset); // This might fail if your stack is 8192 Petabytes Big
     }
 
-    pub inline fn next_immediate(self: *ProgramThread, comptime T: type) T {
+    pub fn next_immediate(self: *ProgramThread, comptime T: type) T {
         const pc = self.pc;
         const bin = self.vm_ptr.binary;
         var array = [_]u8{0} ** @sizeOf(T);
@@ -141,7 +142,7 @@ pub const ProgramThread = struct {
     }
 
     // Push comptime type to stack
-    pub inline fn push_stack(self: *ProgramThread, comptime T: type, val: T) ProgramError!void {
+    pub fn push_stack(self: *ProgramThread, comptime T: type, val: T) ProgramError!void {
         std.log.debug("Push {}", .{val});
 
         // Guard against stack overflow
@@ -156,16 +157,14 @@ pub const ProgramThread = struct {
         self.sp = new_sp;
     }
 
-    pub inline fn pop_pair(self: *ProgramThread, comptime T: type) ProgramPanic!struct { l: T, r: T } {
+    pub fn pop_pair(self: *ProgramThread, comptime T: type) ProgramPanic!struct { l: T, r: T } {
         const r = try self.pop_stack(T);
         const l = try self.pop_stack(T);
         return .{ .l = l, .r = r };
     }
 
     // Pop type of comptime size from stack
-    pub inline fn pop_stack(self: *ProgramThread, comptime T: type) ProgramPanic!T {
-        // std.log.debug("{} {}", .{ self.get_bp(), self.sp });
-
+    pub fn pop_stack(self: *ProgramThread, comptime T: type) ProgramPanic!T {
         // Check for type larger than stack
         if (@sizeOf(T) > self.sp) {
             return error.EmptyStack;
@@ -177,9 +176,12 @@ pub const ProgramThread = struct {
         const stack_slice = self.stack[self.sp..][0..@sizeOf(T)];
         // Create copy destination
         var val = [_]u8{0} ** @sizeOf(T);
-        // Copy and zero out original slice
+        // Copy slice
         @memcpy(&val, stack_slice);
-        @memset(stack_slice, 0);
+        // Zero memory if configured to
+        if (build_options.zero_memory) {
+            @memset(stack_slice, 0);
+        }
         // Cast value
         const val_cast: T = @bitCast(val);
         std.log.debug("Pop {}", .{val_cast});
@@ -187,7 +189,7 @@ pub const ProgramThread = struct {
     }
 
     // Read type of comptime size from stack
-    pub inline fn read_stack(self: *ProgramThread, comptime T: type) T {
+    pub fn read_stack(self: *ProgramThread, comptime T: type) T {
         // Pointer to bottom of value
         const temp_sp = self.sp - @sizeOf(T);
         // Get slice of stack
@@ -201,7 +203,7 @@ pub const ProgramThread = struct {
     }
 
     // Read type of comptime size from stack
-    pub inline fn read_stack_at_offset(self: *ProgramThread, comptime T: type, offset: i64) T {
+    pub fn read_stack_at_offset(self: *ProgramThread, comptime T: type, offset: i64) T {
         // Pointer to bottom of value
         const temp_sp = self.offset_from_bp(offset);
         // std.log.debug("bp {} offset {}", .{ self.get_bp(), temp_sp });
@@ -215,7 +217,7 @@ pub const ProgramThread = struct {
         return @bitCast(val);
     }
 
-    pub inline fn write_stack_at_offset(self: *ProgramThread, comptime T: type, val: T, offset: i64) ProgramError!void {
+    pub fn write_stack_at_offset(self: *ProgramThread, comptime T: type, val: T, offset: i64) ProgramError!void {
         // Guard against stack overflow
         const temp_sp = self.offset_from_bp(offset);
         if (temp_sp >= self.stack.len) {
@@ -232,14 +234,16 @@ pub const ProgramThread = struct {
         if (new_sp > self.sp) {
             return;
         }
+        // Zero memory
+        if (build_options.zero_memory) {
+            const old_sp = self.sp;
+            // Get slice of stack
+            const stack_slice = self.stack[self.sp..][0..(old_sp - self.sp)];
+            // Zero out slice
+            @memset(stack_slice, 0);
+        }
         // Replace SP
-        const old_sp = self.sp;
         self.sp = new_sp;
-
-        // Get slice of stack
-        const stack_slice = self.stack[self.sp..][0..(old_sp - self.sp)];
-        // Zero out slice
-        @memset(stack_slice, 0);
     }
 
     pub fn execute_from_address(self: *ProgramThread, from: u64) ProgramStatus {

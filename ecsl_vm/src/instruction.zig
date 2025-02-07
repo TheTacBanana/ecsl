@@ -62,7 +62,7 @@ pub fn callcu(self: *ProgramThread, addr: u64, unwind: u64) !void {
     self.pc = addr;
 }
 
-pub inline fn ret(self: *ProgramThread) !void {
+pub fn ret(self: *ProgramThread) !void {
     const stack_frame = self.call_stack.pop();
     self.sp = stack_frame.stack_frame_base;
     const ret_address = try self.pop_stack(u64);
@@ -89,7 +89,7 @@ pub inline fn jmp(self: *ProgramThread, addr: u64) void {
     self.pc = addr;
 }
 
-pub inline fn jmpt(self: *ProgramThread, addr: u64) !void {
+pub fn jmpt(self: *ProgramThread, addr: u64) !void {
     if (try self.pop_stack(u8) > 0) {
         self.pc = addr;
     }
@@ -242,7 +242,7 @@ pub inline fn fti(self: *ProgramThread) !void {
     try self.push_stack(i32, @as(i32, @intFromFloat(a)));
 }
 
-pub inline fn print_i(self: *ProgramThread) !void {
+pub fn print_i(self: *ProgramThread) !void {
     const a: i32 = try self.pop_stack(i32);
 
     const stdout = std.io.getStdOut().writer();
@@ -254,7 +254,7 @@ pub inline fn print_i(self: *ProgramThread) !void {
     }
 }
 
-pub inline fn print_f(self: *ProgramThread) !void {
+pub fn print_f(self: *ProgramThread) !void {
     const a: f32 = try self.pop_stack(f32);
 
     const stdout = std.io.getStdOut().writer();

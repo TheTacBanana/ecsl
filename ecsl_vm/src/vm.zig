@@ -30,8 +30,6 @@ pub const EcslVM = struct {
 };
 
 pub fn init_vm(a: std.mem.Allocator, f: *const std.fs.File, h: header.Header, stack_size: u64) error{ FileError, AllocError }!EcslVM {
-    std.log.info("Creating Virtual Machine", .{});
-
     const file_stat = f.stat() catch return error.FileError;
     const size = file_stat.size;
 
