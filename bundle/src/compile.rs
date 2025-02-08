@@ -15,7 +15,9 @@ pub struct Compile {
 
 impl Compile {
     pub fn default_std_path() -> PathBuf {
-        "../ecsl_std".into() //TODO: Make proper path
+        let mut home = homedir::my_home().unwrap().unwrap();
+        home.push(".ecsl/ecsl_std");
+        home
     }
 }
 
@@ -34,7 +36,7 @@ impl CommandTrait for Compile {
 
         if let Ok(path) = out {
             info!("Invoking VM");
-            Command::new("../zig-out/bin/ecslvm")
+            Command::new("ecslvm")
                 .args([path])
                 .spawn()
                 .unwrap()
@@ -43,15 +45,5 @@ impl CommandTrait for Compile {
         }
 
         Ok(())
-    }
-}
-
-#[derive(Debug, Clone)]
-// , group = "input")]
-pub struct StdPath(pub PathBuf);
-
-impl std::default::Default for StdPath {
-    fn default() -> Self {
-        Self("../ecsl_std".into())
     }
 }
