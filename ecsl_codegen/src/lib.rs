@@ -300,10 +300,6 @@ impl CodeGen {
                 offsets.insert(*block_id, cur_offset);
                 cur_offset + sizes.get(block_id).unwrap()
             });
-        debug!("{:#?}", self.blocks);
-        debug!("{:?}", visit_order);
-        debug!("{:?}", sizes);
-        debug!("{:?}", offsets);
 
         // Concat blocks into sequence
         for block_id in &visit_order {

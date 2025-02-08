@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use ecsl_ast::{
     parse::FnKind,
     visit::{FnCtxt, Visitor, VisitorCF},
@@ -7,7 +5,7 @@ use ecsl_ast::{
 use ecsl_error::{ext::EcslErrorExt, EcslError, ErrorLevel};
 use ecsl_index::{GlobalID, TyID};
 use ecsl_ty::{local::LocalTyCtxt, TyIr};
-use log::debug;
+use std::sync::Arc;
 
 pub struct EntryPoint {
     pub ty_ctxt: Arc<LocalTyCtxt>,

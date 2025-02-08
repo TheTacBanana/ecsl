@@ -160,7 +160,7 @@ fn zig_opcode_generation(e: &DataEnum) -> std::io::Result<()> {
     let mut variant_names = String::new();
     let mut match_arms = String::new();
 
-    for variant in e.variants.iter() {
+    for (i, variant) in e.variants.iter().enumerate() {
         {
             let mut docs = String::new();
             for c in &variant.attrs {
@@ -206,17 +206,13 @@ fn zig_opcode_generation(e: &DataEnum) -> std::io::Result<()> {
                         _ => panic!("Unsupported Ty"),
                     };
 
-                    fields.push_str(&format!(", t.next_immediate({})", field_ty));
+                    fields.push_str(&format!(", t.next_immediate({}).*", field_ty));
                 }
 
                 execute_string = Some(format!("ins.{}(t{})", method_name, fields));
             }
 
-            match_arms.push_str(&format!(
-                "Opcode.{} => {},\n\t\t\t",
-                variant.ident.to_string(),
-                execute_string.unwrap()
-            ));
+            match_arms.push_str(&format!("{} => {},\n\t\t\t", i, execute_string.unwrap()));
         }
     }
 
@@ -229,15 +225,11 @@ const thread = @import("thread.zig");
 pub const Opcode = enum(u8) {{
     {}
 
-    /// Convert a byte into an Opcode
-    pub fn from_byte(b: u8) error{{InvalidInstruction}}!Opcode {{
-        return std.meta.intToEnum(Opcode, b) catch return error.InvalidInstruction;
-    }}
-
     /// Execute an Opcode
-    pub fn execute(t: *thread.ProgramThread, op: Opcode) !void {{
+    pub fn execute(t: *thread.ProgramThread, op: u8) !void {{
         try switch (op) {{
             {}
+            else => ins.undf(t),
         }};
     }}
 }};

@@ -148,7 +148,7 @@ pub fn main() anyerror!void {
     const thread_ptr = ecsl_vm.get_thread(thread_id);
     const program_status = thread_ptr.execute_from_address(program_header.entry_point);
     const exit_code: usize = switch (program_status) {
-        .Success, .HaltProgram => 0,
+        .Running, .HaltProgram => 0,
         .ErrorOrPanic => 1,
     };
     std.log.info("Program terminated with exit code {d}", .{exit_code});
