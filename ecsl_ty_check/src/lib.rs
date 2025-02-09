@@ -52,6 +52,12 @@ pub struct TyCheck {
     stack: Vec<(TyID, Operand)>,
 }
 
+enum TerminationKind {
+    Lower,
+    Equal,
+    Higher,
+}
+
 impl TyCheck {
     pub fn new(ty_ctxt: Arc<LocalTyCtxt>) -> Self {
         Self {
@@ -145,15 +151,39 @@ impl TyCheck {
             .unwrap()
     }
 
-    pub fn terminate_with_new_block(
+    fn terminate_with_new_block(
         &mut self,
+        term_kind: TerminationKind,
+        f: impl FnOnce(&mut ecsl_gir::Block, BlockID),
+    ) -> BlockID {
+        let new_block = self.new_block_without_stack();
+        self.terminate_with_existing_block(term_kind, new_block, f)
+    }
+
+    fn terminate_with_existing_block(
+        &mut self,
+        term_kind: TerminationKind,
+        existing_block: BlockID,
         f: impl FnOnce(&mut ecsl_gir::Block, BlockID),
     ) -> BlockID {
         let orig_block = self.cur_block();
-        let next_block = self.new_block_without_stack();
-        f(self.block_mut(orig_block), next_block);
-        self.push_block_stack(next_block);
-        next_block
+        f(self.block_mut(orig_block), existing_block);
+        match term_kind {
+            TerminationKind::Lower => {
+                let _ = self.symbols.pop().unwrap();
+                self.block_stack.pop().unwrap();
+                self.block_stack.push(existing_block);
+            }
+            TerminationKind::Equal => {
+                self.block_stack.pop().unwrap();
+                self.block_stack.push(existing_block);
+            }
+            TerminationKind::Higher => {
+                self.symbols.push(Default::default());
+                self.block_stack.push(existing_block);
+            }
+        }
+        existing_block
     }
 
     pub fn push(&mut self, tyid: TyID, operand: Operand) {
@@ -385,7 +415,7 @@ impl Visitor for TyCheck {
                                     ],
                                 ),
                             });
-                            self.push_block_stack(to_next);
+                            self.block_stack.push(to_next);
                         }
                         IfStmt::Else(block) => {
                             // Walk else block
@@ -396,7 +426,8 @@ impl Visitor for TyCheck {
                             blocks_to_terminate.push(end_of_block);
 
                             // Create trailing block
-                            self.new_block();
+                            let trailing_block = self.new_block_without_stack();
+                            self.block_stack.push(trailing_block);
                         }
                     }
                 }
@@ -527,6 +558,14 @@ impl Visitor for TyCheck {
                     ),
                 });
 
+                // Jump to next block
+                let cond_block =
+                    self.terminate_with_new_block(TerminationKind::Higher, |block, next| {
+                        block.terminate(Terminator {
+                            kind: TerminatorKind::Jump(next),
+                        })
+                    });
+
                 // Insert Ident into local Mapping
                 if let Some(_) = self
                     .symbols
@@ -540,13 +579,6 @@ impl Visitor for TyCheck {
                     );
                     return VisitorCF::Break;
                 }
-
-                // Jump to next block
-                let cond_block = self.terminate_with_new_block(|block, next| {
-                    block.terminate(Terminator {
-                        kind: TerminatorKind::Jump(next),
-                    })
-                });
 
                 let comparison =
                     self.new_local(Local::new(expr.span, Mutable::Imm, lhs_ty, LocalKind::Temp));
@@ -574,29 +606,31 @@ impl Visitor for TyCheck {
 
                 let leave_block = self.new_block_without_stack();
 
-                let _start_of_block = self.terminate_with_new_block(|block, next| {
-                    block.terminate(Terminator {
-                        kind: TerminatorKind::Switch(
-                            Operand::Move(comparison),
-                            vec![
-                                SwitchCase::Value(Immediate::Bool(true), next),
-                                SwitchCase::Default(leave_block),
-                            ],
-                        ),
+                let _start_of_block =
+                    self.terminate_with_new_block(TerminationKind::Higher, |block, next| {
+                        block.terminate(Terminator {
+                            kind: TerminatorKind::Switch(
+                                Operand::Move(comparison),
+                                vec![
+                                    SwitchCase::Value(Immediate::Bool(true), next),
+                                    SwitchCase::Default(leave_block),
+                                ],
+                            ),
+                        });
                     });
-                });
 
                 walk_block(self, block)?;
-                let _increment_block = self.terminate_with_new_block(|block, next| {
-                    block.terminate_no_replace(Terminator {
-                        kind: TerminatorKind::Jump(next),
+
+                let _increment_block =
+                    self.terminate_with_new_block(TerminationKind::Lower, |block, next| {
+                        block.terminate_no_replace(Terminator {
+                            kind: TerminatorKind::Jump(next),
+                        });
                     });
-                });
 
                 let one_const = self.new_constant(Constant::Internal {
                     imm: Immediate::Int(1),
                 });
-
                 self.push_stmt_to_cur_block(gir::Stmt {
                     span: s.span,
                     kind: gir::StmtKind::Assign(
@@ -612,15 +646,17 @@ impl Visitor for TyCheck {
                     ),
                 });
 
-                self.block_mut(self.cur_block()).terminate(Terminator {
-                    kind: TerminatorKind::Jump(cond_block),
-                });
+                self.terminate_with_existing_block(
+                    TerminationKind::Lower,
+                    cond_block,
+                    |block, next| {
+                        block.terminate(Terminator {
+                            kind: TerminatorKind::Jump(next),
+                        });
+                    },
+                );
 
-                self.push_block_stack(leave_block);
-
-                // panic!("{}", self.cur_gir())
-
-                // todo!("{}", self.cur_gir());
+                self.block_stack.push(leave_block);
             }
             e => todo!("{e:?}"),
             // StmtKind::While(expr, block) => todo!(),
