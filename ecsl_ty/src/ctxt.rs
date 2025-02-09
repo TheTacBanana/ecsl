@@ -4,7 +4,7 @@ use ecsl_index::{GlobalID, SourceFileID, TyID};
 use log::debug;
 use std::{
     collections::{btree_map::Entry, BTreeMap},
-    sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard},
+    sync::{Arc, RwLock, RwLockWriteGuard},
 };
 
 pub struct TyCtxt {

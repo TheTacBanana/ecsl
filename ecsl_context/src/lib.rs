@@ -4,7 +4,7 @@ use ecsl_error::{ext::EcslErrorExt, EcslError, EcslResult, ErrorLevel};
 use ecsl_index::{CrateID, SourceFileID};
 use ecsl_parse::source::SourceFile;
 use glob::glob;
-use log::{debug, info};
+use log::debug;
 use package::EcslPackage;
 use std::{
     collections::{BTreeMap, HashMap},

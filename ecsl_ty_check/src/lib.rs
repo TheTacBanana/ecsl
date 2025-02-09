@@ -657,6 +657,41 @@ impl Visitor for TyCheck {
         }
 
         let ret_ty = match &e.kind {
+            ExprKind::Assign(symbol_id, span, expr) => {
+                // Visit expr
+                self.visit_expr(expr)?;
+                let (ty, op) = self.pop();
+
+                // Search all symbols
+                let found = self.find_symbol(*symbol_id);
+
+                // Throw error if not found
+                if found.is_none() {
+                    self.ty_ctxt.diag.push_error(
+                        EcslError::new(ErrorLevel::Error, TyCheckError::SymbolDoesntExist)
+                            .with_span(|_| *span),
+                    );
+                    return VisitorCF::Break;
+                }
+
+                let local_tyid = self.cur_gir().get_local(found.unwrap()).tyid;
+
+                unify!(ty, local_tyid, TyCheckError::AssignWrongType, *span);
+
+                // Create Assignment Stmt
+                self.push_stmt_to_cur_block(gir::Stmt {
+                    span: e.span,
+                    kind: gir::StmtKind::Assign(
+                        found.unwrap(),
+                        Box::new(gir::Expr {
+                            span: *span,
+                            kind: gir::ExprKind::Value(op),
+                        }),
+                    ),
+                });
+
+                Some((local_tyid, Operand::Copy(found.unwrap())))
+            }
             ExprKind::Ident(symbol_id) => {
                 // Search all symbols
                 let found = self.find_symbol(*symbol_id);

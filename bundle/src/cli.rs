@@ -29,7 +29,7 @@ impl CommandTrait for Commands {
     type In = ();
     type Out = ();
 
-    fn execute(&mut self, input: ()) -> Result<()> {
+    fn execute(&mut self, _: ()) -> Result<()> {
         match self {
             Commands::New(n) => n.execute(()),
             Commands::Compile(b) => b.execute(false),

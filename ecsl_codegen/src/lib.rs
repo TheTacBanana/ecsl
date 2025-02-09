@@ -184,7 +184,7 @@ impl CodeGen {
                                             e => panic!("{:?}", e),
                                         })
                                     }
-                                    ExprKind::Reference(mutable, local_id) => todo!(),
+                                    ExprKind::Reference(_, _) => todo!(),
                                 }
 
                                 instrs.push(self.store_local(*local_id));
@@ -199,7 +199,7 @@ impl CodeGen {
                                 }
                                 instrs.push(byt)
                             }
-                            StmtKind::Expr(expr) => todo!(),
+                            StmtKind::Expr(_) => todo!(),
                         }
                     }
 
