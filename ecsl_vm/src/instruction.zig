@@ -4,155 +4,269 @@ const thread = @import("thread.zig");
 const ProgramThread = thread.ProgramThread;
 const StackFrame = ProgramThread.StackFrame;
 
-pub inline fn undf(t: *ProgramThread) void {
-    t.state.err = ProgramThread.ProgramPanic.UndefinedInstruction;
+pub inline fn undf(_: *ProgramThread) !void {
+    return ProgramThread.ProgramPanic.UndefinedInstruction;
 }
 
 pub inline fn halt(t: *ProgramThread) void {
     t.state.status = ProgramThread.ProgramStatus.HaltProgram;
 }
 
+pub inline fn popb(self: *ProgramThread) !void {
+    _ = try self.pop_stack(u8);
+}
+
 pub inline fn pop(self: *ProgramThread) !void {
     _ = try self.pop_stack(u32);
 }
 
-pub inline fn dup(self: *ProgramThread) !void {
-    const a = self.read_stack(u32);
-    try self.push_stack(u32, a);
+pub inline fn popl(self: *ProgramThread) !void {
+    _ = try self.pop_stack(u64);
+}
+
+pub inline fn ldr(self: *ProgramThread, offset: i64) !void {
+    const value = self.read_stack_at_offset(u32, offset);
+    try self.push_stack(u32, value);
+}
+
+pub inline fn str(self: *ProgramThread, offset: i64) !void {
+    const b = try self.pop_stack(u32);
+    try self.write_stack_at_offset(u32, b.*, offset);
+}
+
+pub inline fn setsp(self: *ProgramThread, offset: u64) !void {
+    self.sp = self.get_bp() + offset;
+}
+
+pub inline fn setspr(self: *ProgramThread, offset: i64) !void {
+    self.sp = @intCast(@as(i64, @intCast(self.sp)) + offset);
 }
 
 pub fn call(self: *ProgramThread, addr: u64) !void {
-    try self.push_stack(u64, addr);
-    self.call_stack.append(StackFrame{
+    try self.push_stack(u64, &self.pc);
+    self.call_stack_index += 1;
+    self.call_stack[self.call_stack_index] = StackFrame{
         .func_address = addr,
         .stack_frame_base = self.sp,
         .unwind_addr = null,
-    }) catch return;
-    self.sp = addr;
+    };
+    self.pc = addr;
 }
 
 pub fn callcu(self: *ProgramThread, addr: u64, unwind: u64) !void {
-    try self.push_stack(u64, addr);
-    self.call_stack.append(StackFrame{
+    try self.push_stack(u64, &self.pc);
+    self.call_stack_index += 1;
+    self.call_stack[self.call_stack_index] = StackFrame{
         .func_address = addr,
         .stack_frame_base = self.sp,
         .unwind_addr = unwind,
-    }) catch return;
-    self.sp = addr;
+    };
+    self.pc = addr;
 }
 
-pub inline fn ret(self: *ProgramThread) !void {
-    _ = self.call_stack.pop();
+pub fn ret(self: *ProgramThread) !void {
+    const stack_frame = self.call_stack[self.call_stack_index].?;
+    self.call_stack_index -= 1;
+    self.sp = stack_frame.stack_frame_base;
     const ret_address = try self.pop_stack(u64);
-    self.sp = ret_address;
+    self.pc = ret_address.*;
 }
 
-pub inline fn panic(self: *ProgramThread) void {
-    self.state.err = ProgramThread.ProgramError.PanicNoMessage;
+pub inline fn panic(_: *ProgramThread) !void {
+    return ProgramThread.ProgramError.PanicNoMessage;
+}
+
+pub inline fn pshi_b(self: *ProgramThread, a: u8) !void {
+    try self.push_stack(u8, @constCast(&a));
 }
 
 pub inline fn pshi(self: *ProgramThread, a: u32) !void {
-    try self.push_stack(u32, a);
+    try self.push_stack(u32, @constCast(&a));
 }
 
-pub inline fn cmpi(self: *ProgramThread) !void {
-    const a = try self.pop_stack(i32);
-    const b = try self.pop_stack(i32);
-    if (a == b) {
-        try self.push_stack(i8, 0);
-    } else if (a < b) {
-        try self.push_stack(i8, -1);
-    } else if (b < a) {
-        try self.push_stack(i8, 1);
-    } else {
-        unreachable;
-    }
+pub inline fn pshi_l(self: *ProgramThread, a: u64) !void {
+    try self.push_stack(u64, @constCast(&a));
 }
 
 pub inline fn jmp(self: *ProgramThread, addr: u64) void {
-    self.sp = addr;
+    self.pc = addr;
 }
 
-pub inline fn jez(self: *ProgramThread, addr: u64) !void {
-    if (try self.pop_stack(i8) == 0) {
+pub fn jmpt(self: *ProgramThread, addr: u64) !void {
+    if ((try self.pop_stack(u8)).* > 0) {
         self.pc = addr;
     }
 }
 
-pub inline fn jnz(self: *ProgramThread, addr: u64) !void {
-    if (try self.pop_stack(i8) != 0) {
-        self.pc = addr;
-    }
+pub inline fn eq_b(self: *ProgramThread) !void {
+    const pair = try self.pop_pair(u8);
+    const res: u8 = @intFromBool(pair.l == pair.r);
+    try self.push_stack(u8, @constCast(&res));
 }
 
-pub inline fn jge(self: *ProgramThread, addr: u64) !void {
-    if (try self.pop_stack(i8) >= 0) {
-        self.pc = addr;
-    }
+pub inline fn neq_b(self: *ProgramThread) !void {
+    const pair = try self.pop_pair(u8);
+    const res: u8 = @intFromBool(pair.l != pair.r);
+    try self.push_stack(u8, @constCast(&res));
 }
 
-pub inline fn jgt(self: *ProgramThread, addr: u64) !void {
-    if (try self.pop_stack(i8) > 0) {
-        self.pc = addr;
-    }
+pub inline fn and_b(self: *ProgramThread) !void {
+    const pair = try self.pop_pair(u8);
+    try self.push_stack(u8, @constCast(&(pair.l & pair.r)));
 }
 
-pub inline fn jle(self: *ProgramThread, addr: u64) !void {
-    if (try self.pop_stack(i8) <= 0) {
-        self.pc = addr;
-    }
+pub inline fn or_b(self: *ProgramThread) !void {
+    const pair = try self.pop_pair(u8);
+    try self.push_stack(u8, @constCast(&(pair.l | pair.r)));
 }
 
-pub inline fn jlt(self: *ProgramThread, addr: u64) !void {
-    if (try self.pop_stack(i8) < 0) {
-        self.pc = addr;
-    }
+pub inline fn not_b(self: *ProgramThread) !void {
+    const a = try self.pop_stack(u8);
+    try self.push_stack(u8, @constCast(&(~a.*)));
 }
 
-pub inline fn addi(self: *ProgramThread) !void {
+pub inline fn eq_i(self: *ProgramThread) !void {
+    const pair = try self.pop_pair(i32);
+    try self.push_stack(u8, @constCast(&@as(u8, @intFromBool(pair.l == pair.r))));
+}
+
+pub inline fn neq_i(self: *ProgramThread) !void {
+    const pair = try self.pop_pair(i32);
+    try self.push_stack(u8, @constCast(&@as(u8, @intFromBool(pair.l != pair.r))));
+}
+
+pub inline fn lt_i(self: *ProgramThread) !void {
+    const pair = try self.pop_pair(i32);
+    try self.push_stack(u8, @constCast(&@as(u8, @intFromBool(pair.l < pair.r))));
+}
+
+pub inline fn leq_i(self: *ProgramThread) !void {
+    const pair = try self.pop_pair(i32);
+    try self.push_stack(u8, @constCast(&@as(u8, @intFromBool(pair.l <= pair.r))));
+}
+
+pub inline fn gt_i(self: *ProgramThread) !void {
+    const pair = try self.pop_pair(i32);
+    try self.push_stack(u8, @constCast(&@as(u8, @intFromBool(pair.l > pair.r))));
+}
+
+pub inline fn geq_i(self: *ProgramThread) !void {
+    const pair = try self.pop_pair(i32);
+    try self.push_stack(u8, @constCast(&@as(u8, @intFromBool(pair.l >= pair.r))));
+}
+
+pub inline fn add_i(self: *ProgramThread) !void {
+    const pair = try self.pop_pair(i32);
+    try self.push_stack(i32, @constCast(&(pair.l + pair.r)));
+}
+
+pub inline fn sub_i(self: *ProgramThread) !void {
+    const pair = try self.pop_pair(i32);
+    try self.push_stack(i32, @constCast(&(pair.l - pair.r)));
+}
+
+pub inline fn mul_i(self: *ProgramThread) !void {
+    const pair = try self.pop_pair(i32);
+    try self.push_stack(i32, @constCast(&(pair.l * pair.r)));
+}
+
+//TODO: Divide by zero
+pub inline fn div_i(self: *ProgramThread) !void {
+    const pair = try self.pop_pair(i32);
+    try self.push_stack(i32, @constCast(&@divTrunc(pair.l, pair.r)));
+}
+
+pub inline fn neg_i(self: *ProgramThread) !void {
     const a = try self.pop_stack(i32);
-    const b = try self.pop_stack(i32);
-    try self.push_stack(i32, a + b);
+    try self.push_stack(i32, @constCast(&(-a.*)));
 }
 
-pub inline fn subi(self: *ProgramThread) !void {
+pub inline fn eq_f(self: *ProgramThread) !void {
+    const pair = try self.pop_pair(f32);
+    try self.push_stack(u8, @constCast(&@as(u8, @intFromBool(pair.l == pair.r))));
+}
+
+pub inline fn neq_f(self: *ProgramThread) !void {
+    const pair = try self.pop_pair(f32);
+    try self.push_stack(u8, @constCast(&@as(u8, @intFromBool(pair.l != pair.r))));
+}
+
+pub inline fn lt_f(self: *ProgramThread) !void {
+    const pair = try self.pop_pair(f32);
+    try self.push_stack(u8, @constCast(&@as(u8, @intFromBool(pair.l < pair.r))));
+}
+
+pub inline fn leq_f(self: *ProgramThread) !void {
+    const pair = try self.pop_pair(f32);
+    try self.push_stack(u8, @constCast(&@as(u8, @intFromBool(pair.l <= pair.r))));
+}
+
+pub inline fn gt_f(self: *ProgramThread) !void {
+    const pair = try self.pop_pair(f32);
+    try self.push_stack(u8, @constCast(&@as(u8, @intFromBool(pair.l > pair.r))));
+}
+
+pub inline fn geq_f(self: *ProgramThread) !void {
+    const pair = try self.pop_pair(f32);
+    try self.push_stack(u8, @constCast(&@as(u8, @intFromBool(pair.l >= pair.r))));
+}
+
+pub inline fn add_f(self: *ProgramThread) !void {
+    const pair = try self.pop_pair(f32);
+    try self.push_stack(f32, @constCast(&(pair.l + pair.r)));
+}
+
+pub inline fn sub_f(self: *ProgramThread) !void {
+    const pair = try self.pop_pair(f32);
+    try self.push_stack(f32, @constCast(&(pair.l - pair.r)));
+}
+
+pub inline fn mul_f(self: *ProgramThread) !void {
+    const pair = try self.pop_pair(f32);
+    try self.push_stack(f32, @constCast(&(pair.l * pair.r)));
+}
+
+//TODO: Divide by zero
+pub inline fn div_f(self: *ProgramThread) !void {
+    const pair = try self.pop_pair(f32);
+    try self.push_stack(f32, @constCast(&(pair.l / pair.r)));
+}
+
+pub inline fn neg_f(self: *ProgramThread) !void {
+    const a = try self.pop_stack(f32);
+    try self.push_stack(f32, @constCast(&(-a.*)));
+}
+
+pub inline fn itf(self: *ProgramThread) !void {
     const a = try self.pop_stack(i32);
-    const b = try self.pop_stack(i32);
-    try self.push_stack(i32, a - b);
+    try self.push_stack(f32, @constCast(&@as(f32, @floatFromInt(a.*))));
 }
 
-pub inline fn muli(self: *ProgramThread) !void {
+pub inline fn fti(self: *ProgramThread) !void {
+    const a = try self.pop_stack(f32);
+    try self.push_stack(i32, @constCast(&@as(i32, @intFromFloat(a.*))));
+}
+
+pub fn print_i(self: *ProgramThread) !void {
     const a = try self.pop_stack(i32);
-    const b = try self.pop_stack(i32);
-    try self.push_stack(i32, a * b);
+
+    const stdout = std.io.getStdOut().writer();
+    var bw = std.io.bufferedWriter(stdout);
+    const writer = bw.writer();
+    nosuspend {
+        writer.print("{}" ++ "\n", .{a.*}) catch return;
+        bw.flush() catch return;
+    }
 }
 
-pub inline fn divi(self: *ProgramThread) !void {
-    const a = try self.pop_stack(i32);
-    const b = try self.pop_stack(i32);
-    try self.push_stack(i32, @divTrunc(a, b));
-}
+pub fn print_f(self: *ProgramThread) !void {
+    const a = try self.pop_stack(f32);
 
-pub inline fn addl(self: *ProgramThread) !void {
-    const a = try self.pop_stack(i64);
-    const b = try self.pop_stack(i64);
-    try self.push_stack(i64, a + b);
-}
-
-pub inline fn subl(self: *ProgramThread) !void {
-    const a = try self.pop_stack(i64);
-    const b = try self.pop_stack(i64);
-    try self.push_stack(i64, a - b);
-}
-
-pub inline fn mull(self: *ProgramThread) !void {
-    const a = try self.pop_stack(i64);
-    const b = try self.pop_stack(i64);
-    try self.push_stack(i64, a * b);
-}
-
-pub inline fn divl(self: *ProgramThread) !void {
-    const a = try self.pop_stack(i64);
-    const b = try self.pop_stack(i64);
-    try self.push_stack(i64, @divTrunc(a, b));
+    const stdout = std.io.getStdOut().writer();
+    var bw = std.io.bufferedWriter(stdout);
+    const writer = bw.writer();
+    nosuspend {
+        writer.print("{d}" ++ "\n", .{a.*}) catch return;
+        bw.flush() catch return;
+    }
 }

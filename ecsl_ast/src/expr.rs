@@ -24,7 +24,7 @@ impl Expr {
 pub enum ExprKind {
     /// Assign expression to ident
     /// `ident = *expr*`
-    Assign(SymbolID, P<Expr>),
+    Assign(SymbolID, Span, P<Expr>),
 
     /// Create a reference to an expression
     /// `&foo &mut bar`
@@ -89,13 +89,25 @@ pub enum ExprKind {
     Schedule(P<Schedule>),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Literal {
     Int,
     Float,
     String,
     Char,
     Bool,
+}
+
+impl std::fmt::Display for Literal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Literal::Int => write!(f, "int"),
+            Literal::Float => write!(f, "float"),
+            Literal::String => write!(f, "string"),
+            Literal::Char => write!(f, "char"),
+            Literal::Bool => write!(f, "bool"),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -114,11 +126,68 @@ pub enum BinOpKind {
     Geq,
 }
 
+impl std::fmt::Display for BinOpKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BinOpKind::Add => write!(f, "+"),
+            BinOpKind::Sub => write!(f, "-"),
+            BinOpKind::Mul => write!(f, "*"),
+            BinOpKind::Div => write!(f, "/"),
+            BinOpKind::And => write!(f, "&&"),
+            BinOpKind::Or => write!(f, "||"),
+            BinOpKind::Eq => write!(f, "=="),
+            BinOpKind::Neq => write!(f, "!="),
+            BinOpKind::Lt => write!(f, "<"),
+            BinOpKind::Leq => write!(f, "<="),
+            BinOpKind::Gt => write!(f, ">"),
+            BinOpKind::Geq => write!(f, ">="),
+        }
+    }
+}
+
+impl BinOpKind {
+    pub fn operation(&self) -> bool {
+        match self {
+            BinOpKind::Add | BinOpKind::Sub | BinOpKind::Mul | BinOpKind::Div => true,
+            _ => false,
+        }
+    }
+
+    pub fn comparsion(&self) -> bool {
+        match self {
+            BinOpKind::Eq
+            | BinOpKind::Neq
+            | BinOpKind::Lt
+            | BinOpKind::Leq
+            | BinOpKind::Gt
+            | BinOpKind::Geq => true,
+            _ => false,
+        }
+    }
+
+    pub fn boolean_logic(&self) -> bool {
+        match self {
+            BinOpKind::And | BinOpKind::Or | BinOpKind::Eq | BinOpKind::Neq => true,
+            _ => false,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum UnOpKind {
     Neg,
     Not,
     Deref,
+}
+
+impl std::fmt::Display for UnOpKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            UnOpKind::Neg => write!(f, "-"),
+            UnOpKind::Not => write!(f, "!"),
+            UnOpKind::Deref => write!(f, "*"),
+        }
+    }
 }
 
 #[derive(Debug, Clone, AST)]
@@ -128,7 +197,7 @@ pub struct FieldExpr {
     pub expr: P<Expr>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum RangeType {
     Exclusive,
     Inclusive,

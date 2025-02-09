@@ -2,6 +2,7 @@ const std = @import("std");
 const vm = @import("vm.zig");
 const Opcode = @import("opcode.zig").Opcode;
 const ins = @import("instruction.zig");
+const build_options = @import("build_options");
 
 pub const ProgramThread = struct {
     vm_ptr: *const vm.EcslVM,
@@ -9,7 +10,8 @@ pub const ProgramThread = struct {
     id: usize,
     pc: u64,
     sp: u64,
-    call_stack: std.ArrayList(StackFrame),
+    call_stack: []?StackFrame,
+    call_stack_index: usize,
     stack: []u8,
 
     pub const State = struct {
@@ -19,7 +21,7 @@ pub const ProgramThread = struct {
 
     /// Status of program
     pub const ProgramStatus = enum {
-        Success,
+        Running,
         HaltProgram,
         ErrorOrPanic,
     };
@@ -60,28 +62,29 @@ pub const ProgramThread = struct {
 
     pub fn new(v: *const vm.EcslVM) error{AllocError}!ProgramThread {
         const stack = v.allocator.alloc(u8, v.stack_size) catch return error.AllocError;
-        const call_stack = std.ArrayList(StackFrame).init(v.allocator);
+        const call_stack = v.allocator.alloc(?StackFrame, 1024) catch return error.AllocError;
         return ProgramThread{
             .vm_ptr = v,
             .id = v.next_thread_id(),
             .state = State{
-                .status = ProgramStatus.Success,
+                .status = ProgramStatus.Running,
                 .err = null,
             },
             .pc = 0,
             .sp = 0,
             .stack = stack,
             .call_stack = call_stack,
+            .call_stack_index = 0,
         };
     }
 
     pub fn unwrap_call_stack(self: *ProgramThread, err: (ProgramError || ProgramPanic)) ProgramUnwrap {
         // Check for catch_unwrap if possible
         if (@TypeOf(err) == ProgramError) {
-            var i: usize = self.call_stack.items.len;
+            var i: usize = self.call_stack_index;
             while (i > 0) {
+                const frame = self.call_stack[i];
                 i -= 1;
-                const frame = self.call_stack.items[i];
 
                 // Unwind caught
                 if (frame.unwind_addr) |addr| {
@@ -97,11 +100,11 @@ pub const ProgramThread = struct {
 
         // Dump Program Stack
         std.log.err("Program Thread {d} panicked with {s}:", .{ self.id, @errorName(err) });
-        var i: usize = self.call_stack.items.len;
+        var i: usize = self.call_stack_index;
         while (i > 0) {
+            const frame = self.call_stack[i].?;
             i -= 1;
-            const frame = self.call_stack.pop();
-            std.log.err("at Func Address 0x{X} : ({d})", .{ frame.func_address, i });
+            std.log.err("at Func Address {d} : ({d})", .{ frame.func_address, i });
         }
 
         self.state.status = ProgramStatus.ErrorOrPanic;
@@ -109,40 +112,55 @@ pub const ProgramThread = struct {
         return ProgramUnwrap.Completed;
     }
 
-    pub inline fn next_opcode(self: *ProgramThread) ProgramPanic!Opcode {
+    pub inline fn next_opcode(self: *ProgramThread) u8 {
         const op_byte = self.vm_ptr.binary[self.pc];
-        const op = try Opcode.from_byte(op_byte);
         self.pc += 1;
-        return op;
+        return op_byte;
+        // const op = try Opcode.from_byte(op_byte);
+        // std.log.debug("{} {}", .{ self.pc, op });
     }
 
-    pub inline fn next_immediate(self: *ProgramThread, comptime T: type) T {
-        const pc = self.pc;
-        const bin = self.vm_ptr.binary;
-        var array = [_]u8{0} ** @sizeOf(T);
-        for (array, 0..) |_, i| {
-            array[i] = bin[pc + i];
-        }
+    pub inline fn get_bp(self: *ProgramThread) u64 {
+        return self.call_stack[self.call_stack_index].?.stack_frame_base;
+    }
+
+    pub inline fn offset_from_bp(self: *ProgramThread, offset: i64) u64 {
+        const bp: i64 = @intCast(self.get_bp());
+        return @intCast(bp + offset); // This might fail if your stack is 8192 Petabytes Big
+    }
+
+    pub fn next_immediate(self: *ProgramThread, comptime T: type) *align(1) const T {
+        const temp_pc = self.pc;
         self.pc += @sizeOf(T);
-        return @bitCast(array);
+
+        // std.log.debug("Imm {}", .{val});
+        return @ptrCast(&self.vm_ptr.binary[temp_pc]);
     }
 
     // Push comptime type to stack
-    pub inline fn push_stack(self: *ProgramThread, comptime T: type, val: T) ProgramError!void {
+    pub fn push_stack(self: *ProgramThread, comptime T: type, val: *align(1) T) ProgramError!void {
+        std.log.debug("Push {}", .{val});
+
         // Guard against stack overflow
         const new_sp = self.sp + @sizeOf(T);
         if (new_sp >= self.stack.len) {
             return error.StackOverflow;
         }
 
-        const bytes: [@sizeOf(T)]u8 = @bitCast(val);
         const stack_slice = self.stack[self.sp..][0..@sizeOf(T)];
-        @memcpy(stack_slice, &bytes);
+        stack_slice.* = @bitCast(val.*);
+
         self.sp = new_sp;
     }
 
+    pub fn pop_pair(self: *ProgramThread, comptime T: type) ProgramPanic!struct { l: T, r: T } {
+        const r = try self.pop_stack(T);
+        const l = try self.pop_stack(T);
+        return .{ .l = l.*, .r = r.* };
+    }
+
     // Pop type of comptime size from stack
-    pub inline fn pop_stack(self: *ProgramThread, comptime T: type) ProgramPanic!T {
+    pub fn pop_stack(self: *ProgramThread, comptime T: type) ProgramPanic!*align(1) T {
         // Check for type larger than stack
         if (@sizeOf(T) > self.sp) {
             return error.EmptyStack;
@@ -151,18 +169,18 @@ pub const ProgramThread = struct {
         // Decrement Stack
         self.sp -= @sizeOf(T);
         // Get slice of stack
-        const stack_slice = self.stack[self.sp..][0..@sizeOf(T)];
-        // Create copy destination
-        var val = [_]u8{0} ** @sizeOf(T);
-        // Copy and zero out original slice
-        @memcpy(&val, stack_slice);
-        @memset(stack_slice, 0);
-        // Cast value
-        return @bitCast(val);
+        const stack_slice = &self.stack[self.sp];
+
+        //TODO:
+        // if (build_options.zero_memory) {
+        //     @memset(stack_slice, 0);
+        // }
+
+        return @ptrCast(stack_slice);
     }
 
     // Read type of comptime size from stack
-    pub inline fn read_stack(self: *ProgramThread, comptime T: type) T {
+    pub fn read_stack(self: *ProgramThread, comptime T: type) T {
         // Pointer to bottom of value
         const temp_sp = self.sp - @sizeOf(T);
         // Get slice of stack
@@ -175,58 +193,71 @@ pub const ProgramThread = struct {
         return @bitCast(val);
     }
 
+    // Read type of comptime size from stack
+    pub fn read_stack_at_offset(self: *ProgramThread, comptime T: type, offset: i64) *align(1) T {
+        // Get slice of stack
+        const stack_slice = &self.stack[self.offset_from_bp(offset)];
+
+        // Cast value
+        return @ptrCast(stack_slice);
+    }
+
+    pub fn write_stack_at_offset(self: *ProgramThread, comptime T: type, val: T, offset: i64) ProgramError!void {
+        // Guard against stack overflow
+        const temp_sp = self.offset_from_bp(offset);
+        if (temp_sp >= self.stack.len) {
+            return error.StackOverflow;
+        }
+
+        const bytes: [@sizeOf(T)]u8 = @bitCast(val);
+        const stack_slice = self.stack[temp_sp..][0..@sizeOf(T)];
+        @memcpy(stack_slice, &bytes);
+    }
+
     pub inline fn clear_stack(self: *ProgramThread, new_sp: u64) void {
         // Ensure valid clear
         if (new_sp > self.sp) {
             return;
         }
+        // Zero memory
+        if (build_options.zero_memory) {
+            const old_sp = self.sp;
+            // Get slice of stack
+            const stack_slice = self.stack[self.sp..][0..(old_sp - self.sp)];
+            // Zero out slice
+            @memset(stack_slice, 0);
+        }
         // Replace SP
-        const old_sp = self.sp;
         self.sp = new_sp;
-
-        // Get slice of stack
-        const stack_slice = self.stack[self.sp..][0..(old_sp - self.sp)];
-        // Zero out slice
-        @memset(stack_slice, 0);
     }
 
     pub fn execute_from_address(self: *ProgramThread, from: u64) ProgramStatus {
         self.pc = from;
 
-        self.call_stack.append(StackFrame{
+        self.call_stack[0] = StackFrame{
             .func_address = from,
-            .stack_frame_base = self.sp,
+            .stack_frame_base = 8, //TODO: This doesnt need to be 8?
             .unwind_addr = null,
-        }) catch unreachable;
+        };
+        self.sp = 8;
 
         while (true) {
             // Get next opcode
-            const op = self.next_opcode() catch |err| {
-                self.state.err = err;
-                self.state.status = ProgramStatus.ErrorOrPanic;
-                _ = self.unwrap_call_stack(self.state.err.?);
-                return ProgramStatus.ErrorOrPanic;
-            };
+            const op = self.next_opcode();
 
             // Execute the opcode
             Opcode.execute(self, op) catch |err| {
-                self.state.err = err;
-            };
-
-            if (self.state.status == ProgramStatus.HaltProgram) {
-                return self.state.status;
-            } else if (self.state.err) |_| {
-                switch (self.unwrap_call_stack(self.state.err.?)) {
+                switch (self.unwrap_call_stack(err)) {
                     ProgramUnwrap.Completed => return ProgramStatus.ErrorOrPanic,
                     ProgramUnwrap.Resume => {},
                 }
-            }
+            };
 
-            if (self.state.status != ProgramStatus.Success) {
+            if (self.state.status != ProgramStatus.Running) {
                 return self.state.status;
             }
         }
 
-        return ProgramStatus.Successs;
+        // return ProgramStatus.Running;
     }
 };

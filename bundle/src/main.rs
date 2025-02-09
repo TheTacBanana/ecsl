@@ -1,7 +1,7 @@
 use anyhow::Result;
 use clap::Parser;
 use cli::{Cli, CommandTrait};
-use log::info;
+use log::debug;
 
 pub mod cli;
 pub mod compile;
@@ -13,12 +13,13 @@ fn main() -> Result<()> {
         .filter_level(
             args.verbose
                 .then(|| log::LevelFilter::Trace)
-                .unwrap_or(log::LevelFilter::Error),
+                .unwrap_or(log::LevelFilter::Info),
         )
         .format_target(false)
         .format_timestamp(None)
-        .format_file(true)
+        .format_file(args.verbose)
+        .format_line_number(args.verbose)
         .init();
-    info!("Logger initialised");
-    args.command.execute()
+    debug!("Logger initialised");
+    args.command.execute(())
 }

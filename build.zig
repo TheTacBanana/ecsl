@@ -1,7 +1,6 @@
 const std = @import("std");
 
 pub fn build(b: *std.Build) void {
-    // const optimize = .Debug;
     const optimize = b.standardOptimizeOption(.{});
 
     const target = b.resolveTargetQuery(.{
@@ -16,6 +15,12 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+
+    const enable_foo = b.option(bool, "zero_memory", "Zero memory after stack operations") orelse false;
+
+    const options = b.addOptions();
+    options.addOption(bool, "zero_memory", enable_foo);
+    exe.root_module.addOptions("build_options", options);
 
     // Add FFI dependency
     const ffi = b.dependency("ffi", .{

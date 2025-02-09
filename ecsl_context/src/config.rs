@@ -6,7 +6,7 @@ use bimap::BiHashMap;
 use ecsl_diagnostics::DiagConn;
 use ecsl_error::{ext::EcslErrorExt, EcslError, EcslResult, ErrorLevel};
 use ecsl_index::CrateID;
-use log::info;
+use log::{debug, info};
 use petgraph::{algo, prelude::GraphMap, Directed};
 use std::{collections::BTreeMap, path::PathBuf};
 
@@ -93,8 +93,12 @@ impl EcslConfig {
         Ok(config)
     }
 
+    pub fn root_config(&self) -> &EcslPackage {
+        self.packages.get(&CrateID::ONE).unwrap()
+    }
+
     fn load_bundle_toml(path: &PathBuf) -> EcslResult<BundleToml> {
-        info!("Loading Bundle.toml from path {:?}", path);
+        debug!("Loading Bundle.toml from path {:?}", path);
 
         let mut bundle_toml_path = path.clone();
         bundle_toml_path.push("Bundle.toml");
@@ -108,7 +112,7 @@ impl EcslConfig {
         let package_id = self.crate_id_from_path(&bundle_toml.package.path);
         let mut package = EcslPackage::new(package_id, bundle_toml.package.clone());
 
-        info!(
+        debug!(
             "Including package '{}' with id {}",
             bundle_toml.package.name, package_id
         );
@@ -147,7 +151,7 @@ impl EcslConfig {
                         continue;
                     }
 
-                    info!(
+                    debug!(
                         "Added dependency '{}' with id {} to '{}'",
                         name,
                         dep_id,

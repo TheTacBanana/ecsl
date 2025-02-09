@@ -16,6 +16,8 @@ pub enum FnValidationError {
     NoSelfInAssocFunction,
     IllegalAssignmentPosition,
 
+    IllegalForLoopRange,
+
     EntityUsedInPlainFn,
     QueryUsedInPlainFn,
     ResourceUsedInPlainFn,
@@ -40,6 +42,7 @@ impl std::fmt::Display for FnValidationError {
             FnValidationError::ResourceUsedInPlainFn => "Usage of Resource in 'fn'",
             FnValidationError::ScheduleUsedInPlainFn => "Usage of Schedule in 'fn'",
             FnValidationError::SystemUsedInPlainFn => "Usage of System in 'fn'",
+            FnValidationError::IllegalForLoopRange => "For loop must be range or query",
         };
 
         write!(f, "{}", s)
@@ -152,7 +155,7 @@ impl Visitor for FnValidator {
         let cur_state = self.assignment_state;
         self.assignment_state = match (&e.kind, cur_state) {
             (_, AssignmentState::Allowed) => AssignmentState::Illegal,
-            (ExprKind::Assign(_, _), AssignmentState::Illegal) => {
+            (ExprKind::Assign(_, _, _), AssignmentState::Illegal) => {
                 self.diag.push_error(
                     EcslError::new(
                         ErrorLevel::Error,
@@ -169,8 +172,18 @@ impl Visitor for FnValidator {
     }
 
     fn visit_stmt(&mut self, s: &Stmt) -> VisitorCF {
-        self.assignment_state = match s.kind {
+        self.assignment_state = match &s.kind {
             StmtKind::Expr(_) => AssignmentState::Allowed,
+            StmtKind::For(_, _, e, _) => {
+                match &e.kind {
+                    ExprKind::Range(_, _, _) | ExprKind::Query(_) => (),
+                    _ => self.diag.push_error(
+                        EcslError::new(ErrorLevel::Error, FnValidationError::IllegalForLoopRange)
+                            .with_span(|_| s.span),
+                    ),
+                }
+                AssignmentState::Illegal
+            }
             _ => AssignmentState::Illegal,
         };
         walk_stmt(self, s)
@@ -188,8 +201,6 @@ impl Visitor for FnValidator {
         let fn_header = self.fn_headers.last().unwrap();
         let err = match (&t.kind, fn_header.kind) {
             (TyKind::Entity(_), FnKind::Fn) => Some(FnValidationError::EntityUsedInPlainFn),
-            (TyKind::Query, FnKind::Fn) => Some(FnValidationError::QueryUsedInPlainFn),
-            (TyKind::System, FnKind::Fn) => Some(FnValidationError::SystemUsedInPlainFn),
             (TyKind::Schedule, FnKind::Fn) => Some(FnValidationError::ScheduleUsedInPlainFn),
 
             _ => None,

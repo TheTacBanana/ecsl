@@ -16,7 +16,10 @@ impl New {
 }
 
 impl CommandTrait for New {
-    fn execute(&mut self) -> Result<()> {
+    type In = ();
+    type Out = ();
+
+    fn execute(&mut self, _: ()) -> Result<()> {
         let mut root_path = PathBuf::new();
         root_path.push(&self.project_name);
 

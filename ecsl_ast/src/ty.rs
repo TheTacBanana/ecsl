@@ -24,7 +24,7 @@ pub enum TyKind {
     /// Array with associated size constant
     // Includes span of constant
     /// `[<ty> : N]`
-    Array(P<Ty>, Span),
+    Array(P<Ty>, usize),
 
     /// Reference to Array
     /// `&[<ty>]`
@@ -45,23 +45,24 @@ pub enum TyKind {
     /// `Entity<foo: Foo, ..>`
     Entity(EntityTy),
 
-    /// Query Type
-    /// `Query`
-    Query,
-
-    /// System Type
-    /// `-> System`
-    System,
-
     /// Schedule Type
     /// `-> Schedule`
     Schedule,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Mutable {
     Imm,
     Mut,
+}
+
+impl std::fmt::Display for Mutable {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Mutable::Imm => write!(f, "imm"),
+            Mutable::Mut => write!(f, "mut"),
+        }
+    }
 }
 
 #[derive(Debug, Clone, AST)]

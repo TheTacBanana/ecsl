@@ -10,4 +10,6 @@ ecsl_index = { path = "../ecsl_index" }
 ecsl_parse = { path = "../ecsl_parse" }
 ecsl_diagnostics = { path = "../ecsl_diagnostics" }
 ecsl_context = { path = "../ecsl_context" }
+bimap = "0.6.3"
 cfgrammar.workspace = true
+log.workspace = true

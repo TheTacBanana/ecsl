@@ -1,5 +1,6 @@
 
-
-fn panic(s: &str) {
-    //TODO:
+fn panic() {
+    asm {
+        PANIC;
+    }
 }

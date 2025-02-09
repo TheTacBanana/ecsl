@@ -1,3 +1,4 @@
+#![feature(try_trait_v2)]
 use ecsl_ast_derive::AST;
 use ecsl_index::SourceFileID;
 use item::Item;
@@ -22,6 +23,7 @@ pub mod parse {
     pub use crate::stmt::*;
     pub use crate::ty::*;
     pub use crate::*;
+    pub use ecsl_bytecode::*;
 }
 
 pub type P<T> = Box<T>;

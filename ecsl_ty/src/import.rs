@@ -19,7 +19,7 @@ pub struct ImportPath {
     pub span: Span,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct MappedImport {
     pub from: GlobalID,
     pub to: GlobalID,

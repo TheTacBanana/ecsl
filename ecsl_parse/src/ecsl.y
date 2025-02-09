@@ -71,7 +71,7 @@
 %epp 'QUERY' 'Query'
 %epp 'RESOURCE' 'Resource'
 %epp 'SCHEDULE' 'Schedule'
-%epp 'SYSTEM' 'System'
+//%epp 'SYSTEM' 'System'
 %epp 'WITH' 'with'
 %epp 'WITHOUT' 'without'
 %epp 'ADDED' 'added'
@@ -86,6 +86,7 @@
 %epp 'BREAK' 'break'
 %epp 'CONTINUE' 'continue'
 %epp 'RETURN' 'return'
+%epp 'ASM' 'asm'
 
 %parse-param table: Rc<RefCell<PartialSymbolTable>>
 
@@ -185,7 +186,7 @@ FnDef -> Result<FnDef, ()>:
             params: $5?,
             ret: $7?,
             block: $8?,
-        })
+       })
     }
     ;
 
@@ -423,7 +424,7 @@ Ty -> Result<Ty, ()>:
     }
     | 'LSQUARE' Ty 'COLON' 'INT' 'RSQUARE' {
         Ok(Ty::new($span, TyKind::Array(
-            P::new($2?), $4.map_err(|_| ())?.span()
+            P::new($2?), table.string($4.map_err(|_| ())?.span()).parse().map_err(|_| ())?
         )))
     }
     | 'AMPERSAND' RefMutability 'LSQUARE' Ty 'RSQUARE' {
@@ -444,14 +445,8 @@ Ty -> Result<Ty, ()>:
     | EntityTy {
         Ok(Ty::new($span, TyKind::Entity($1?)))
     }
-    | 'QUERY' {
-        Ok(Ty::new($span, TyKind::Query))
-    }
     | 'SCHEDULE' {
         Ok(Ty::new($span, TyKind::Schedule))
-    }
-    | 'SYSTEM' {
-        Ok(Ty::new($span, TyKind::System))
     }
     ;
 
@@ -553,6 +548,55 @@ Stmt -> Result<Stmt, ()>:
         )))
     }
     | 'SEMI' { Ok(Stmt::new($span, StmtKind::Semi)) }
+    | 'ASM' 'LCURLY' 'RCURLY' {
+        Ok(Stmt::new($span, StmtKind::ASM(Vec::new())))
+    }
+    | 'ASM' 'LCURLY' BytecodeList 'RCURLY' {
+        Ok(Stmt::new($span, StmtKind::ASM($3?)))
+    }
+    ;
+
+BytecodeList -> Result<Vec<InlineBytecode>, ()>:
+    Bytecode { Ok(vec![$1?]) }
+    | BytecodeList Bytecode {
+        flatten($1, $2)
+    }
+    ;
+
+Bytecode -> Result<InlineBytecode, ()>:
+    'IDENT' 'SEMI' {
+        Ok(InlineBytecode {
+            span: $span,
+            ins: BytecodeInstruction {
+                op: Opcode::from_str(table.string($1.map_err(|_| ())?.span()).as_str()),
+                operand: Vec::new(),
+            }
+        })
+    }
+    | 'IDENT' ImmediateList 'SEMI' {
+        Ok(InlineBytecode {
+            span: $span,
+            ins: BytecodeInstruction {
+                op: Opcode::from_str(table.string($1.map_err(|_| ())?.span()).as_str()),
+                operand: $2?,
+            }
+        })
+    }
+    ;
+
+ImmediateList -> Result<Vec<Immediate>, ()>:
+    Immediate { Ok(vec![$1?]) }
+    | ImmediateList Immediate {
+        flatten($1, $2)
+    }
+    ;
+
+Immediate -> Result<Immediate, ()>:
+    'HASH' 'IDENT' {
+        Ok(Immediate::SymbolOf(
+            table.usage($2.map_err(|_| ())?.span(), SymbolKind::Local)
+        ))
+    }
     ;
 
 IfStmt -> Result<Stmt, ()>:
@@ -646,6 +690,7 @@ Expr -> Result<Expr, ()>:
             $span,
             ExprKind::Assign(
                 table.usage($1.map_err(|_| ())?.span(), SymbolKind::Local),
+                $1.map_err(|_| ())?.span(),
                 P::new($3?),
             )
         ))

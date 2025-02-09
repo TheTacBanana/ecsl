@@ -8,65 +8,85 @@ use crate::{
     ty::{ConcreteGenerics, Generics, Ty, TyKind},
     SourceAST,
 };
+use std::ops::{FromResidual, Try};
 
 pub trait Visitor: Sized {
     fn visit_ast(&mut self, s: &SourceAST) -> VisitorCF {
         walk_ast(self, s)
     }
+    #[must_use]
     fn visit_block(&mut self, b: &Block) -> VisitorCF {
         walk_block(self, b)
     }
+    #[must_use]
     fn visit_stmt(&mut self, s: &Stmt) -> VisitorCF {
         walk_stmt(self, s)
     }
+    #[must_use]
     fn visit_item(&mut self, i: &Item) -> VisitorCF {
         walk_item(self, i)
     }
+    #[must_use]
     fn visit_use(&mut self, u: &UseDef) -> VisitorCF {
         walk_use(self, u)
     }
+    #[must_use]
     fn visit_fn(&mut self, f: &FnDef, _ctxt: FnCtxt) -> VisitorCF {
         walk_fn(self, f)
     }
+    #[must_use]
     fn visit_generics(&mut self, g: &Generics) -> VisitorCF {
         walk_generics(self, g)
     }
+    #[must_use]
     fn visit_concrete_generics(&mut self, c: &ConcreteGenerics) -> VisitorCF {
         walk_concrete_generics(self, c)
     }
+    #[must_use]
     fn visit_impl(&mut self, i: &ImplBlock) -> VisitorCF {
         walk_impl(self, i)
     }
+    #[must_use]
     fn visit_expr(&mut self, e: &Expr) -> VisitorCF {
         walk_expr(self, e)
     }
+    #[must_use]
     fn visit_struct_def(&mut self, s: &StructDef) -> VisitorCF {
         walk_struct_def(self, s)
     }
+    #[must_use]
     fn visit_enum_def(&mut self, e: &EnumDef) -> VisitorCF {
         walk_enum_def(self, e)
     }
+    #[must_use]
     fn visit_variant_def(&mut self, v: &VariantDef) -> VisitorCF {
         walk_variant_def(self, v)
     }
+    #[must_use]
     fn visit_field_def(&mut self, f: &FieldDef) -> VisitorCF {
         walk_field_def(self, f)
     }
+    #[must_use]
     fn visit_ty(&mut self, t: &Ty) -> VisitorCF {
         walk_ty(self, t)
     }
+    #[must_use]
     fn visit_arm(&mut self, a: &MatchArm) -> VisitorCF {
         walk_arm(self, a)
     }
+    #[must_use]
     fn visit_field(&mut self, f: &FieldExpr) -> VisitorCF {
         walk_field(self, f)
     }
+    #[must_use]
     fn visit_query(&mut self, q: &QueryExpr) -> VisitorCF {
         walk_query(self, q)
     }
+    #[must_use]
     fn visit_schedule(&mut self, s: &Schedule) -> VisitorCF {
         walk_schedule(self, s)
     }
+    #[must_use]
     fn visit_attributes(&mut self, a: &Attributes) -> VisitorCF {
         walk_attributes(self, a)
     }
@@ -82,6 +102,29 @@ pub enum FnCtxt {
 pub enum VisitorCF {
     Continue,
     Break,
+}
+
+impl Try for VisitorCF {
+    type Output = ();
+
+    type Residual = ();
+
+    fn from_output(_: Self::Output) -> Self {
+        Self::Continue
+    }
+
+    fn branch(self) -> std::ops::ControlFlow<Self::Residual, Self::Output> {
+        match self {
+            VisitorCF::Continue => std::ops::ControlFlow::Continue(()),
+            VisitorCF::Break => std::ops::ControlFlow::Break(()),
+        }
+    }
+}
+
+impl FromResidual for VisitorCF {
+    fn from_residual(_: <Self as Try>::Residual) -> Self {
+        Self::Break
+    }
 }
 
 macro_rules! visit {
@@ -223,14 +266,14 @@ pub fn walk_stmt<V: Visitor>(v: &mut V, s: &Stmt) -> VisitorCF {
         }
         StmtKind::Expr(e) => visit!(v.visit_expr(e)),
 
-        StmtKind::Break | StmtKind::Continue | StmtKind::Semi => (),
+        StmtKind::Break | StmtKind::Continue | StmtKind::Semi | StmtKind::ASM(_) => (),
     }
     VisitorCF::Continue
 }
 
 pub fn walk_expr<V: Visitor>(v: &mut V, expr: &Expr) -> VisitorCF {
     match &expr.kind {
-        ExprKind::Assign(_, e) => visit!(v.visit_expr(e)),
+        ExprKind::Assign(_, _, e) => visit!(v.visit_expr(e)),
         ExprKind::Ref(_, e) => visit!(v.visit_expr(e)),
         ExprKind::UnOp(_, e) => visit!(v.visit_expr(e)),
         ExprKind::BinOp(_, e1, e2) => {
@@ -303,7 +346,7 @@ pub fn walk_ty<V: Visitor>(v: &mut V, typ: &Ty) -> VisitorCF {
             }
         }
 
-        TyKind::Query | TyKind::System | TyKind::Schedule => (),
+        TyKind::Schedule => (),
     }
     VisitorCF::Continue
 }

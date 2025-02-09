@@ -30,6 +30,13 @@ impl FnDef {
             ret: self.ret.clone(),
         }
     }
+
+    pub fn ret_span(&self) -> Span {
+        match &self.ret {
+            RetTy::None(span) => *span,
+            RetTy::Ty(ty) => ty.span,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -61,7 +68,7 @@ pub enum ParamKind {
     Normal(Mutable, SymbolID, P<Ty>), //TODO: Find a better name
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FnKind {
     Fn,
     Sys,

@@ -1,0 +1,15 @@
+use num::{int, float};
+
+fn print_int(i: int) {
+    asm {
+        LDR #i;
+        PRINT_I;
+    }
+}
+
+fn print_float(f: float) {
+    asm {
+        LDR #f;
+        PRINT_F;
+    }
+}

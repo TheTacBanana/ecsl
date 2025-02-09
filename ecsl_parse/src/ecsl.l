@@ -74,11 +74,12 @@ imm "IMM"
 = "ASSIGN"
 as "AS"
 
+asm "ASM"
 
 (false|true) "BOOLEAN"
 [a-zA-Z_][a-zA-Z0-9_]* "IDENT"
-[0-9]+\.[0-9]+ "FLOAT"
-[0-9]+ "INT"
+-?[0-9]+\.[0-9]+ "FLOAT"
+-?[0-9]+ "INT"
 "(?:\\\\|\\"|[^"\n])*" "STRING"
-'([^\t\n\r\f\\'\\]|\\[tnfr'"\\])' "CHAR"
+'([^\t\n\r\f\\'\\]|\\[tnr'"\\])' "CHAR"
 ([\t\n\r ]+|//[^\r\n]*|/\*.*\*/) ;

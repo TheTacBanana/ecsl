@@ -7,7 +7,8 @@ use lrlex::{
     lrlex_mod, DefaultLexeme, DefaultLexerTypes, LRLexError, LRNonStreamingLexer,
     LRNonStreamingLexerDef,
 };
-use lrpar::{lrpar_mod, LexError, LexParseError, Lexeme, NonStreamingLexer, ParseError, Span};
+pub use lrpar::NonStreamingLexer;
+use lrpar::{lrpar_mod, LexError, LexParseError, Lexeme, ParseError, Span};
 use source::SourceFile;
 use std::{cell::RefCell, rc::Rc};
 use table::{PartialSymbolTable, SymbolKind, SymbolTable};

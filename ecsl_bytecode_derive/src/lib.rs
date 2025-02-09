@@ -26,6 +26,7 @@ pub fn bytecode_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStrea
 fn generate(e: &DataEnum) -> TokenStream {
     let mut variant_names = Vec::new();
     let mut variant_match_arms = Vec::new();
+    let mut from_str = Vec::new();
     let mut to_bytes = Vec::new();
     let mut to_bytecode = Vec::new();
 
@@ -42,6 +43,15 @@ fn generate(e: &DataEnum) -> TokenStream {
             let operand_len = variant.fields.len();
             variant_match_arms.push(quote! {
                 #ident => #operand_len
+            });
+        }
+
+        // from_str Method
+        {
+            let ident = variant.ident.clone();
+            let s = syn::LitStr::new(&ident.to_string(), ident.span());
+            from_str.push(quote! {
+                #s => Opcode::#ident
             });
         }
 
@@ -99,7 +109,8 @@ fn generate(e: &DataEnum) -> TokenStream {
     }
 
     quote! {
-        #[derive(Debug, Clone, Copy)]
+        #[derive(Debug, Clone, Copy, Eq, PartialEq)]
+        #[allow(non_camel_case_types)]
         pub enum Opcode {
             #(#variant_names),*
         }
@@ -110,12 +121,18 @@ fn generate(e: &DataEnum) -> TokenStream {
                     #(Opcode::#variant_match_arms),*
                 }
             }
+
+            pub fn from_str(s: &str) -> Opcode {
+                match s {
+                    #(#from_str),*,
+                    _ => Opcode::UNDF,
+                }
+            }
         }
 
         impl BytecodeInstruction {
             pub fn to_bytecode(self) -> Option<Bytecode> {
                 match (&self.op, self.operand.as_slice()) {
-                    // (Opcode::PSHI, [o1]) => Some(Bytecode::PSHI(o1.to_word()?)),
                     #(#to_bytecode),*
                     _ => None,
                 }
@@ -143,7 +160,7 @@ fn zig_opcode_generation(e: &DataEnum) -> std::io::Result<()> {
     let mut variant_names = String::new();
     let mut match_arms = String::new();
 
-    for variant in e.variants.iter() {
+    for (i, variant) in e.variants.iter().enumerate() {
         {
             let mut docs = String::new();
             for c in &variant.attrs {
@@ -189,17 +206,13 @@ fn zig_opcode_generation(e: &DataEnum) -> std::io::Result<()> {
                         _ => panic!("Unsupported Ty"),
                     };
 
-                    fields.push_str(&format!(", t.next_immediate({})", field_ty));
+                    fields.push_str(&format!(", t.next_immediate({}).*", field_ty));
                 }
 
                 execute_string = Some(format!("ins.{}(t{})", method_name, fields));
             }
 
-            match_arms.push_str(&format!(
-                "Opcode.{} => {},\n\t\t\t",
-                variant.ident.to_string(),
-                execute_string.unwrap()
-            ));
+            match_arms.push_str(&format!("{} => {},\n\t\t\t", i, execute_string.unwrap()));
         }
     }
 
@@ -212,15 +225,11 @@ const thread = @import("thread.zig");
 pub const Opcode = enum(u8) {{
     {}
 
-    /// Convert a byte into an Opcode
-    pub fn from_byte(b: u8) error{{InvalidInstruction}}!Opcode {{
-        return std.meta.intToEnum(Opcode, b) catch return error.InvalidInstruction;
-    }}
-
     /// Execute an Opcode
-    pub fn execute(t: *thread.ProgramThread, op: Opcode) !void {{
+    pub fn execute(t: *thread.ProgramThread, op: u8) !void {{
         try switch (op) {{
             {}
+            else => ins.undf(t),
         }};
     }}
 }};

@@ -1,50 +1,54 @@
 use anyhow::Result;
 use ecsl_assembler::Assembler;
-use ecsl_ast_validation::{
-    ast_definitions, casing_warnings, collect_prelude, include_prelude, validate_ast,
-    validate_imports,
-};
+use ecsl_ast_pass::*;
+use ecsl_codegen::CodeGen;
 use ecsl_context::{Context, MapAssocExt};
 use ecsl_diagnostics::{Diagnostics, DiagnosticsExt};
 use ecsl_error::{ext::EcslErrorExt, EcslError};
+use ecsl_gir_pass::{const_eval::ConstEval, dead_block::DeadBlocks, GIRPass};
 use ecsl_parse::parse_file;
-use ecsl_ty::{local::LocalTyCtxtExt, TyCtxt};
-use log::info;
-use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
+use ecsl_ty::{ctxt::TyCtxt, local::LocalTyCtxtExt};
+use ecsl_ty_check::ty_check;
+use log::{debug, info};
+use std::{collections::BTreeMap, path::PathBuf, sync::Arc, time::Instant};
 
 pub struct Driver;
 
 impl Driver {
-    pub fn run(std_path: PathBuf) -> Result<(), ()> {
+    pub fn run(std_path: PathBuf) -> Result<PathBuf, ()> {
+        let start_time = Instant::now();
+
         let diag = Arc::new(Diagnostics::new());
 
-        _ = Driver::inner(std_path, diag.clone());
+        let path = Driver::inner(std_path, diag.clone());
         diag.finish_stage(|_| ())?;
 
-        Ok(())
+        info!("Compilation took {:?}", start_time.elapsed());
+
+        Ok(path?)
     }
 
-    fn inner(std_path: PathBuf, diag: Arc<Diagnostics>) -> Result<(), ()> {
-        info!("Starting compilation");
+    fn inner(std_path: PathBuf, diag: Arc<Diagnostics>) -> Result<PathBuf, ()> {
+        debug!("Starting compilation");
 
         // Create the context and load all dependencies of the target program
-        info!("Creating context and loading dependencies");
+        debug!("Creating context and loading dependencies");
         let path = std::env::current_dir().unwrap();
         let (context, assoc) = match Context::new(path.clone(), std_path, diag.empty_conn()) {
             Ok(ctx) => ctx,
             Err(e) => {
                 diag.push_error(e);
                 diag.finish_stage(|_| ())?;
-                return Ok(());
+                return Err(());
             }
         };
         diag.finish_stage(|_| ())?;
 
         // Create lexers externally due to lifetimes
-        info!("Lexing source files");
+        info!("Lexing");
         let mut lexers = BTreeMap::new();
         for (id, src) in context.sources() {
-            info!("Lexing source file {}", src.id);
+            debug!("Lexing source file {}", src.id);
             let lexer = src.lexer();
             lexers.insert(id, lexer);
         }
@@ -62,10 +66,10 @@ impl Driver {
         };
 
         // Parse all files
-        info!("Parsing Files");
+        info!("Parsing");
         let assoc = (&context, assoc).par_map_assoc(
             |_, src, _| {
-                info!("Parsing source file {}", src.id);
+                debug!("Parsing source file {}", src.id);
                 let lexer = lexers.get(&src.id).unwrap();
                 let diag = diag.new_conn(src.id);
 
@@ -80,7 +84,7 @@ impl Driver {
         )?;
 
         // Process the std prelude
-        info!("Getting prelude from std");
+        debug!("Getting prelude from std");
         let prelude = {
             let std_lib = context
                 .get_source_file_from_crate(&"lib".into(), context.config().std_id)
@@ -90,11 +94,11 @@ impl Driver {
         };
 
         // Include the std prelude in all files outside of std
-        info!("Including prelude into all files");
+        debug!("Including prelude into all files");
         let assoc = (&context, assoc).par_map_assoc(
             |ctxt, src, (diag, mut ast, table)| {
                 if !ctxt.in_std(src.id) {
-                    info!("Including prelude for source file {}", src.id);
+                    debug!("Including prelude for source file {}", src.id);
 
                     let lexer = lexers.get(&prelude.id).unwrap();
                     include_prelude(&prelude, &mut ast, table.clone(), lexer);
@@ -106,7 +110,7 @@ impl Driver {
         )?;
 
         // AST validation, Collect Definitions and Casing Warnings
-        info!("Validating AST, Collect Definitions and Casing Warnings");
+        info!("AST Passes");
         let ty_ctxt = Arc::new(TyCtxt::new());
         let assoc = (&context, assoc).par_map_assoc(
             |ctxt, src, (diag, ast, table)| {
@@ -122,19 +126,84 @@ impl Driver {
         )?;
 
         // Verify imports
-        info!("Verifying imports");
-        let _assoc = (&context, assoc).par_map_assoc(
-            |ctxt, src, (_, ast, table, local_ctxt)| {
+        debug!("Verifying imports");
+        let assoc = (&context, assoc).par_map_assoc(
+            |ctxt, src, (diag, ast, table, local_ctxt)| {
                 validate_imports(src, &ctxt, local_ctxt.clone());
 
-                Some((ast, table, local_ctxt))
+                Some((diag, ast, table, local_ctxt))
             },
             || diag.finish_stage(lexer_func),
         )?;
 
-        let assembler = Assembler::new();
-        assembler.output(path.clone()).unwrap();
+        // Generate TyIr for all Definitions
+        info!("Generating TyIr");
+        let assoc = (&context, assoc).par_map_assoc(
+            |_, _, (diag, ast, table, local_ctxt)| {
+                generate_definition_tyir(local_ctxt.clone());
 
-        Ok(())
+                Some((diag, ast, table, local_ctxt))
+            },
+            || diag.finish_stage(lexer_func),
+        )?;
+
+        // Perform type checking
+        info!("Type Checking");
+        let assoc = (&context, assoc).par_map_assoc(
+            |_, _, (diag, ast, table, local_ctxt)| {
+                debug!("Type Checking source file {}", ast.file);
+                let girs = ty_check(&ast, local_ctxt.clone());
+
+                Some((diag, ast, table, local_ctxt, girs))
+            },
+            || diag.finish_stage(lexer_func),
+        )?;
+
+        // Get the entry point
+        debug!("Get entry point");
+        let entry_point = {
+            let main_file = context
+                .get_source_file_from_crate(&"main".into(), context.config().root_id)
+                .unwrap();
+            let assoc = &assoc.assoc.get(&main_file).unwrap();
+            get_entry_point(&assoc.1, assoc.3.clone())
+        };
+        let Some(entry_point) = entry_point else {
+            diag.finish_stage(lexer_func)?;
+            return Err(());
+        };
+
+        ty_ctxt.insert_entry_point(entry_point.0);
+
+        let root_config = context.config().root_config();
+        let assembler = Assembler::new(
+            root_config.name().to_string(),
+            &root_config.bundle_toml_path(),
+        );
+
+        let assembler = assembler.write_temp_header().unwrap();
+        let assembler = assembler.write_const_data().unwrap();
+
+        info!("GIR Passes");
+        let _ = (&context, assoc).par_map_assoc(
+            |_, src, (diag, ast, table, local_ctxt, mut girs)| {
+                let lexer = lexers.get(&src.id).unwrap();
+
+                for (_, gir) in girs.iter_mut() {
+                    DeadBlocks::apply_pass(gir, ());
+                    let consts = ConstEval::apply_pass(gir, lexer);
+
+                    let bytecode = CodeGen::apply_pass(gir, (local_ctxt.clone(), consts));
+                    assembler.include_function(bytecode);
+                }
+
+                Some((diag, ast, table, local_ctxt, girs))
+            },
+            || diag.finish_stage(lexer_func),
+        )?;
+
+        let assember = assembler.write_bytecode(entry_point.0).unwrap();
+
+        Ok(assember.output().unwrap())
     }
 }

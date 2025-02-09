@@ -4,13 +4,15 @@ use ecsl_error::{ext::EcslErrorExt, EcslError, EcslResult, ErrorLevel};
 use ecsl_index::{CrateID, SourceFileID};
 use ecsl_parse::source::SourceFile;
 use glob::glob;
-use log::info;
+use log::debug;
 use package::EcslPackage;
-use rayon::prelude::*;
 use std::{
     collections::{BTreeMap, HashMap},
     path::PathBuf,
 };
+
+#[cfg(feature = "parallel")]
+use rayon::prelude::*;
 
 pub mod bundle_toml;
 pub mod config;
@@ -82,7 +84,7 @@ impl Context {
         let full_path = full_path.canonicalize().ok().unwrap();
         let next_id = SourceFileID::new(self.sources.len());
 
-        info!("Including source file {:?} with id {}", full_path, next_id);
+        debug!("Including source file {:?} with id {}", full_path, next_id);
         let source = SourceFile::from_path(full_path.clone(), next_id, cr);
         self.sources.insert(next_id, source);
         self.source_paths.insert(full_path.clone(), next_id);
@@ -205,10 +207,11 @@ impl<T: Send> MapAssocExt<T> for (&Context, AssocContext<T>) {
     ) -> Result<AssocContext<U>, ()> {
         let len = self.1.assoc.len();
 
-        let out = self
-            .1
-            .assoc
-            .into_par_iter()
+        #[cfg(not(feature = "parallel"))]
+        let iter = self.1.assoc.into_iter();
+        #[cfg(feature = "parallel")]
+        let iter = self.1.assoc.into_par_iter();
+        let out = iter
             .filter_map(|(k, v)| {
                 let src = self.0.sources.get(&k).unwrap();
                 let result = f(self.0, src, v);
@@ -232,10 +235,11 @@ impl<T: Send> MapAssocExt<T> for (&Context, AssocContext<T>) {
     ) -> Result<AssocContext<U>, ()> {
         let len = self.1.assoc.len();
 
-        let out = self
-            .1
-            .assoc
-            .into_par_iter()
+        #[cfg(not(feature = "parallel"))]
+        let iter = self.1.assoc.into_iter();
+        #[cfg(feature = "parallel")]
+        let iter = self.1.assoc.into_par_iter();
+        let out = iter
             .filter_map(|(k, v)| {
                 let src = self.0.sources.get(&k).unwrap();
                 let result = f(w, src, v);

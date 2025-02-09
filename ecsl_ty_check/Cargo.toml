@@ -1,0 +1,14 @@
+[package]
+name = "ecsl_ty_check"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ecsl_ast = { path = "../ecsl_ast" }
+ecsl_bytecode = { path = "../ecsl_bytecode" }
+ecsl_ty = { path = "../ecsl_ty" }
+ecsl_error = { path = "../ecsl_error" }
+ecsl_index = { path = "../ecsl_index" }
+ecsl_gir = { path = "../ecsl_gir"}
+lrpar.workspace = true
+log.workspace = true

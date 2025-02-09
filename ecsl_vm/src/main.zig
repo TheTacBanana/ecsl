@@ -34,8 +34,8 @@ pub fn customLog(
             }
         },
         .info => {
-            const stdout = std.io.getStdOut().writer();
-            var bw = std.io.bufferedWriter(stdout);
+            const stderr = std.io.getStdErr().writer();
+            var bw = std.io.bufferedWriter(stderr);
             const writer = bw.writer();
 
             nosuspend {
@@ -44,8 +44,8 @@ pub fn customLog(
             }
         },
         .debug => {
-            const stdout = std.io.getStdOut().writer();
-            var bw = std.io.bufferedWriter(stdout);
+            const stderr = std.io.getStdErr().writer();
+            var bw = std.io.bufferedWriter(stderr);
             const writer = bw.writer();
 
             nosuspend {
@@ -73,11 +73,11 @@ pub fn main() anyerror!void {
     }
 
     // Log Version
-    std.log.info("ECSL Virtual Machine v{d}.{d}", .{ vm.major, vm.minor });
+    std.log.debug("ECSL Virtual Machine v{d}.{d}", .{ vm.major, vm.minor });
 
     // Get File Name
     const file_name = args[1];
-    std.log.info("Executing '{s}'", .{file_name});
+    std.log.debug("Executing '{s}'", .{file_name});
 
     // Open File
     const file = std.fs.cwd().openFile(file_name, .{}) catch {
@@ -148,7 +148,7 @@ pub fn main() anyerror!void {
     const thread_ptr = ecsl_vm.get_thread(thread_id);
     const program_status = thread_ptr.execute_from_address(program_header.entry_point);
     const exit_code: usize = switch (program_status) {
-        .Success, .HaltProgram => 0,
+        .Running, .HaltProgram => 0,
         .ErrorOrPanic => 1,
     };
     std.log.info("Program terminated with exit code {d}", .{exit_code});

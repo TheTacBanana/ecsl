@@ -1,12 +1,13 @@
 use crate::{
-    assoc::ImplBlock,
+    ctxt::{ImportError, TyCtxt},
     def::Definition,
     import::{Import, ImportPath},
-    ImportError, TyCtxt,
+    GenericsScope, TyIr, TypeError,
 };
+use ecsl_ast::ty::{Ty, TyKind};
 use ecsl_diagnostics::DiagConn;
 use ecsl_error::{ext::EcslErrorExt, EcslError, ErrorLevel};
-use ecsl_index::{SourceFileID, SymbolID};
+use ecsl_index::{GlobalID, SourceFileID, SymbolID, TyID};
 use ecsl_parse::table::SymbolTable;
 use std::{
     collections::BTreeMap,
@@ -23,7 +24,7 @@ pub struct LocalTyCtxt {
     pub imported: RwLock<BTreeMap<SymbolID, Import>>,
 
     pub defined: RwLock<BTreeMap<SymbolID, Definition>>,
-    pub impl_blocks: RwLock<BTreeMap<SymbolID, ImplBlock>>,
+    // pub impl_blocks: RwLock<BTreeMap<SymbolID, ImplBlock>>,
 }
 
 pub trait LocalTyCtxtExt {
@@ -49,7 +50,6 @@ impl LocalTyCtxtExt for Arc<TyCtxt> {
             diag,
             imported: Default::default(),
             defined: Default::default(),
-            impl_blocks: Default::default(),
         });
         self.sources.write().unwrap().insert(file, lctx.clone());
         lctx
@@ -112,5 +112,72 @@ impl LocalTyCtxt {
             let mut lock = self.imported.write().unwrap();
             lock.insert(symbol, Import::Unresolved(import));
         }
+    }
+
+    pub fn exists(&self, id: SymbolID) -> bool {
+        {
+            let lock = self.defined.read().unwrap();
+            if lock.contains_key(&id) {
+                return true;
+            }
+        }
+        {
+            let lock = self.imported.read().unwrap();
+            if lock.contains_key(&id) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    pub fn get_tyid(&self, ty: &Ty, scope: &GenericsScope) -> TyID {
+        macro_rules! resolve_tyid {
+            ($sym:ident) => {
+                if let Some(index) = scope.scope_index(*$sym) {
+                    self.global.tyid_from_tyir(TyIr::GenericParam(index))
+                } else if let Some(gid) = self.get_global_id(*$sym) {
+                    self.global.get_or_create_tyid(gid)
+                } else {
+                    self.diag.push_error(
+                        EcslError::new(ErrorLevel::Error, TypeError::UnknownType)
+                            .with_span(|_| ty.span),
+                    );
+                    TyID::UNKNOWN
+                }
+            };
+        }
+
+        macro_rules! from_tyir {
+            ($tyir:expr) => {
+                self.global.tyid_from_tyir($tyir)
+            };
+        }
+
+        match &ty.kind {
+            TyKind::Ident(symbol_id, _) => resolve_tyid!(symbol_id),
+            TyKind::Ref(mutable, ty) => from_tyir!(TyIr::Ref(*mutable, self.get_tyid(ty, scope))),
+            TyKind::Array(ty, span) => from_tyir!(TyIr::Array(self.get_tyid(ty, scope), *span)),
+            e => todo!("{:?}", e),
+            // TyKind::Ptr(mutable, ty) => todo!(),
+            // TyKind::ArrayRef(mutable, ty) => todo!(),
+            // TyKind::Entity(entity_ty) => todo!(),
+            // TyKind::Schedule => todo!(),
+        }
+    }
+
+    pub fn get_global_id(&self, id: SymbolID) -> Option<GlobalID> {
+        {
+            let defined = self.defined.read().unwrap();
+            if defined.contains_key(&id) {
+                return Some(GlobalID::new(id, self.file));
+            }
+        }
+        {
+            let imported = self.imported.read().unwrap();
+            if let Some(Import::Resolved(mapped_import)) = imported.get(&id) {
+                return Some(mapped_import.to);
+            }
+        }
+        None
     }
 }

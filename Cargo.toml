@@ -8,7 +8,7 @@ members = [
     "ecsl_error",
     "ecsl_ast",
     "ecsl_ast_derive",
-    "ecsl_ast_validation",
+    "ecsl_ast_pass",
     "ecsl_index",
     "ecsl_parse",
     "ecsl_assembler",
@@ -16,6 +16,10 @@ members = [
     "ecsl_ty",
     "ecsl_lexer",
     "ecsl_bytecode_derive",
+    "ecsl_ty_check",
+    "ecsl_gir",
+    "ecsl_gir_pass",
+    "ecsl_codegen",
     ]
 
 resolver = "1"

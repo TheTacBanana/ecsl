@@ -28,7 +28,7 @@ pub struct EnumDef {
     pub variants: Vec<VariantDef>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DataKind {
     Normal,
     Component,
