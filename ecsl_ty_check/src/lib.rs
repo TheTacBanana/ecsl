@@ -52,6 +52,7 @@ pub struct TyCheck {
     stack: Vec<(TyID, Operand)>,
 }
 
+#[allow(unused)]
 enum TerminationKind {
     Lower,
     Equal,
@@ -357,6 +358,7 @@ impl Visitor for TyCheck {
             }
             StmtKind::ElseIf(_, _, _) | StmtKind::Else(_) => panic!("If statement in wrong place"),
             StmtKind::If(expr, block, stmt) => {
+                #[derive(Debug)]
                 enum IfStmt<'a> {
                     If(&'a Expr, &'a Block),
                     ElseIf(&'a Expr, &'a Block),
@@ -383,8 +385,9 @@ impl Visitor for TyCheck {
                 // Store bool ty for later
                 let bool_ty = self.get_tyid(TyIr::Bool);
 
+                let symbols_len = self.symbols.len();
+
                 let mut blocks_to_terminate = Vec::new();
-                // let mut ends_with_else = false;
                 for if_stmt in &stmts {
                     match if_stmt {
                         IfStmt::If(expr, block) | IfStmt::ElseIf(expr, block) => {
@@ -405,6 +408,7 @@ impl Visitor for TyCheck {
                             // Add Block to termination list
                             blocks_to_terminate.push(end_of_block);
 
+                            // TODO: Check soundness of terminating if statements
                             let to_next = self.new_block_without_stack();
                             self.block_mut(cur_block).terminate(Terminator {
                                 kind: TerminatorKind::Switch(
@@ -420,10 +424,9 @@ impl Visitor for TyCheck {
                         IfStmt::Else(block) => {
                             // Walk else block
                             walk_block(self, block)?;
-                            let end_of_block = self.pop_block();
 
                             // Add Block to termination list
-                            blocks_to_terminate.push(end_of_block);
+                            blocks_to_terminate.push(self.cur_block());
 
                             // Create trailing block
                             let trailing_block = self.new_block_without_stack();
@@ -438,6 +441,12 @@ impl Visitor for TyCheck {
                         kind: TerminatorKind::Jump(cur_block),
                     });
                 }
+
+                assert_eq!(
+                    symbols_len,
+                    self.symbols.len(),
+                    "Internal Compiler Error: symbol table incorrect after if statement"
+                );
             }
             StmtKind::Expr(expr) => {
                 self.visit_expr(expr)?;
@@ -518,6 +527,8 @@ impl Visitor for TyCheck {
                 // Unify Types
                 unify!(lhs_ty, rhs_ty, TyCheckError::RangeMustEqual);
                 unify!(iterator_tyid, lhs_ty, TyCheckError::ForLoopIterator);
+
+                let symbols_len = self.symbols.len();
 
                 // Create local ID
                 let iterator_local_id = self.new_local(Local::new(
@@ -655,8 +666,13 @@ impl Visitor for TyCheck {
                         });
                     },
                 );
-
                 self.block_stack.push(leave_block);
+
+                assert_eq!(
+                    symbols_len,
+                    self.symbols.len(),
+                    "Internal Compiler Error: symbol table incorrect after for loop"
+                );
             }
             e => todo!("{e:?}"),
             // StmtKind::While(expr, block) => todo!(),
