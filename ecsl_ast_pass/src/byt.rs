@@ -23,7 +23,7 @@ impl<'a> BytecodeValidator<'a> {
 impl<'a> Visitor for BytecodeValidator<'a> {
     fn visit_stmt(&mut self, s: &Stmt) -> VisitorCF {
         match &s.kind {
-            StmtKind::ASM(asm) => {
+            StmtKind::BYT(byt) => {
                 if !self.ctxt.in_std(self.id) {
                     self.diag.push_error(
                         EcslError::new(ErrorLevel::Error, BytecodeError::StdOnly)
@@ -31,7 +31,7 @@ impl<'a> Visitor for BytecodeValidator<'a> {
                     );
                 }
 
-                for bytecode in asm {
+                for bytecode in byt {
                     if let Opcode::UNDF = bytecode.ins.op {
                         self.diag.push_error(
                             EcslError::new(ErrorLevel::Error, BytecodeError::Unknown)

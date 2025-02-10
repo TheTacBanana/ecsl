@@ -62,7 +62,7 @@ pub enum StmtKind {
     Expr(P<Expr>),
 
     // Inline Bytecode
-    ASM(Vec<InlineBytecode>),
+    BYT(Vec<InlineBytecode>),
 
     /// Empty Semi Colon
     Semi,

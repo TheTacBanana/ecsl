@@ -74,7 +74,7 @@ imm "IMM"
 = "ASSIGN"
 as "AS"
 
-asm "ASM"
+byt "BYT"
 
 (false|true) "BOOLEAN"
 [a-zA-Z_][a-zA-Z0-9_]* "IDENT"

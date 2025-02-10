@@ -86,7 +86,7 @@
 %epp 'BREAK' 'break'
 %epp 'CONTINUE' 'continue'
 %epp 'RETURN' 'return'
-%epp 'ASM' 'asm'
+%epp 'BYT' 'byt'
 
 %parse-param table: Rc<RefCell<PartialSymbolTable>>
 
@@ -548,11 +548,11 @@ Stmt -> Result<Stmt, ()>:
         )))
     }
     | 'SEMI' { Ok(Stmt::new($span, StmtKind::Semi)) }
-    | 'ASM' 'LCURLY' 'RCURLY' {
-        Ok(Stmt::new($span, StmtKind::ASM(Vec::new())))
+    | 'BYT' 'LCURLY' 'RCURLY' {
+        Ok(Stmt::new($span, StmtKind::BYT(Vec::new())))
     }
-    | 'ASM' 'LCURLY' BytecodeList 'RCURLY' {
-        Ok(Stmt::new($span, StmtKind::ASM($3?)))
+    | 'BYT' 'LCURLY' BytecodeList 'RCURLY' {
+        Ok(Stmt::new($span, StmtKind::BYT($3?)))
     }
     ;
 

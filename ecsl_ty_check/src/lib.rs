@@ -479,7 +479,7 @@ impl Visitor for TyCheck {
                     kind: TerminatorKind::Return,
                 });
             }
-            StmtKind::ASM(bytecode) => {
+            StmtKind::BYT(bytecode) => {
                 for InlineBytecode { span, ins } in bytecode {
                     let mut ins = ins.clone();
                     for i in ins.operand.iter_mut() {
@@ -504,7 +504,7 @@ impl Visitor for TyCheck {
 
                     self.push_stmt_to_cur_block(gir::Stmt {
                         span: *span,
-                        kind: gir::StmtKind::ASM(ins.clone()),
+                        kind: gir::StmtKind::BYT(ins.clone()),
                     })
                 }
             }
@@ -787,7 +787,7 @@ impl Visitor for TyCheck {
                 if ret_size > 0 {
                     self.push_stmt_to_cur_block(gir::Stmt {
                         span: e.span,
-                        kind: gir::StmtKind::ASM(ins!(SETSPR, Immediate::Long(ret_size))),
+                        kind: gir::StmtKind::BYT(ins!(SETSPR, Immediate::Long(ret_size))),
                     });
                 }
 

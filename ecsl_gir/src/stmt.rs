@@ -19,7 +19,7 @@ impl std::fmt::Display for Stmt {
 pub enum StmtKind {
     Assign(LocalID, P<Expr>),
     Expr(P<Expr>),
-    ASM(BytecodeInstruction),
+    BYT(BytecodeInstruction),
 }
 
 impl std::fmt::Display for StmtKind {
@@ -27,7 +27,7 @@ impl std::fmt::Display for StmtKind {
         match self {
             StmtKind::Assign(local_id, expr) => write!(f, "{} = {}", local_id, expr),
             StmtKind::Expr(expr) => write!(f, "{}", expr),
-            StmtKind::ASM(ins) => {
+            StmtKind::BYT(ins) => {
                 write!(f, "{:?} {:?}", ins.op, ins.operand)
             }
         }

@@ -266,7 +266,7 @@ pub fn walk_stmt<V: Visitor>(v: &mut V, s: &Stmt) -> VisitorCF {
         }
         StmtKind::Expr(e) => visit!(v.visit_expr(e)),
 
-        StmtKind::Break | StmtKind::Continue | StmtKind::Semi | StmtKind::ASM(_) => (),
+        StmtKind::Break | StmtKind::Continue | StmtKind::Semi | StmtKind::BYT(_) => (),
     }
     VisitorCF::Continue
 }

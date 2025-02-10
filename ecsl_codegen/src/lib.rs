@@ -189,7 +189,7 @@ impl CodeGen {
 
                                 instrs.push(self.store_local(*local_id));
                             }
-                            StmtKind::ASM(byt) => {
+                            StmtKind::BYT(byt) => {
                                 let mut byt = byt.clone();
                                 for imm in byt.operand.iter_mut() {
                                     if let Immediate::LocalOf(local_id) = imm {

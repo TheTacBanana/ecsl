@@ -1,6 +1,6 @@
 #![feature(let_chains)]
-use asm::BytecodeValidator;
 use attributes::AttributeValidator;
+use byt::BytecodeValidator;
 use casing::CasingWarnings;
 use definitions::TypeDefCollector;
 use ecsl_ast::{
@@ -27,8 +27,8 @@ use log::debug;
 use prelude::{rewrite_use_path, Prelude};
 use std::{path::PathBuf, sync::Arc};
 
-pub mod asm;
 pub mod attributes;
+pub mod byt;
 pub mod casing;
 pub mod definitions;
 pub mod entry_point;
