@@ -1,8 +1,7 @@
+use crate::{expr::Expr, ty::Ty, P};
 use cfgrammar::Span;
 use ecsl_ast_derive::AST;
 use ecsl_index::SymbolID;
-
-use crate::{expr::Expr, ty::Ty, P};
 
 #[derive(Debug, Clone, AST)]
 pub struct EntityTy {

@@ -1,12 +1,11 @@
-use cfgrammar::Span;
-use ecsl_ast_derive::AST;
-use ecsl_index::SymbolID;
-
 use crate::{
     stmt::Block,
     ty::{Generics, Mutable, Ty},
     P,
 };
+use cfgrammar::Span;
+use ecsl_ast_derive::AST;
+use ecsl_index::SymbolID;
 
 #[derive(Debug, Clone, AST)]
 pub struct FnDef {

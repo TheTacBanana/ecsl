@@ -1,8 +1,7 @@
+use crate::{snippet::Snippet, EcslError};
 use cfgrammar::Span;
 use ecsl_index::SourceFileID;
 use std::path::PathBuf;
-
-use crate::{snippet::Snippet, EcslError};
 
 /// Trait Extension of `Result<T, EcslError>` and `EcslError` to add info
 pub trait EcslErrorExt<T> {

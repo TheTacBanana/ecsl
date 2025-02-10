@@ -1,3 +1,4 @@
+use crate::GIRPass;
 use ecsl_bytecode::Immediate;
 use ecsl_gir::{
     cons::{Constant, Literal},
@@ -7,8 +8,6 @@ use ecsl_gir::{
 use ecsl_index::ConstID;
 use ecsl_parse::{LexerTy, NonStreamingLexer};
 use std::{collections::BTreeMap, ops::Deref};
-
-use crate::GIRPass;
 
 pub struct ConstEval<'a> {
     lexer: &'a LexerTy<'a, 'a>,

@@ -1,9 +1,8 @@
+use crate::GIRPass;
 use ecsl_gir::{
     visit::{VisitorCF, VisitorMut},
     GIR,
 };
-
-use crate::GIRPass;
 
 pub struct DeadBlocks;
 

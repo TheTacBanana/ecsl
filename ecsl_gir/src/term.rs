@@ -1,7 +1,6 @@
+use crate::expr::Operand;
 use ecsl_ast::parse::Immediate;
 use ecsl_index::BlockID;
-
-use crate::expr::Operand;
 
 #[derive(Debug)]
 pub struct Terminator {

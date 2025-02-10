@@ -1,5 +1,4 @@
 use crate::{cons::Constant, stmt::Stmt, term::Terminator, Block, Local, GIR};
-
 pub use ecsl_ast::visit::VisitorCF;
 use ecsl_index::{BlockID, ConstID, LocalID};
 

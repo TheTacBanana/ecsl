@@ -1,9 +1,7 @@
-use std::{io::Write, path::PathBuf};
-
+use crate::cli::CommandTrait;
 use anyhow::{anyhow, Ok, Result};
 use clap::Args;
-
-use crate::cli::CommandTrait;
+use std::{io::Write, path::PathBuf};
 
 #[derive(Debug, Args)]
 pub struct New {

@@ -1,7 +1,6 @@
+use crate::{compile::Compile, new::New};
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-
-use crate::{compile::Compile, new::New};
 
 #[derive(Parser)]
 pub struct Cli {

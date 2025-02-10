@@ -87,7 +87,7 @@ impl Driver {
         debug!("Getting prelude from std");
         let prelude = {
             let std_lib = context
-                .get_source_file_from_crate(&"lib".into(), context.config().std_id)
+                .get_source_file_from_package(&"lib".into(), context.config().std_id)
                 .unwrap();
             let ast = &assoc.assoc.get(&std_lib).unwrap().1;
             collect_prelude(&ast, std_lib)
@@ -163,7 +163,7 @@ impl Driver {
         debug!("Get entry point");
         let entry_point = {
             let main_file = context
-                .get_source_file_from_crate(&"main".into(), context.config().root_id)
+                .get_source_file_from_package(&"main".into(), context.config().root_id)
                 .unwrap();
             let assoc = &assoc.assoc.get(&main_file).unwrap();
             get_entry_point(&assoc.1, assoc.3.clone())

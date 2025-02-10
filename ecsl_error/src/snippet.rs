@@ -1,9 +1,8 @@
+use crate::ErrorLevel;
 use ansi_term::{Colour, Colour::Blue};
 use cfgrammar::Span;
 use ecsl_index::LineNumberColumn;
 use std::fmt::Write;
-
-use crate::ErrorLevel;
 
 #[derive(Debug, Clone)]
 pub struct Snippet {

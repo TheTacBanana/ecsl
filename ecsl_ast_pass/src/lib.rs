@@ -98,7 +98,7 @@ pub fn validate_imports(source: &SourceFile, ctxt: &Context, ty_ctxt: Arc<LocalT
             let _ = components.next().unwrap();
             let import_path = components.collect::<PathBuf>();
 
-            let source_file = match ctxt.get_source_file_from_crate(&import_path, cr) {
+            let source_file = match ctxt.get_source_file_from_package(&import_path, cr) {
                 Ok(source_id) => source_id,
                 Err(err) => {
                     ty_ctxt.diag.push_error(

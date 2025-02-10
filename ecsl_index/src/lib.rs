@@ -43,7 +43,7 @@ macro_rules! generate_index_type {
 
 // General Indexes
 generate_index_type!(SourceFileID);
-generate_index_type!(CrateID);
+generate_index_type!(PackageID);
 
 // AST Indexes
 generate_index_type!(SymbolID);
@@ -108,10 +108,10 @@ impl std::fmt::Display for LineNumberColumn {
 
 #[cfg(test)]
 pub mod test {
-    use super::CrateID;
+    use super::PackageID;
 
     #[test]
     pub fn add() {
-        assert_eq!(CrateID::new(1) + CrateID::new(2), CrateID::new(3))
+        assert_eq!(PackageID::new(1) + PackageID::new(2), PackageID::new(3))
     }
 }

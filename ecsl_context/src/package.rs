@@ -1,18 +1,18 @@
 use std::path::PathBuf;
 
 use bimap::BiHashMap;
-use ecsl_index::CrateID;
+use ecsl_index::PackageID;
 use serde::Deserialize;
 
 #[derive(Debug)]
 pub struct EcslPackage {
-    cr: CrateID,
+    cr: PackageID,
     info: PackageInfo,
-    dependencies: BiHashMap<String, CrateID>,
+    dependencies: BiHashMap<String, PackageID>,
 }
 
 impl EcslPackage {
-    pub fn new(cr: CrateID, info: PackageInfo) -> Self {
+    pub fn new(cr: PackageID, info: PackageInfo) -> Self {
         Self {
             cr,
             info,
@@ -20,24 +20,24 @@ impl EcslPackage {
         }
     }
 
-    pub fn add_dependency(&mut self, s: String, cr: CrateID) {
+    pub fn add_dependency(&mut self, s: String, cr: PackageID) {
         self.dependencies.insert(s, cr);
     }
 
-    pub fn has_dependency(&self, cr: CrateID) -> bool {
+    pub fn has_dependency(&self, cr: PackageID) -> bool {
         self.dependencies.contains_right(&cr)
     }
 
-    pub fn dependencies(&mut self) -> impl Iterator<Item = (&String, &CrateID)> {
+    pub fn dependencies(&mut self) -> impl Iterator<Item = (&String, &PackageID)> {
         self.dependencies.iter()
     }
 
-    pub fn get_dependency<'a>(&self, dep: impl Into<&'a str>) -> Option<CrateID> {
+    pub fn get_dependency<'a>(&self, dep: impl Into<&'a str>) -> Option<PackageID> {
         let s = dep.into().to_string();
         self.dependencies.get_by_left(&s).cloned()
     }
 
-    pub fn id(&self) -> CrateID {
+    pub fn id(&self) -> PackageID {
         self.cr
     }
 
@@ -69,8 +69,8 @@ impl EcslPackage {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PackageDependency {
-    pub required_by: CrateID,
-    pub id: CrateID,
+    pub required_by: PackageID,
+    pub id: PackageID,
     pub name: String,
     pub path: PathBuf,
 }

@@ -5,23 +5,23 @@ use crate::{
 use bimap::BiHashMap;
 use ecsl_diagnostics::DiagConn;
 use ecsl_error::{ext::EcslErrorExt, EcslError, EcslResult, ErrorLevel};
-use ecsl_index::CrateID;
+use ecsl_index::PackageID;
 use log::{debug, info};
 use petgraph::{algo, prelude::GraphMap, Directed};
 use std::{collections::BTreeMap, path::PathBuf};
 
 #[derive(Debug)]
 pub struct EcslConfig {
-    pub abs_paths: BiHashMap<PathBuf, CrateID>,
-    pub packages: BTreeMap<CrateID, EcslPackage>,
+    pub abs_paths: BiHashMap<PathBuf, PackageID>,
+    pub packages: BTreeMap<PackageID, EcslPackage>,
 
-    pub root_id: CrateID,
+    pub root_id: PackageID,
     pub std_path: PathBuf,
-    pub std_id: CrateID,
+    pub std_id: PackageID,
 
     dependency_queue: Vec<PackageDependency>,
 
-    pub cycle: Option<CrateID>,
+    pub cycle: Option<PackageID>,
 }
 
 impl EcslConfig {
@@ -33,8 +33,8 @@ impl EcslConfig {
         let mut config = EcslConfig {
             abs_paths: BiHashMap::new(),
             packages: BTreeMap::new(),
-            std_id: CrateID::ZERO,
-            root_id: CrateID::ZERO,
+            std_id: PackageID::ZERO,
+            root_id: PackageID::ZERO,
             std_path: std_path.clone(),
             dependency_queue: Vec::new(),
             cycle: None,
@@ -59,7 +59,7 @@ impl EcslConfig {
         }
 
         // Graph used to detect dependency cycles
-        let mut graph = GraphMap::<CrateID, (), Directed>::new();
+        let mut graph = GraphMap::<PackageID, (), Directed>::new();
         graph.add_node(config.root_id);
         graph.add_node(config.std_id);
         graph.add_edge(config.root_id, config.std_id, ());
@@ -94,7 +94,7 @@ impl EcslConfig {
     }
 
     pub fn root_config(&self) -> &EcslPackage {
-        self.packages.get(&CrateID::ONE).unwrap()
+        self.packages.get(&PackageID::ONE).unwrap()
     }
 
     fn load_bundle_toml(path: &PathBuf) -> EcslResult<BundleToml> {
@@ -108,8 +108,8 @@ impl EcslConfig {
             .with_path(|_| path.clone())
     }
 
-    fn include_bundle_toml(&mut self, mut bundle_toml: BundleToml, diag: DiagConn) -> CrateID {
-        let package_id = self.crate_id_from_path(&bundle_toml.package.path);
+    fn include_bundle_toml(&mut self, mut bundle_toml: BundleToml, diag: DiagConn) -> PackageID {
+        let package_id = self.package_id_from_path(&bundle_toml.package.path);
         let mut package = EcslPackage::new(package_id, bundle_toml.package.clone());
 
         debug!(
@@ -123,7 +123,7 @@ impl EcslConfig {
             .drain()
             .collect::<Vec<(String, PathBuf)>>();
 
-        // Add std as a dependency for all crates
+        // Add std as a dependency for all packages
         if package_id != self.std_id {
             dependencies.push(("std".to_string(), self.std_path.clone()));
         }
@@ -139,7 +139,7 @@ impl EcslConfig {
 
             match dependency_path.canonicalize() {
                 Ok(path) => {
-                    let dep_id = self.crate_id_from_path(&path);
+                    let dep_id = self.package_id_from_path(&path);
                     if package.has_dependency(dep_id) {
                         diag.push_error(
                             EcslError::new(
@@ -178,11 +178,11 @@ impl EcslConfig {
         package_id
     }
 
-    /// Get CrateID from canonicalized path
-    pub fn crate_id_from_path(&mut self, path: &PathBuf) -> CrateID {
+    /// Get PackageID from canonicalized path
+    pub fn package_id_from_path(&mut self, path: &PathBuf) -> PackageID {
         let path = path.canonicalize().ok().unwrap();
 
-        let next_id = CrateID::new(self.abs_paths.len());
+        let next_id = PackageID::new(self.abs_paths.len());
         if self.abs_paths.contains_left(&path) {
             *self.abs_paths.get_by_left(&path).unwrap()
         } else {
@@ -191,7 +191,7 @@ impl EcslConfig {
         }
     }
 
-    pub fn get_crate(&self, id: CrateID) -> Option<&EcslPackage> {
+    pub fn get_package(&self, id: PackageID) -> Option<&EcslPackage> {
         self.packages.get(&id)
     }
 }

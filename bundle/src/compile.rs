@@ -1,11 +1,9 @@
-use std::{path::PathBuf, process::Command};
-
+use crate::cli::CommandTrait;
+use anyhow::Result;
 use clap::Args;
 use ecsl_driver::Driver;
 use log::{debug, info};
-
-use crate::cli::CommandTrait;
-use anyhow::Result;
+use std::{path::PathBuf, process::Command};
 
 #[derive(Debug, Args)]
 pub struct Compile {

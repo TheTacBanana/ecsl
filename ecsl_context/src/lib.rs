@@ -1,7 +1,7 @@
 use config::EcslConfig;
 use ecsl_diagnostics::DiagConn;
 use ecsl_error::{ext::EcslErrorExt, EcslError, EcslResult, ErrorLevel};
-use ecsl_index::{CrateID, SourceFileID};
+use ecsl_index::{PackageID, SourceFileID};
 use ecsl_parse::source::SourceFile;
 use glob::glob;
 use log::debug;
@@ -38,11 +38,11 @@ impl Context {
         let config = EcslConfig::new_config(&path, &std_path, diag.clone())?;
 
         if let Some(cycle_causer) = config.cycle {
-            let package = config.get_crate(cycle_causer).unwrap();
+            let package = config.get_package(cycle_causer).unwrap();
             diag.push_error(
                 EcslError::new(
                     ErrorLevel::Error,
-                    format!("Dependency cycle caused by crate {}", package.name()),
+                    format!("Dependency cycle caused by package {}", package.name()),
                 )
                 .with_path(|_| package.bundle_toml_path()),
             );
@@ -80,7 +80,7 @@ impl Context {
         }
     }
 
-    fn create_source_file(&mut self, full_path: &PathBuf, cr: CrateID) -> SourceFileID {
+    fn create_source_file(&mut self, full_path: &PathBuf, cr: PackageID) -> SourceFileID {
         let full_path = full_path.canonicalize().ok().unwrap();
         let next_id = SourceFileID::new(self.sources.len());
 
@@ -108,17 +108,17 @@ impl Context {
         self.config.packages.get(&source.cr)
     }
 
-    /// Get a SourceFileID with a relative path from a crates src file
-    /// Gets the packages path from the crate id and appends the extension
-    pub fn get_source_file_from_crate(
+    /// Get a SourceFileID with a relative path from a packages src file
+    /// Gets the packages path from the packages id and appends the extension
+    pub fn get_source_file_from_package(
         &self,
         relative_path: &PathBuf,
-        cr: CrateID,
+        cr: PackageID,
     ) -> Result<SourceFileID, ImportPathError> {
         let path = self
             .config()
-            .get_crate(cr)
-            .ok_or(ImportPathError::MissingCrate)?
+            .get_package(cr)
+            .ok_or(ImportPathError::MissingPackage)?
             .file_path(relative_path);
         let id = self
             .source_paths
@@ -128,7 +128,7 @@ impl Context {
         if source_file.cr == cr {
             Ok(*id)
         } else {
-            Err(ImportPathError::NotInSameCrate)
+            Err(ImportPathError::NotInSamePackage)
         }
     }
 
@@ -155,7 +155,7 @@ impl Context {
         if to_source.cr == cr {
             Ok(*id)
         } else {
-            Err(ImportPathError::NotInSameCrate)
+            Err(ImportPathError::NotInSamePackage)
         }
     }
 
@@ -167,18 +167,18 @@ impl Context {
 
 #[derive(Debug, Clone, Copy)]
 pub enum ImportPathError {
-    MissingCrate,
+    MissingPackage,
     PathError,
-    NotInSameCrate,
+    NotInSamePackage,
 }
 
 impl std::fmt::Display for ImportPathError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let s = match self {
-            ImportPathError::MissingCrate => "Crate cannot be resolved",
+            ImportPathError::MissingPackage => "Package cannot be resolved",
             ImportPathError::PathError => "Path cannot be resolved",
-            ImportPathError::NotInSameCrate => {
-                "Importing files from outside of the specified crate is not allowed"
+            ImportPathError::NotInSamePackage => {
+                "Importing files from outside of the specified package is not allowed"
             }
         };
         write!(f, "{}", s)
