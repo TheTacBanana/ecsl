@@ -5,7 +5,12 @@ use ecsl_codegen::CodeGen;
 use ecsl_context::{Context, MapAssocExt};
 use ecsl_diagnostics::{Diagnostics, DiagnosticsExt};
 use ecsl_error::{ext::EcslErrorExt, EcslError};
-use ecsl_gir_pass::{const_eval::ConstEval, dead_block::DeadBlocks, GIRPass};
+use ecsl_gir_pass::{
+    const_eval::ConstEval,
+    dead_block::DeadBlocks,
+    function_graph::{FunctionDependencies, FunctionGraph},
+    GIRPass,
+};
 use ecsl_parse::parse_file;
 use ecsl_ty::{ctxt::TyCtxt, local::LocalTyCtxtExt};
 use ecsl_ty_check::ty_check;
@@ -172,8 +177,32 @@ impl Driver {
             diag.finish_stage(lexer_func)?;
             return Err(());
         };
-
         ty_ctxt.insert_entry_point(entry_point.0);
+
+        debug!("Building Function Graph");
+        let function_graph = Arc::new(FunctionGraph::new());
+        let assoc = (&context, assoc).par_map_assoc(
+            |_, _, (diag, ast, table, local_ctxt, mut girs)| {
+                let function_graph = function_graph.clone();
+                for (_, gir) in girs.iter_mut() {
+                    FunctionDependencies::apply_pass(gir, &function_graph);
+                }
+                Some((diag, ast, table, local_ctxt, girs, function_graph))
+            },
+            || diag.finish_stage(lexer_func),
+        )?;
+        function_graph.prune_unused(entry_point.0);
+
+        debug!("Prune unused functions");
+        let assoc = (&context, assoc).par_map_assoc(
+            |_, _, (diag, ast, table, local_ctxt, mut girs, function_graph)| {
+                let graph = function_graph.graph.read().unwrap();
+                girs.retain(|_, g| graph.contains_node(g.fn_id()));
+
+                Some((diag, ast, table, local_ctxt, girs))
+            },
+            || diag.finish_stage(lexer_func),
+        )?;
 
         let root_config = context.config().root_config();
         let assembler = Assembler::new(

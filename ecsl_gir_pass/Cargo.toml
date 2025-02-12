@@ -10,4 +10,5 @@ ecsl_index = { path = "../ecsl_index" }
 ecsl_diagnostics = { path = "../ecsl_diagnostics" }
 ecsl_parse = { path = "../ecsl_parse" }
 ecsl_bytecode = { path = "../ecsl_bytecode" }
+petgraph = "0.6.5"
 log.workspace = true
