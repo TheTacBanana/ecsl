@@ -1,5 +1,6 @@
 use crate::{local::LocalTyCtxt, TyIr};
 use bimap::BiHashMap;
+use cfgrammar::Span;
 use ecsl_index::{GlobalID, SourceFileID, TyID};
 use log::debug;
 use std::{
@@ -13,6 +14,7 @@ pub struct TyCtxt {
     pub tyirs: RwLock<BiHashMap<TyID, TyIr>>,
     pub cur_id: RwLock<usize>,
     pub sizes: RwLock<BTreeMap<TyID, usize>>,
+    pub spans: RwLock<BTreeMap<TyID, Span>>,
     pub entry_point: RwLock<Option<TyID>>,
 }
 
@@ -25,6 +27,7 @@ impl TyCtxt {
             cur_id: Default::default(),
             sizes: Default::default(),
             entry_point: Default::default(),
+            spans: Default::default(),
         };
         ty_ctxt.tyid_from_tyir(TyIr::Unknown);
         ty_ctxt.tyid_from_tyir(TyIr::Bottom);
@@ -48,9 +51,11 @@ impl TyCtxt {
         tyid
     }
 
-    pub unsafe fn insert_tyir(&self, id: TyID, tyir: TyIr) {
+    pub unsafe fn insert_tyir(&self, id: TyID, tyir: TyIr, span: Span) {
         let mut defs = self.tyirs.write().unwrap();
+        let mut spans = self.spans.write().unwrap();
         defs.insert(id, tyir);
+        spans.insert(id, span);
     }
 
     pub fn tyid_from_tyir(&self, tyir: TyIr) -> TyID {
@@ -83,6 +88,11 @@ impl TyCtxt {
     pub fn entry_point(&self) -> TyID {
         let entry = self.entry_point.read().unwrap();
         entry.unwrap()
+    }
+
+    pub fn get_span(&self, id: TyID) -> Option<Span> {
+        let spans = self.spans.read().unwrap();
+        spans.get(&id).cloned()
     }
 
     pub fn get_size(&self, id: TyID) -> usize {

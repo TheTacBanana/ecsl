@@ -153,6 +153,7 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
     for (_, def) in ty_ctxt.defined.read().unwrap().iter() {
         match def {
             Definition::Struct(ast::StructDef {
+                span,
                 kind,
                 ident,
                 generics,
@@ -179,7 +180,7 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                     };
 
                     if let Some(tyir) = tyir {
-                        unsafe { ty_ctxt.global.insert_tyir(tyid, tyir) };
+                        unsafe { ty_ctxt.global.insert_tyir(tyid, tyir, *span) };
                         ty_ctxt.global.insert_size(tyid, builtin_size);
                         continue;
                     }
@@ -208,6 +209,7 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                             kind: *kind,
                             fields,
                         }),
+                        *span,
                     )
                 };
 
@@ -224,6 +226,7 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                 debug!("TODO: Enum TyIr");
             }
             Definition::Function(ast::FnDef {
+                span,
                 kind,
                 ident,
                 generics,
@@ -261,6 +264,7 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                             params,
                             ret,
                         }),
+                        *span,
                     )
                 };
 
