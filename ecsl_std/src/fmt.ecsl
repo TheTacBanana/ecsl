@@ -2,14 +2,14 @@ use num::{int, float};
 
 fn print_int(i: int) {
     byt {
-        LDR #i;
+        LDR #4UB #i;
         PRINT_I;
     }
 }
 
 fn print_float(f: float) {
     byt {
-        LDR #f;
+        LDR #4UB #f;
         PRINT_F;
     }
 }

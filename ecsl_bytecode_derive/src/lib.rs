@@ -134,7 +134,7 @@ fn generate(e: &DataEnum) -> TokenStream {
             pub fn to_bytecode(self) -> Option<Bytecode> {
                 match (&self.op, self.operand.as_slice()) {
                     #(#to_bytecode),*
-                    _ => None,
+                    e => panic!("{e:?}"),
                 }
             }
         }

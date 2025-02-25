@@ -1,7 +1,6 @@
-use crate::{expr::Expr, Place, P};
+use crate::{expr::Expr, Place};
 use cfgrammar::Span;
 use ecsl_ast::parse::BytecodeInstruction;
-use ecsl_index::LocalID;
 
 #[derive(Debug)]
 pub struct Stmt {

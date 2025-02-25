@@ -597,6 +597,19 @@ Immediate -> Result<Immediate, ()>:
             table.usage($2.map_err(|_| ())?.span(), SymbolKind::Local)
         ))
     }
+    | 'HASH' 'INT' 'INTKIND' {
+        let num = table.string($2.map_err(|_| ())?.span());
+        let num_kind = table.string($3.map_err(|_| ())?.span());
+        let kind = IntKind::from_str(num_kind.as_str());
+        Ok(match kind {
+            IntKind::Int => Immediate::Int(num.parse().unwrap()),
+            IntKind::UInt => todo!(),
+            IntKind::Long => Immediate::Long(num.parse().unwrap()),
+            IntKind::ULong => Immediate::ULong(num.parse().unwrap()),
+            IntKind::Byte => todo!(),
+            IntKind::UByte => Immediate::UByte(num.parse().unwrap()),
+        })
+    }
     ;
 
 IfStmt -> Result<Stmt, ()>:

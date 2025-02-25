@@ -126,7 +126,6 @@ impl GIR {
 #[derive(Debug)]
 pub struct Block {
     id: BlockID,
-    // parents: Vec<BlockID>,
     stmts: Vec<Stmt>,
     term: Option<Terminator>,
 }
@@ -135,12 +134,12 @@ impl std::fmt::Display for Block {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "Block {}:", self.id)?;
         for s in &self.stmts {
-            writeln!(f, "  {}", s)?;
+            writeln!(f, "\t{}", s)?;
         }
         if let Some(term) = &self.term {
-            writeln!(f, "  {}", term)?
+            writeln!(f, "\t{}", term)?
         } else {
-            writeln!(f, "  ??",)?
+            writeln!(f, "\t??",)?
         }
         Ok(())
     }

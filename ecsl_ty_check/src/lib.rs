@@ -336,13 +336,13 @@ impl Visitor for TyCheck {
                 unify!(lhs, rhs_ty, TyCheckError::AssignWrongType);
 
                 let local_id = match rhs_op {
-                    Operand::Copy(local_id) | Operand::Move(local_id) => {
-                        let local = self.get_local_mut(local_id);
+                    Operand::Copy(place) | Operand::Move(place) => {
+                        let local = self.get_local_mut(place.local);
                         local.kind = LocalKind::Let;
                         local.mutable = *mutable;
                         local.span = *span;
 
-                        local_id
+                        place.local
                     }
                     Operand::Constant(const_id) => {
                         // Create local ID
@@ -632,8 +632,8 @@ impl Visitor for TyCheck {
                                         RangeType::Inclusive => BinOpKind::Leq,
                                     },
                                 ),
-                                Operand::Copy(iterator_local_id),
-                                Operand::Copy(internal_max),
+                                Operand::Copy(Place::from_local(iterator_local_id)),
+                                Operand::Copy(Place::from_local(internal_max)),
                             ),
                         },
                     ),
@@ -645,7 +645,7 @@ impl Visitor for TyCheck {
                     self.terminate_with_new_block(TerminationKind::Higher, |block, next| {
                         block.terminate(Terminator {
                             kind: TerminatorKind::Switch(
-                                Operand::Move(comparison),
+                                Operand::Move(Place::from_local(comparison)),
                                 vec![
                                     SwitchCase::Value(Immediate::Bool(true), next),
                                     SwitchCase::Default(leave_block),
@@ -674,7 +674,7 @@ impl Visitor for TyCheck {
                             span: expr.span,
                             kind: gir::ExprKind::BinOp(
                                 BinOp(OperandKind::Int, BinOpKind::Add),
-                                Operand::Copy(iterator_local_id),
+                                Operand::Copy(Place::from_local(iterator_local_id)),
                                 Operand::Constant(one_const),
                             ),
                         },
@@ -766,7 +766,7 @@ impl Visitor for TyCheck {
                     ),
                 });
 
-                Some((local_tyid, Operand::Copy(found.unwrap())))
+                Some((local_tyid, Operand::Copy(Place::from_local(found.unwrap()))))
             }
             ExprKind::Ident(symbol_id) => {
                 // Search all symbols
@@ -783,7 +783,7 @@ impl Visitor for TyCheck {
 
                 let local = self.cur_gir().get_local(found.unwrap());
 
-                Some((local.tyid, Operand::Copy(found.unwrap())))
+                Some((local.tyid, Operand::Copy(Place::from_local(found.unwrap()))))
             }
             ExprKind::Lit(literal) => {
                 let tyid = self.get_tyid(TyIr::from(*literal));
@@ -826,7 +826,7 @@ impl Visitor for TyCheck {
                 let mut operands = Vec::new();
                 for ((l, op, span), r) in exprs_tys.iter().zip(&fn_tyir.params) {
                     unify!(*l, *r, TyCheckError::IncorrectFunctionArgument, *span);
-                    operands.push(*op);
+                    operands.push(op.clone());
                 }
 
                 let local_id = self.new_local(Local::new(
@@ -848,7 +848,7 @@ impl Visitor for TyCheck {
                     ),
                 });
 
-                Some((fn_tyir.ret, Operand::Move(local_id)))
+                Some((fn_tyir.ret, Operand::Move(Place::from_local(local_id))))
             }
             ExprKind::BinOp(op, lhs, rhs) => {
                 // Visit LHS
@@ -901,7 +901,7 @@ impl Visitor for TyCheck {
                     ),
                 });
 
-                Some((tyid, Operand::Move(local_id)))
+                Some((tyid, Operand::Move(Place::from_local(local_id))))
             }
             ExprKind::UnOp(op, expr) => {
                 // Visit expr
@@ -945,7 +945,7 @@ impl Visitor for TyCheck {
                     ),
                 });
 
-                Some((mapped_ty, Operand::Move(local_id)))
+                Some((mapped_ty, Operand::Move(Place::from_local(local_id))))
             }
             ExprKind::Cast(expr, ty) => {
                 // Visit expr
@@ -995,7 +995,7 @@ impl Visitor for TyCheck {
                     ),
                 });
 
-                Some((to_tyid, Operand::Move(local_id)))
+                Some((to_tyid, Operand::Move(Place::from_local(local_id))))
             }
             ExprKind::Range(_, _, _) => {
                 panic!()

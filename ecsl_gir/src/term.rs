@@ -4,7 +4,6 @@ use ecsl_index::BlockID;
 
 #[derive(Debug)]
 pub struct Terminator {
-    // pub span: Span,
     pub kind: TerminatorKind,
 }
 
@@ -26,11 +25,11 @@ impl std::fmt::Display for TerminatorKind {
         match self {
             TerminatorKind::Jump(block_id) => write!(f, "JUMP {}", block_id),
             TerminatorKind::Switch(operand, switch_cases) => {
-                write!(f, "{} [", operand)?;
+                write!(f, "{} [\n", operand)?;
                 for case in switch_cases {
-                    write!(f, "{}, ", case)?;
+                    write!(f, "\t\t{}, \n", case)?;
                 }
-                write!(f, "]")
+                write!(f, "\t]")
             }
             TerminatorKind::Return => {
                 write!(f, "RETURN")
