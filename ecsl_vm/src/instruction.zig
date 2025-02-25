@@ -24,14 +24,32 @@ pub inline fn popl(self: *ProgramThread) !void {
     _ = try self.pop_stack(u64);
 }
 
-pub inline fn ldr(self: *ProgramThread, offset: i64) !void {
-    const value = self.read_stack_at_offset(u32, offset);
-    try self.push_stack(u32, value);
+pub inline fn ldr(self: *ProgramThread, size: u8, offset: i64) !void {
+    const from_slice = self.stack[self.offset_from_bp(offset)..][0..size];
+    const new_sp = self.sp + size;
+    if (new_sp >= self.stack.len) {
+        return error.StackOverflow;
+    }
+
+    const to_slice = self.stack[self.sp .. self.sp + size][0..size];
+    @memcpy(to_slice, from_slice);
+
+    self.sp = new_sp;
 }
 
-pub inline fn str(self: *ProgramThread, offset: i64) !void {
-    const b = try self.pop_stack(u32);
-    try self.write_stack_at_offset(u32, b.*, offset);
+pub inline fn str(self: *ProgramThread, size: u8, offset: i64) !void {
+    // Check for type larger than stack
+    if (size > self.sp) {
+        return error.EmptyStack;
+    }
+    // Decrement Stack
+    self.sp -= size;
+
+    // Get slice of stack
+    const from_slice = self.stack[self.sp..][0..size];
+    const to_slice = self.stack[self.offset_from_bp(offset)..][0..size];
+
+    @memcpy(to_slice, from_slice);
 }
 
 pub inline fn setsp(self: *ProgramThread, offset: u64) !void {
