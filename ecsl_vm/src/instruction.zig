@@ -12,16 +12,14 @@ pub inline fn halt(t: *ProgramThread) void {
     t.state.status = ProgramThread.ProgramStatus.HaltProgram;
 }
 
-pub inline fn popb(self: *ProgramThread) !void {
-    _ = try self.pop_stack(u8);
-}
+pub inline fn pop(self: *ProgramThread, size: u8) !void {
+    // Check for type larger than stack
+    if (size > self.sp) {
+        return error.EmptyStack;
+    }
 
-pub inline fn pop(self: *ProgramThread) !void {
-    _ = try self.pop_stack(u32);
-}
-
-pub inline fn popl(self: *ProgramThread) !void {
-    _ = try self.pop_stack(u64);
+    // Decrement Stack
+    self.sp -= size;
 }
 
 pub inline fn ldr(self: *ProgramThread, size: u8, offset: i64) !void {

@@ -127,12 +127,9 @@ pub enum Bytecode {
     NOP,
     /// Halt the program
     HALT,
-    /// Pop the top byte of the stack
-    POPB,
-    /// Pop the top (4 bytes) of the stack
-    POP,
-    /// Pop the top (8 bytes) of the stack
-    POPL,
+
+    /// Pop the N bytes of the stack
+    POP(u8),
 
     /// Load the N bytes from [BP + offset] and push to the top of the stack
     LDR(u8, i64),

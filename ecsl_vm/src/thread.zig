@@ -139,7 +139,7 @@ pub const ProgramThread = struct {
 
     // Push comptime type to stack
     pub fn push_stack(self: *ProgramThread, comptime T: type, val: *align(1) T) ProgramError!void {
-        std.log.debug("Push {}", .{val});
+        // std.log.debug("Push {}", .{val.*});
 
         // Guard against stack overflow
         const new_sp = self.sp + @sizeOf(T);
