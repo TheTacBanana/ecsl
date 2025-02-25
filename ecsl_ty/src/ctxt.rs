@@ -113,9 +113,15 @@ impl TyCtxt {
         let size = match tyir {
             TyIr::Ref(_, _) => 8,
             TyIr::Range(tyid, _) => self.internal_get_size(tyid, sizes),
+            TyIr::Struct(def) => {
+                let mut total_size = 0;
+                for (_, field) in def.fields {
+                    total_size += self.internal_get_size(field.ty, sizes);
+                }
+                total_size
+            }
             e => panic!("{e:?}"),
             // TyIr::String => todo!(),
-            // TyIr::Struct(struct_def) => todo!(),
             // TyIr::Enum(enum_def) => todo!(),
             // TyIr::Fn(fn_def) => todo!(),
             // TyIr::Array(ty_id, _) => todo!(),

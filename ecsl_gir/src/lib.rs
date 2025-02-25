@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use cfgrammar::Span;
 use cons::Constant;
 use ecsl_ast::ty::Mutable;
-use ecsl_index::{BlockID, ConstID, LocalID, TyID};
+use ecsl_index::{BlockID, ConstID, FieldID, LocalID, TyID};
 use stmt::Stmt;
 use term::Terminator;
 
@@ -71,6 +71,10 @@ impl GIR {
 
     pub fn get_local(&self, local: LocalID) -> &Local {
         self.locals.get(&local).unwrap()
+    }
+
+    pub fn get_local_mut(&mut self, local: LocalID) -> &mut Local {
+        self.locals.get_mut(&local).unwrap()
     }
 
     pub fn new_constant(&mut self, cons: Constant) -> ConstID {
@@ -218,5 +222,44 @@ impl Local {
             tyid,
             kind,
         }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Place {
+    pub local: LocalID,
+    pub projections: Vec<Projection>,
+}
+
+impl Place {
+    pub const fn return_location() -> Self {
+        Self::from_local(LocalID::ZERO)
+    }
+
+    pub const fn from_local(local: LocalID) -> Self {
+        Place {
+            local,
+            projections: Vec::new(),
+        }
+    }
+
+    pub fn with_projection(mut self, proj: Projection) -> Self {
+        self.projections.push(proj);
+        self
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum Projection {
+    Field {
+        fid: FieldID,
+        sid: TyID,
+        new_tyid: TyID,
+    },
+}
+
+impl std::fmt::Display for Place {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}{:?}", self.local, self.projections)
     }
 }

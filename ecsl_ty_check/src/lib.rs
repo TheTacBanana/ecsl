@@ -14,7 +14,7 @@ use ecsl_error::{ext::EcslErrorExt, EcslError, ErrorLevel};
 use ecsl_gir::cons::Constant;
 use ecsl_gir::expr::{BinOp, Operand, OperandKind, UnOp};
 use ecsl_gir::term::{SwitchCase, Terminator, TerminatorKind};
-use ecsl_gir::{Local, LocalKind, GIR};
+use ecsl_gir::{Local, LocalKind, Place, GIR};
 use ecsl_index::{BlockID, ConstID, LocalID, SymbolID, TyID};
 use ecsl_ty::ctxt::TyCtxt;
 use ecsl_ty::local::LocalTyCtxt;
@@ -88,6 +88,10 @@ impl TyCheck {
         self.gir.get(&self.cur_gir.unwrap()).unwrap()
     }
 
+    pub fn cur_gir_mut(&mut self) -> &mut GIR {
+        self.gir.get_mut(&self.cur_gir.unwrap()).unwrap()
+    }
+
     pub fn new_block(&mut self) -> BlockID {
         let block = self
             .gir
@@ -121,6 +125,10 @@ impl TyCheck {
             .get_mut(&self.cur_gir.unwrap())
             .unwrap()
             .new_local(local)
+    }
+
+    pub fn get_local_mut(&mut self, local: LocalID) -> &mut Local {
+        self.cur_gir_mut().get_local_mut(local)
     }
 
     pub fn new_constant(&mut self, cons: Constant) -> ConstID {
@@ -327,20 +335,36 @@ impl Visitor for TyCheck {
                 let (rhs_ty, rhs_op) = self.pop();
                 unify!(lhs, rhs_ty, TyCheckError::AssignWrongType);
 
-                // Create local ID
-                let local_id = self.new_local(Local::new(*span, *mutable, rhs_ty, LocalKind::Let));
+                let local_id = match rhs_op {
+                    Operand::Copy(local_id) | Operand::Move(local_id) => {
+                        let local = self.get_local_mut(local_id);
+                        local.kind = LocalKind::Let;
+                        local.mutable = *mutable;
+                        local.span = *span;
 
-                // Create Assignment Stmt
-                self.push_stmt_to_cur_block(gir::Stmt {
-                    span: *span,
-                    kind: gir::StmtKind::Assign(
-                        local_id,
-                        Box::new(gir::Expr {
-                            span: *span, //TODO: Replace Span
-                            kind: gir::ExprKind::Value(rhs_op),
-                        }),
-                    ),
-                });
+                        local_id
+                    }
+                    Operand::Constant(const_id) => {
+                        // Create local ID
+                        let local_id =
+                            self.new_local(Local::new(*span, *mutable, rhs_ty, LocalKind::Let));
+
+                        // Create Assignment Stmt
+                        self.push_stmt_to_cur_block(gir::Stmt {
+                            span: *span,
+                            kind: gir::StmtKind::Assign(
+                                Place::from_local(local_id),
+                                gir::Expr {
+                                    span: *span,
+                                    kind: gir::ExprKind::Value(rhs_op),
+                                },
+                            ),
+                        });
+
+                        // Return local
+                        local_id
+                    }
+                };
 
                 // Insert Ident into local Mapping
                 if let Some(_) = self
@@ -463,11 +487,11 @@ impl Visitor for TyCheck {
                     self.push_stmt_to_cur_block(gir::Stmt {
                         span: s.span,
                         kind: gir::StmtKind::Assign(
-                            LocalID::ZERO,
-                            Box::new(gir::Expr {
+                            Place::return_location(),
+                            gir::Expr {
                                 span: expr.span,
                                 kind: gir::ExprKind::Value(op),
-                            }),
+                            },
                         ),
                     })
                 } else {
@@ -542,11 +566,11 @@ impl Visitor for TyCheck {
                 self.push_stmt_to_cur_block(gir::Stmt {
                     span: s.span,
                     kind: gir::StmtKind::Assign(
-                        iterator_local_id,
-                        Box::new(gir::Expr {
+                        Place::from_local(iterator_local_id),
+                        gir::Expr {
                             span: expr.span, //TODO: Replace Span
                             kind: gir::ExprKind::Value(lhs_op),
-                        }),
+                        },
                     ),
                 });
 
@@ -561,11 +585,11 @@ impl Visitor for TyCheck {
                 self.push_stmt_to_cur_block(gir::Stmt {
                     span: s.span,
                     kind: gir::StmtKind::Assign(
-                        internal_max,
-                        Box::new(gir::Expr {
+                        Place::from_local(internal_max),
+                        gir::Expr {
                             span: expr.span, //TODO: Replace Span
                             kind: gir::ExprKind::Value(rhs_op),
-                        }),
+                        },
                     ),
                 });
 
@@ -597,8 +621,8 @@ impl Visitor for TyCheck {
                 self.push_stmt_to_cur_block(gir::Stmt {
                     span: s.span,
                     kind: gir::StmtKind::Assign(
-                        comparison,
-                        Box::new(gir::Expr {
+                        Place::from_local(comparison),
+                        gir::Expr {
                             span: expr.span,
                             kind: gir::ExprKind::BinOp(
                                 BinOp(
@@ -611,7 +635,7 @@ impl Visitor for TyCheck {
                                 Operand::Copy(iterator_local_id),
                                 Operand::Copy(internal_max),
                             ),
-                        }),
+                        },
                     ),
                 });
 
@@ -645,15 +669,15 @@ impl Visitor for TyCheck {
                 self.push_stmt_to_cur_block(gir::Stmt {
                     span: s.span,
                     kind: gir::StmtKind::Assign(
-                        iterator_local_id,
-                        Box::new(gir::Expr {
+                        Place::from_local(iterator_local_id),
+                        gir::Expr {
                             span: expr.span,
                             kind: gir::ExprKind::BinOp(
                                 BinOp(OperandKind::Int, BinOpKind::Add),
                                 Operand::Copy(iterator_local_id),
                                 Operand::Constant(one_const),
                             ),
-                        }),
+                        },
                     ),
                 });
 
@@ -734,11 +758,11 @@ impl Visitor for TyCheck {
                 self.push_stmt_to_cur_block(gir::Stmt {
                     span: e.span,
                     kind: gir::StmtKind::Assign(
-                        found.unwrap(),
-                        Box::new(gir::Expr {
+                        Place::from_local(found.unwrap()),
+                        gir::Expr {
                             span: *span,
                             kind: gir::ExprKind::Value(op),
-                        }),
+                        },
                     ),
                 });
 
@@ -816,11 +840,11 @@ impl Visitor for TyCheck {
                 self.push_stmt_to_cur_block(gir::Stmt {
                     span: e.span,
                     kind: gir::StmtKind::Assign(
-                        local_id,
-                        Box::new(gir::Expr {
+                        Place::from_local(local_id),
+                        gir::Expr {
                             span: e.span, //TODO: Replace Span
                             kind: gir::ExprKind::Call(fn_tyir.tyid, operands),
-                        }),
+                        },
                     ),
                 });
 
@@ -869,11 +893,11 @@ impl Visitor for TyCheck {
                 self.push_stmt_to_cur_block(gir::Stmt {
                     span: e.span,
                     kind: gir::StmtKind::Assign(
-                        local_id,
-                        Box::new(gir::Expr {
+                        Place::from_local(local_id),
+                        gir::Expr {
                             span: e.span, //TODO: Replace Span
                             kind: gir::ExprKind::BinOp(BinOp(op_kind, *op), lhs_op, rhs_op),
-                        }),
+                        },
                     ),
                 });
 
@@ -913,11 +937,11 @@ impl Visitor for TyCheck {
                 self.push_stmt_to_cur_block(gir::Stmt {
                     span: e.span,
                     kind: gir::StmtKind::Assign(
-                        local_id,
-                        Box::new(gir::Expr {
+                        Place::from_local(local_id),
+                        gir::Expr {
                             span: e.span, //TODO: Replace Span
                             kind: gir::ExprKind::UnOp(UnOp(op_kind, *op), e_op),
-                        }),
+                        },
                     ),
                 });
 
@@ -963,11 +987,11 @@ impl Visitor for TyCheck {
                 self.push_stmt_to_cur_block(gir::Stmt {
                     span: e.span,
                     kind: gir::StmtKind::Assign(
-                        local_id,
-                        Box::new(Expr {
+                        Place::from_local(local_id),
+                        Expr {
                             span: e.span,
                             kind: expr,
-                        }),
+                        },
                     ),
                 });
 
@@ -976,13 +1000,27 @@ impl Visitor for TyCheck {
             ExprKind::Range(_, _, _) => {
                 panic!()
             }
-            _ => todo!(),
-            // ExprKind::Function(Some(expr), concrete_generics, symbol_id, exprs) => todo!(),
-            // ExprKind::Assign(symbol_id, span, expr) => todo!(),
+            ExprKind::Struct(ty, fields) => {
+                let tyid = self.get_tyid((ty.as_ref(), &self.generic_scope));
+                let tyir = self.get_tyir(tyid);
+
+                todo!()
+
+                // for field in fields {
+                //     self.visit_expr(&field.expr)?;
+                //     let (field_tyid, field_op) = self.pop();
+
+                //     self.push_stmt_to_cur_block(stmt);
+                // }
+                // debug!("{:?}", tyir);
+
+                // todo!()
+                // Some((struct_tyid, todo!()))
+            }
+            e => panic!("{:?}", e),
             // ExprKind::Ref(mutable, expr) => todo!(),
             // ExprKind::Array(exprs) => todo!(),
             // ExprKind::MethodSelf => todo!(),
-            // ExprKind::Struct(ty, field_exprs) => todo!(),
             // ExprKind::Enum(ty, symbol_id, field_exprs) => todo!(),
             // ExprKind::Field(expr, symbol_id) => todo!(),
             // ExprKind::Entity => todo!(),

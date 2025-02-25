@@ -134,10 +134,10 @@ pub enum Bytecode {
     /// Pop the top (8 bytes) of the stack
     POPL,
 
-    /// Load the 4 bytes from [BP + offset] and push to the top of the stack
-    LDR(i64),
-    /// Pop the top 4 bytes from top of stack to the signed offset from the BP
-    STR(i64),
+    /// Load the N bytes from [BP + offset] and push to the top of the stack
+    LDR(u8, i64),
+    /// Pop the top N bytes from top of stack to the signed offset from the BP
+    STR(u8, i64),
 
     /// Set the SP to the [BP + offset]
     SETSP(u64),

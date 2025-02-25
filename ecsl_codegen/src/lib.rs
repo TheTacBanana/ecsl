@@ -1,11 +1,11 @@
 use ecsl_bytecode::{
-    ext::BytecodeExt, ins, BytecodeInstruction, FunctionBytecode, Immediate, Opcode,
+    ext::BytecodeExt, ins, Bytecode, BytecodeInstruction, FunctionBytecode, Immediate, Opcode,
 };
 use ecsl_gir::{
     expr::{BinOp, BinOpKind, ExprKind, Operand, OperandKind, UnOp, UnOpKind},
     stmt::StmtKind,
     term::{SwitchCase, TerminatorKind},
-    LocalKind, GIR,
+    LocalKind, Place, Projection, GIR,
 };
 use ecsl_gir_pass::{const_eval::ConstMap, GIRPass};
 use ecsl_index::{BlockID, ConstID, LocalID};
@@ -16,11 +16,12 @@ use std::{
     sync::Arc,
 };
 
-pub struct CodeGen {
+pub struct CodeGen<'a> {
     pub ty_ctxt: Arc<LocalTyCtxt>,
     pub const_map: ConstMap,
     pub offsets: BTreeMap<LocalID, StackOffset>,
     pub blocks: BTreeMap<BlockID, Vec<BytecodeInstruction>>,
+    pub gir: &'a GIR,
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -29,7 +30,7 @@ pub struct StackOffset {
     size: usize,
 }
 
-impl GIRPass for CodeGen {
+impl<'b> GIRPass for CodeGen<'b> {
     type PassInput<'a> = (Arc<LocalTyCtxt>, ConstMap);
     type PassResult = FunctionBytecode;
 
@@ -42,12 +43,13 @@ impl GIRPass for CodeGen {
             const_map,
             offsets: Default::default(),
             blocks: Default::default(),
+            gir: &gir,
         };
         c.generate_code(&gir)
     }
 }
 
-impl CodeGen {
+impl<'a> CodeGen<'a> {
     pub fn generate_code(&mut self, gir: &GIR) -> FunctionBytecode {
         let mut locals = gir.locals().collect::<Vec<_>>();
         let first_non_arg = locals
@@ -315,12 +317,7 @@ impl CodeGen {
         }
     }
 
-    pub fn load_operand(&self, operand: Operand) -> BytecodeInstruction {
-        match operand {
-            Operand::Copy(local_id) | Operand::Move(local_id) => self.load_local(local_id),
-            Operand::Constant(const_id) => self.load_const(const_id),
-        }
-    }
+    pub fn load_operan4
 
     pub fn load_const(&self, cons: ConstID) -> BytecodeInstruction {
         let cons = self.const_map.get(&cons).unwrap();
@@ -339,19 +336,64 @@ impl CodeGen {
         }
     }
 
-    pub fn load_local(&self, local: LocalID) -> BytecodeInstruction {
-        if let Some(stack_offset) = self.offsets.get(&local) {
-            BytecodeInstruction::new(Opcode::LDR, [Immediate::Long(stack_offset.offset)])
-        } else {
-            BytecodeInstruction::new(Opcode::NOP, [])
-        }
-    }
+    // pub fn load_local(&self, local_id: LocalID) -> StackOffset {
+    //     let local = self.gir.get_local(local_id);
+    //     let size = self.ty_ctxt.global.get_size(local.tyid);
+    //     StackOffset {
+    //         offset: ,
+    //         size,
+    //     }
 
-    pub fn store_local(&self, local: LocalID) -> BytecodeInstruction {
-        if let Some(stack_offset) = self.offsets.get(&local) {
-            BytecodeInstruction::new(Opcode::STR, [Immediate::Long(stack_offset.offset)])
-        } else {
-            BytecodeInstruction::new(Opcode::NOP, [])
+    //     if let Some(stack_offset) = self.offsets.get(&local_id) {
+    //         BytecodeInstruction::new(
+    //             Opcode::LDR,
+    //             [
+    //                 Immediate::UByte(size as u8),
+    //                 Immediate::Long(stack_offset.offset),
+    //             ],
+    //         )
+    //     } else {
+    //         BytecodeInstruction::new(Opcode::NOP, [])
+    //     }
+    // }
+
+    // pub fn store_local(&self, local_id: LocalID) -> BytecodeInstruction {
+    //     let local = self.gir.get_local(local_id);
+    //     let size = self.ty_ctxt.global.get_size(local.tyid);
+    //     if let Some(stack_offset) = self.offsets.get(&local_id) {
+    //         BytecodeInstruction::new(
+    //             Opcode::STR,
+    //             [
+    //                 Immediate::UByte(size as u8),
+    //                 Immediate::Long(stack_offset.offset),
+    //             ],
+    //         )
+    //     } else {
+    //         BytecodeInstruction::new(Opcode::NOP, [])
+    //     }
+    // }
+
+    pub fn store_to_place(&self, place: &Place) -> BytecodeInstruction {
+        let local = self.gir.get_local(place.local);
+        let Some(stack_offset) = self.offsets.get(&place.local) else {
+            return ins!(NOP);
+        };
+        let mut tyid = local.tyid;
+        let mut stack_offset = stack_offset;
+
+        let mut iter = place.projections.iter();
+        while let Some(proj) = iter.next() {
+            todo!()
+            // match proj {
+            // Projection::Field { fid, sid, new_tyid } => self.ty_ctxt.get,
+            // }
         }
+
+        let size = self.ty_ctxt.global.get_size(tyid) as u8;
+        ins!(
+            STR,
+            Immediate::UByte(size),
+            Immediate::Long(stack_offset.offset)
+        )
     }
 }
