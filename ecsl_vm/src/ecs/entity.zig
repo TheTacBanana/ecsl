@@ -34,7 +34,7 @@ pub const EntityCollection = struct {
         this.alloc.free(this.entities);
     }
 
-    pub fn new_entity(this: *EntityCollection) EntityError!EntityId {
+    pub fn create(this: *EntityCollection) EntityError!EntityId {
         if (this.queue_top == -1) {
             return error.EntityLimitReached;
         }
@@ -110,32 +110,32 @@ pub const EntityId = struct {
 test "entity_limit" {
     const alloc = std.testing.allocator;
 
-    var collection = try EntityCollection.new(&world.WorldConfig.TESTING, alloc);
-    defer collection.free();
+    var entities = try EntityCollection.new(&world.WorldConfig.TESTING, alloc);
+    defer entities.free();
 
-    _ = try collection.new_entity();
-    _ = try collection.new_entity();
-    _ = try collection.new_entity();
-    _ = try collection.new_entity();
-    _ = try collection.new_entity();
+    _ = try entities.create();
+    _ = try entities.create();
+    _ = try entities.create();
+    _ = try entities.create();
+    _ = try entities.create();
 
-    try std.testing.expectError(error.EntityLimitReached, collection.new_entity());
+    try std.testing.expectError(error.EntityLimitReached, entities.create());
 }
 
 test "remove_entity" {
     const alloc = std.testing.allocator;
 
-    var collection = try EntityCollection.new(&world.WorldConfig.TESTING, alloc);
-    defer collection.free();
+    var entities = try EntityCollection.new(&world.WorldConfig.TESTING, alloc);
+    defer entities.free();
 
-    const id = try collection.new_entity();
-    const entity = collection.get_entity(id);
+    const id = try entities.create();
+    const entity = entities.get_entity(id);
 
     try std.testing.expectEqual(entity.?.id, id);
 
-    collection.remove_entity(id);
+    entities.remove_entity(id);
 
-    const null_entity = collection.get_entity(id);
+    const null_entity = entities.get_entity(id);
 
     try std.testing.expectEqual(null, null_entity);
 }
@@ -143,12 +143,12 @@ test "remove_entity" {
 test "reuse_entity" {
     const alloc = std.testing.allocator;
 
-    var collection = try EntityCollection.new(&world.WorldConfig.TESTING, alloc);
-    defer collection.free();
+    var entities = try EntityCollection.new(&world.WorldConfig.TESTING, alloc);
+    defer entities.free();
 
-    const id = try collection.new_entity();
-    collection.remove_entity(id);
-    const new_id = try collection.new_entity();
+    const id = try entities.create();
+    entities.remove_entity(id);
+    const new_id = try entities.create();
 
     try std.testing.expect(id.id == new_id.id);
     try std.testing.expect(id.gen + 1 == new_id.gen);

@@ -8,12 +8,19 @@ pub const World = struct {
     config: WorldConfig,
     entities: entity.EntityCollection,
     components: component.ComponentDefinitions,
-    // storage: storage.ComponentStorage,
+    storage: storage.Table,
 
     pub fn new(config: WorldConfig, alloc: std.mem.Allocator) !World {
         const entities = try entity.EntityCollection.new(&config, alloc);
-        const components = try component.ComponentDefinitions.new(&config, alloc);
-        // var table = try storage.Table.new(&components, &config, alloc);
+        var components = try component.ComponentDefinitions.new(&config, alloc);
+
+        const cid: component.ComponentID = @enumFromInt(1);
+        try components.add_def(component.ComponentDef{
+            .id = cid,
+            .size = 4,
+        });
+
+        const table = try storage.Table.new(&components, &config, alloc);
         // const table_i = table.storage();
 
         return World{
@@ -21,13 +28,14 @@ pub const World = struct {
             .config = config,
             .entities = entities,
             .components = components,
-            // .storage = table_i,
+            .storage = table,
         };
     }
 
     pub fn free(this: *World) void {
         this.entities.free();
         this.components.free();
+        this.storage.free();
     }
 };
 
@@ -54,4 +62,24 @@ test "create_world" {
     var world = try World.new(WorldConfig.TESTING, alloc);
 
     defer world.free();
+}
+
+test "create_entity_with_component" {
+    const alloc = std.testing.allocator;
+    var world = try World.new(WorldConfig.TESTING, alloc);
+    defer world.free();
+
+    const cid: component.ComponentID = @enumFromInt(1);
+    // try world.components.add_def(component.ComponentDef{
+    //     .id = cid,
+    //     .size = 4,
+    // });
+
+    const id = try world.entities.create();
+
+    var comp_data = [4]u8{ 0xDE, 0xAD, 0xBE, 0xEF };
+    world.storage.insert(id, cid, comp_data[0..4]);
+
+    const stored_data = world.storage.get(id, cid);
+    try std.testing.expect(std.mem.eql(u8, comp_data[0..4], stored_data[0..4]));
 }

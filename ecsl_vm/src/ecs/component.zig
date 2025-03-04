@@ -21,8 +21,11 @@ pub const ComponentDefinitions = struct {
         this.components.clearAndFree();
     }
 
-    pub fn add_def(this: *ComponentDefinitions, def: ComponentDef) void {
-        this.components.put(def.id, def);
+    pub fn add_def(this: *ComponentDefinitions, def: ComponentDef) ComponentDefinitionError!void {
+        if (this.components.count() >= this.config.component_limit) {
+            return error.ComponentLimitReached;
+        }
+        this.components.put(def.id, def) catch unreachable;
     }
 
     pub fn get_def(this: *ComponentDefinitions, id: ComponentID) ?ComponentDef {
@@ -32,7 +35,7 @@ pub const ComponentDefinitions = struct {
 
 pub const ComponentDef = struct {
     id: ComponentID,
-    size: usize,
+    size: u32,
 };
 
 pub const ComponentID = enum(u32) {
