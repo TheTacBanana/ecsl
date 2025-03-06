@@ -8,7 +8,7 @@ pub const Table = struct {
     config: *const world.WorldConfig,
 
     defs: *const component.ComponentDefinitions,
-    entities: *entity.EntityCollection,
+    entities: *const entity.EntityCollection,
 
     columns: std.AutoArrayHashMap(component.ComponentID, Column),
 
@@ -18,7 +18,7 @@ pub const Table = struct {
 
     pub fn new(
         defs: *const component.ComponentDefinitions,
-        entities: *entity.EntityCollection,
+        entities: *const entity.EntityCollection,
         config: *const world.WorldConfig,
         alloc: std.mem.Allocator,
     ) !Table {
@@ -75,7 +75,7 @@ pub const Table = struct {
         this.alloc.free(this.bitsets);
     }
 
-    inline fn get_bitset(this: *Table, ent: entity.EntityId) *std.DynamicBitSet {
+    pub fn get_bitset(this: *Table, ent: entity.EntityId) *std.DynamicBitSet {
         return &this.bitsets[ent.id];
     }
 
@@ -152,7 +152,6 @@ const Column = struct {
 //     ptr: *anyopaque,
 //     alloc: std.mem.Allocator,
 
-//     __free: *const fn (*anyopaque) void,
 //     __insert: *const fn (*anyopaque, entity.EntityId, component.ComponentID, []u8) void,
 //     __get: *const fn (*anyopaque, entity.EntityId, component.ComponentID) []u8,
 //     // remove,

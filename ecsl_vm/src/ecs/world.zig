@@ -6,35 +6,45 @@ const storage = @import("storage.zig");
 pub const World = struct {
     alloc: std.mem.Allocator,
     config: WorldConfig,
-    entities: entity.EntityCollection,
-    components: component.ComponentDefinitions,
-    storage: storage.Table,
+    entities: *entity.EntityCollection,
+    components: *component.ComponentDefinitions,
+    storage: *storage.Table,
 
-    pub fn new(config: WorldConfig, alloc: std.mem.Allocator) !World {
-        var entities = try entity.EntityCollection.new(&config, alloc);
-        var components = try component.ComponentDefinitions.new(&config, alloc);
+    pub fn new(config: WorldConfig, alloc: std.mem.Allocator) !*World {
+        const config_ = config;
+        const self = try alloc.create(World);
 
-        const cid: component.ComponentID = @enumFromInt(1);
-        _ = try components.add_def(component.ComponentDef{
-            .id = cid,
+        self.* = World{
+            .alloc = alloc,
+            .config = config_,
+            .entities = try alloc.create(entity.EntityCollection),
+            .components = try alloc.create(component.ComponentDefinitions),
+            .storage = try alloc.create(storage.Table),
+        };
+
+        self.entities.* = try entity.EntityCollection.new(&self.config, alloc);
+        self.components.* = try component.ComponentDefinitions.new(&self.config, alloc);
+        _ = try self.components.add_def(component.ComponentDef{
+            .id = @enumFromInt(1),
+            .size = 4,
+        });
+        _ = try self.components.add_def(component.ComponentDef{
+            .id = @enumFromInt(2),
             .size = 4,
         });
 
-        const table = try storage.Table.new(&components, &entities, &config, alloc);
+        self.storage.* = try storage.Table.new(self.components, self.entities, &self.config, alloc);
 
-        return World{
-            .alloc = alloc,
-            .config = config,
-            .entities = entities,
-            .components = components,
-            .storage = table,
-        };
+        return self;
     }
 
     pub fn free(this: *World) void {
         this.entities.free();
+        this.alloc.destroy(this.entities);
         this.components.free();
+        this.alloc.destroy(this.components);
         this.storage.free();
+        this.alloc.destroy(this.storage);
     }
 };
 
@@ -59,13 +69,17 @@ pub const WorldConfig = struct {
 test "create_world" {
     const alloc = std.testing.allocator;
     var world = try World.new(WorldConfig.TESTING, alloc);
-    defer world.free();
+    world.free();
+    alloc.destroy(world);
 }
 
 test "insert_and_remove_components" {
     const alloc = std.testing.allocator;
     var world = try World.new(WorldConfig.TESTING, alloc);
-    defer world.free();
+    defer {
+        world.free();
+        alloc.destroy(world);
+    }
 
     const cid: component.ComponentID = @enumFromInt(1);
 
