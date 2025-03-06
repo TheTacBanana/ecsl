@@ -11,17 +11,16 @@ pub const World = struct {
     storage: storage.Table,
 
     pub fn new(config: WorldConfig, alloc: std.mem.Allocator) !World {
-        const entities = try entity.EntityCollection.new(&config, alloc);
+        var entities = try entity.EntityCollection.new(&config, alloc);
         var components = try component.ComponentDefinitions.new(&config, alloc);
 
         const cid: component.ComponentID = @enumFromInt(1);
-        try components.add_def(component.ComponentDef{
+        _ = try components.add_def(component.ComponentDef{
             .id = cid,
             .size = 4,
         });
 
-        const table = try storage.Table.new(&components, &config, alloc);
-        // const table_i = table.storage();
+        const table = try storage.Table.new(&components, &entities, &config, alloc);
 
         return World{
             .alloc = alloc,
@@ -60,26 +59,32 @@ pub const WorldConfig = struct {
 test "create_world" {
     const alloc = std.testing.allocator;
     var world = try World.new(WorldConfig.TESTING, alloc);
-
     defer world.free();
 }
 
-test "create_entity_with_component" {
+test "insert_and_remove_components" {
     const alloc = std.testing.allocator;
     var world = try World.new(WorldConfig.TESTING, alloc);
     defer world.free();
 
     const cid: component.ComponentID = @enumFromInt(1);
-    // try world.components.add_def(component.ComponentDef{
-    //     .id = cid,
-    //     .size = 4,
-    // });
 
     const id = try world.entities.create();
+
+    const no_data = world.storage.get(id, cid);
+    try std.testing.expectEqual(null, no_data);
+
+    try std.testing.expect(world.storage.has(id, cid) == false);
 
     var comp_data = [4]u8{ 0xDE, 0xAD, 0xBE, 0xEF };
     world.storage.insert(id, cid, comp_data[0..4]);
 
-    const stored_data = world.storage.get(id, cid);
+    try std.testing.expect(world.storage.has(id, cid));
+
+    const stored_data = world.storage.get(id, cid).?;
     try std.testing.expect(std.mem.eql(u8, comp_data[0..4], stored_data[0..4]));
+
+    world.storage.remove(id, cid);
+
+    try std.testing.expect(world.storage.has(id, cid) == false);
 }

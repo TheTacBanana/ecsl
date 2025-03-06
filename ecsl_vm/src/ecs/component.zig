@@ -41,4 +41,8 @@ pub const ComponentDef = struct {
 pub const ComponentID = enum(u32) {
     Null = 0,
     _,
+
+    pub fn to_int(this: *const ComponentID) u32 {
+        return @intFromEnum(this.*);
+    }
 };

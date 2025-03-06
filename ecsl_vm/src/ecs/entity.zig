@@ -50,10 +50,18 @@ pub const EntityCollection = struct {
 
     pub fn get_entity(this: *EntityCollection, id: EntityId) ?Entity {
         const entity = &this.entities[id.id];
-        if (id.id != entity.id.id or entity.id.dead()) {
+        if (id.gen != entity.id.gen or entity.id.dead()) {
             return null;
         }
         return entity.*;
+    }
+
+    pub fn get_entity_ptr(this: *EntityCollection, id: EntityId) ?*Entity {
+        const entity = &this.entities[id.id];
+        if (id.gen != entity.id.gen or entity.id.dead()) {
+            return null;
+        }
+        return entity;
     }
 
     pub fn remove_entity(this: *EntityCollection, id: EntityId) void {
@@ -65,11 +73,9 @@ pub const EntityCollection = struct {
 
 pub const Entity = struct {
     id: EntityId,
-    arch: archetype.ArchetypeId,
 
     pub const DEAD = Entity{
         .id = EntityId.DEAD,
-        .arch = archetype.ArchetypeId.EMPTY,
     };
 
     pub fn new(id: EntityId, arch: archetype.ArchetypeId) Entity {
@@ -79,17 +85,17 @@ pub const Entity = struct {
         };
     }
 
+    // TODO: Gen code is fucked
     fn next_gen(this: *Entity) EntityId {
         this.id.gen = switch (this.id.gen) {
             std.math.maxInt(u32) => 1,
             else => this.id.gen + 1,
         };
-        this.arch = archetype.ArchetypeId.EMPTY;
         return this.id;
     }
 
     fn kill(this: *Entity) void {
-        this.id.id = 0;
+        this.id.id = std.math.maxInt(u32);
     }
 };
 
@@ -98,12 +104,12 @@ pub const EntityId = struct {
     gen: u32,
 
     pub const DEAD: EntityId = EntityId{
-        .id = 0,
+        .id = std.math.maxInt(u32),
         .gen = 0,
     };
 
-    pub inline fn dead(this: *EntityId) bool {
-        return this.id == 0;
+    pub inline fn dead(this: *const EntityId) bool {
+        return this.id == std.math.maxInt(u32);
     }
 };
 
