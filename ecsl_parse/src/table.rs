@@ -24,19 +24,7 @@ pub struct SymbolTable {
 #[derive(Debug, Clone)]
 pub struct Symbol {
     pub name: String,
-    // pub definitions: Vec<(SymbolKind, Span)>,
-    // pub usages: Vec<(SymbolKind, Span)>,
 }
-
-// impl Symbol {
-// pub fn add_definition(&mut self, kind: SymbolKind, span: Span) {
-//     self.definitions.push((kind, span));
-// }
-
-// pub fn add_usage(&mut self, kind: SymbolKind, span: Span) {
-//     self.usages.push((kind, span));
-// }
-// }
 
 #[derive(Debug, Clone, Copy)]
 pub enum SymbolKind {

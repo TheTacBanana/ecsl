@@ -1,4 +1,4 @@
-#[prelude]
+[prelude]
 use {
     std::num::{int, float},
     std::bool::bool,

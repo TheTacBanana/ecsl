@@ -224,7 +224,7 @@ Arg -> Result<Param, ()>:
     ;
 
 ReturnTy -> Result<RetTy, ()>:
-    'ARROW' Ty { Ok(RetTy::Ty(P::new($2?))) }
+    Ty { Ok(RetTy::Ty(P::new($1?))) }
     | {Ok(RetTy::None($span))}
     ;
 
@@ -239,10 +239,10 @@ Component -> Result<DataKind, ()>:
     ;
 
 Attributes -> Result<Attributes, ()>:
-    'HASH' 'LSQUARE' AttributeList TrailingComma 'RSQUARE' {
-        Ok(Attributes::from_vec($3?))
+    'LSQUARE' AttributeList TrailingComma 'RSQUARE' {
+        Ok(Attributes::from_vec($2?))
      }
-    | 'HASH' 'LSQUARE' 'RSQUARE' { Ok(Attributes::new())}
+    | 'LSQUARE' 'RSQUARE' { Ok(Attributes::new())}
     | { Ok(Attributes::new()) }
     ;
 

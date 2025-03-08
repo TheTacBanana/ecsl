@@ -1001,10 +1001,10 @@ impl Visitor for TyCheck {
                 panic!()
             }
             ExprKind::Struct(ty, fields) => {
-                let tyid = self.get_tyid((ty.as_ref(), &self.generic_scope));
-                let tyir = self.get_tyir(tyid);
+                let struct_tyid = self.get_tyid((ty.as_ref(), &self.generic_scope));
+                let struct_tyir = self.get_tyir(struct_tyid);
 
-                todo!()
+                todo!("{:?}", struct_tyir);
 
                 // for field in fields {
                 //     self.visit_expr(&field.expr)?;
