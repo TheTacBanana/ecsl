@@ -5,7 +5,7 @@ use ecsl_gir::{
     expr::{BinOp, BinOpKind, ExprKind, Operand, OperandKind, UnOp, UnOpKind},
     stmt::StmtKind,
     term::{SwitchCase, TerminatorKind},
-    LocalKind, Place, GIR,
+    LocalKind, Place, Projection, GIR,
 };
 use ecsl_gir_pass::{const_eval::ConstMap, GIRPass};
 use ecsl_index::{BlockID, ConstID, LocalID};
@@ -339,24 +339,6 @@ impl<'a> CodeGen<'a> {
         }
     }
 
-    // pub fn operand_size(&self, operand: &Operand) -> usize {
-    //     match operand {
-    //         Operand::Copy(place) | Operand::Move(place) => {
-    //             if let Some(place_offset) = self.place_offset(&place) {
-    //                 instrs.push(ins!(
-    //                     STR,
-    //                     Immediate::UByte(place_offset.size as u8),
-    //                     Immediate::Long(place_offset.offset)
-    //                 ));
-    //             }
-    //         }
-    //         Operand::Constant(const_id) => {
-    //             let cons = self.gir.get_constant(*const_id);
-    //             self.ty_ctxt.global.get_size(cons.ty);
-    //         }
-    //     }
-    // }
-
     pub fn load_const(&self, cons: ConstID) -> BytecodeInstruction {
         let cons = self.const_map.get(&cons).unwrap();
         match cons {
@@ -379,16 +361,19 @@ impl<'a> CodeGen<'a> {
         let Some(stack_offset) = self.offsets.get(&place.local) else {
             return None;
         };
-        let mut tyid = local.tyid;
         let mut stack_offset = *stack_offset;
-        stack_offset.size = self.ty_ctxt.global.get_size(tyid);
+        stack_offset.size = self.ty_ctxt.global.get_size(local.tyid);
 
         let mut iter = place.projections.iter();
         while let Some(proj) = iter.next() {
-            todo!()
-            // match proj {
-            // Projection::Field { fid, sid, new_tyid } => self.ty_ctxt.get,
-            // }
+            match proj {
+                Projection::Field { fid, sid, new_tyid } => {
+                    let offset = self.ty_ctxt.global.get_field_offset(*sid, *fid);
+                    let size = self.ty_ctxt.global.get_size(*new_tyid);
+                    stack_offset.offset += offset as i64;
+                    stack_offset.size = size;
+                }
+            }
         }
 
         Some(stack_offset)

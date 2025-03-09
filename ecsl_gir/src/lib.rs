@@ -246,6 +246,11 @@ impl Place {
         self.projections.push(proj);
         self
     }
+
+    pub fn with_projection_ref(&mut self, proj: Projection) -> &mut Self {
+        self.projections.push(proj);
+        self
+    }
 }
 
 #[derive(Debug, Clone)]
