@@ -1,4 +1,5 @@
 use num::{int, float};
+use bool::{bool};
 
 fn print_int(i: int) {
     byt {
@@ -11,5 +12,12 @@ fn print_float(f: float) {
     byt {
         LDR #4UB #f;
         PRINT_F;
+    }
+}
+
+fn print_bool(b: bool) {
+    byt {
+        LDR #1UB #b;
+        PRINT_B;
     }
 }

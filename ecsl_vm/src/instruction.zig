@@ -286,3 +286,15 @@ pub fn print_f(self: *ProgramThread) !void {
         bw.flush() catch return;
     }
 }
+
+pub fn print_b(self: *ProgramThread) !void {
+    const a = (try self.pop_stack(u8)).* == 1;
+
+    const stdout = std.io.getStdOut().writer();
+    var bw = std.io.bufferedWriter(stdout);
+    const writer = bw.writer();
+    nosuspend {
+        writer.print("{}" ++ "\n", .{a}) catch return;
+        bw.flush() catch return;
+    }
+}

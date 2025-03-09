@@ -239,4 +239,6 @@ pub enum Bytecode {
     PRINT_I,
     /// Pop float from stack and print to stdout
     PRINT_F,
+    /// Pop bool from stack and print to stdout
+    PRINT_B,
 }
