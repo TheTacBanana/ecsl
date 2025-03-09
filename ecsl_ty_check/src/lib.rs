@@ -21,7 +21,7 @@ use ecsl_ty::local::LocalTyCtxt;
 use ecsl_ty::{GenericsScope, TyIr};
 use ext::IntoTyID;
 use log::debug;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
 #[allow(unused)]
@@ -1002,27 +1002,130 @@ impl Visitor for TyCheck {
             }
             ExprKind::Struct(ty, fields) => {
                 let struct_tyid = self.get_tyid((ty.as_ref(), &self.generic_scope));
-                let struct_tyir = self.get_tyir(struct_tyid);
+                let TyIr::Struct(struct_tyir) = self.get_tyir(struct_tyid) else {
+                    self.ty_ctxt.diag.push_error(
+                        EcslError::new(ErrorLevel::Error, TyCheckError::TypeIsNotAStruct)
+                            .with_span(|_| e.span),
+                    );
+                    return VisitorCF::Break;
+                };
 
-                todo!("{:?}", struct_tyir);
+                let local_id = self.new_local(Local::new(
+                    e.span,
+                    Mutable::Imm,
+                    struct_tyid,
+                    LocalKind::Temp,
+                ));
 
-                // for field in fields {
-                //     self.visit_expr(&field.expr)?;
-                //     let (field_tyid, field_op) = self.pop();
+                let mut field_set = BTreeSet::new();
+                for field in fields {
+                    let symbol = self.ty_ctxt.table.get_symbol(field.ident).unwrap();
+                    let Some(field_id) = struct_tyir.field_hash.get(&symbol.name) else {
+                        self.ty_ctxt.diag.push_error(
+                            EcslError::new(ErrorLevel::Error, TyCheckError::NoMemberWithName)
+                                .with_span(|_| field.span),
+                        );
+                        return VisitorCF::Break;
+                    };
 
-                //     self.push_stmt_to_cur_block(stmt);
-                // }
-                // debug!("{:?}", tyir);
+                    // Insert field into set
+                    if !field_set.insert(field_id) {
+                        self.ty_ctxt.diag.push_error(
+                            EcslError::new(ErrorLevel::Error, TyCheckError::DuplicateMember)
+                                .with_span(|_| field.span),
+                        );
+                        return VisitorCF::Break;
+                    }
 
-                // todo!()
-                // Some((struct_tyid, todo!()))
+                    self.visit_expr(&field.expr)?;
+                    let (expr_tyid, expr_op) = self.pop();
+
+                    let field_def = struct_tyir.fields.get(field_id).unwrap();
+                    unify!(
+                        expr_tyid,
+                        field_def.ty,
+                        TyCheckError::LHSMatchRHS,
+                        field.span
+                    );
+
+                    self.push_stmt_to_cur_block(gir::Stmt {
+                        span: field.span,
+                        kind: gir::StmtKind::Assign(
+                            Place::from_local(local_id).with_projection(gir::Projection::Field {
+                                fid: *field_id,
+                                sid: struct_tyid,
+                                new_tyid: field_def.ty,
+                            }),
+                            gir::Expr {
+                                span: e.span,
+                                kind: gir::ExprKind::Value(expr_op),
+                            },
+                        ),
+                    });
+                }
+
+                // Check all fields have been defined
+                if field_set.len() != struct_tyir.fields.len() {
+                    self.ty_ctxt.diag.push_error(
+                        EcslError::new(ErrorLevel::Error, TyCheckError::MissingFields)
+                            .with_span(|_| e.span),
+                    );
+                    return VisitorCF::Break;
+                }
+
+                Some((struct_tyid, Operand::Move(Place::from_local(local_id))))
+            }
+            ExprKind::Field(expr, symbol_id) => {
+                // Visit expr
+                self.visit_expr(expr)?;
+                let (e_ty, mut e_op) = self.pop();
+
+                // Check not a literal
+                if let Operand::Constant(_) = e_op {
+                    self.ty_ctxt.diag.push_error(
+                        EcslError::new(ErrorLevel::Error, TyCheckError::DotSyntaxOnConst)
+                            .with_span(|_| e.span),
+                    );
+                    return VisitorCF::Break;
+                }
+
+                // Get struct TyIR
+                let TyIr::Struct(struct_tyir) = self.get_tyir(e_ty) else {
+                    self.ty_ctxt.diag.push_error(
+                        EcslError::new(ErrorLevel::Error, TyCheckError::TypeIsNotAStruct) // TODO: Replace error message?
+                            .with_span(|_| e.span),
+                    );
+                    return VisitorCF::Break;
+                };
+
+                let symbol = self.ty_ctxt.table.get_symbol(*symbol_id).unwrap();
+                let Some(field_id) = struct_tyir.field_hash.get(&symbol.name) else {
+                    self.ty_ctxt.diag.push_error(
+                        EcslError::new(ErrorLevel::Error, TyCheckError::NoMemberWithName)
+                            .with_span(|_| e.span),
+                    );
+                    return VisitorCF::Break;
+                };
+                let field_def = struct_tyir.fields.get(field_id).unwrap();
+
+                match &mut e_op {
+                    Operand::Copy(place) | Operand::Move(place) => {
+                        place.with_projection_ref(gir::Projection::Field {
+                            fid: *field_id,
+                            sid: e_ty,
+                            new_tyid: field_def.ty,
+                        });
+                    }
+                    _ => unreachable!(),
+                }
+
+                Some((field_def.ty, e_op))
             }
             e => panic!("{:?}", e),
             // ExprKind::Ref(mutable, expr) => todo!(),
             // ExprKind::Array(exprs) => todo!(),
             // ExprKind::MethodSelf => todo!(),
             // ExprKind::Enum(ty, symbol_id, field_exprs) => todo!(),
-            // ExprKind::Field(expr, symbol_id) => todo!(),
             // ExprKind::Entity => todo!(),
             // ExprKind::Resource => todo!(),
             // ExprKind::Query(query_expr) => todo!(),
@@ -1049,12 +1152,17 @@ pub enum TyCheckError {
     ExpectedBoolean,
     InvalidOperation,
     InvalidCast,
+    TypeIsNotAStruct,
     RedundantCast,
     AssignWrongType,
     FunctionReturnType,
     ForLoopIterator,
     RangeMustEqual,
     LHSMatchRHS,
+    NoMemberWithName,
+    DuplicateMember,
+    MissingFields,
+    DotSyntaxOnConst,
 }
 
 impl std::fmt::Display for TyCheckError {
@@ -1079,6 +1187,11 @@ impl std::fmt::Display for TyCheckError {
             }
             TyCheckError::InvalidCast => "Cannot perform cast between types",
             TyCheckError::RedundantCast => "Cast is redundant",
+            TyCheckError::TypeIsNotAStruct => "Type is not a struct",
+            TyCheckError::NoMemberWithName => "Struct does not have a member with name",
+            TyCheckError::DuplicateMember => "Member has already been defined",
+            TyCheckError::MissingFields => "Not all fields have been defined",
+            TyCheckError::DotSyntaxOnConst => "Dot syntax on literal not allowed",
         };
         write!(f, "{}", s)
     }

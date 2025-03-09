@@ -1,7 +1,7 @@
 use crate::{local::LocalTyCtxt, TyIr};
 use bimap::BiHashMap;
 use cfgrammar::Span;
-use ecsl_index::{GlobalID, SourceFileID, TyID};
+use ecsl_index::{FieldID, GlobalID, SourceFileID, TyID};
 use log::debug;
 use std::{
     collections::{btree_map::Entry, BTreeMap},
@@ -14,6 +14,7 @@ pub struct TyCtxt {
     pub tyirs: RwLock<BiHashMap<TyID, TyIr>>,
     pub cur_id: RwLock<usize>,
     pub sizes: RwLock<BTreeMap<TyID, usize>>,
+    pub field_offsets: RwLock<BTreeMap<(TyID, FieldID), usize>>,
     pub spans: RwLock<BTreeMap<TyID, Span>>,
     pub entry_point: RwLock<Option<TyID>>,
 }
@@ -28,6 +29,7 @@ impl TyCtxt {
             sizes: Default::default(),
             entry_point: Default::default(),
             spans: Default::default(),
+            field_offsets: Default::default(),
         };
         ty_ctxt.tyid_from_tyir(TyIr::Unknown);
         ty_ctxt.tyid_from_tyir(TyIr::Bottom);
@@ -97,10 +99,6 @@ impl TyCtxt {
 
     pub fn get_size(&self, id: TyID) -> usize {
         let mut sizes = self.sizes.write().unwrap();
-        if let Some(size) = sizes.get(&id) {
-            return *size;
-        }
-
         self.internal_get_size(id, &mut sizes)
     }
 
@@ -109,7 +107,12 @@ impl TyCtxt {
         id: TyID,
         sizes: &mut RwLockWriteGuard<BTreeMap<TyID, usize>>,
     ) -> usize {
+        if let Some(size) = sizes.get(&id) {
+            return *size;
+        }
+
         let tyir = self.get_tyir(id);
+
         let size = match tyir {
             TyIr::Ref(_, _) => 8,
             TyIr::Range(tyid, _) => self.internal_get_size(tyid, sizes),
@@ -120,7 +123,7 @@ impl TyCtxt {
                 }
                 total_size
             }
-            e => panic!("{e:?}"),
+            e => panic!("{id:?} {e:?}"),
             // TyIr::String => todo!(),
             // TyIr::Enum(enum_def) => todo!(),
             // TyIr::Fn(fn_def) => todo!(),
@@ -130,6 +133,38 @@ impl TyCtxt {
         };
         sizes.insert(id, size);
         size
+    }
+
+    pub fn get_field_offset(&self, id: TyID, fid: FieldID) -> usize {
+        let mut offsets = self.field_offsets.write().unwrap();
+        if let Some(offset) = offsets.get(&(id, fid)) {
+            return *offset;
+        }
+        let mut sizes = self.sizes.write().unwrap();
+
+        let tyir = self.get_tyir(id);
+        let offset = match tyir {
+            TyIr::Struct(def) => {
+                let mut offset = 0;
+                for (_, field) in def.fields {
+                    offsets.insert((id, field.id), offset);
+                    debug!("{:?} {:?}", field.id, offset);
+                    offset += self.internal_get_size(field.ty, &mut sizes);
+                }
+                *offsets.get(&(id, fid)).unwrap()
+            }
+            e => panic!("{id:?} {e:?}"),
+            // TyIr::Ref(_, _) => 8,
+            // TyIr::Range(tyid, _) => self.internal_get_size(tyid, sizes),
+            // TyIr::String => todo!(),
+            // TyIr::Enum(enum_def) => todo!(),
+            // TyIr::Fn(fn_def) => todo!(),
+            // TyIr::Array(ty_id, _) => todo!(),
+            // TyIr::ArrayRef(mutable, ty_id) => todo!(),
+            // TyIr::GenericParam(_) => todo!(),
+        };
+
+        return offset;
     }
 
     pub fn is_primitive(&self, id: TyID) -> bool {
