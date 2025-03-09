@@ -25,7 +25,7 @@ use fn_validator::FnValidator;
 use import_collector::ImportCollector;
 use log::debug;
 use prelude::{rewrite_use_path, Prelude};
-use std::{path::PathBuf, sync::Arc};
+use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
 
 pub mod attributes;
 pub mod byt;
@@ -186,20 +186,21 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                     }
                 }
 
-                let fields = fields
-                    .iter()
-                    .enumerate()
-                    .map(|(i, f)| {
-                        let id = FieldID::new(i);
-                        (
+                let mut field_hash = BTreeMap::new();
+                let mut field_tys = BTreeMap::new();
+
+                for (i, f) in fields.iter().enumerate() {
+                    let id = FieldID::new(i);
+                    let symbol = ty_ctxt.table.get_symbol(f.ident).unwrap();
+                    field_hash.insert(symbol.name, id);
+                    field_tys.insert(
+                        id,
+                        FieldDef {
                             id,
-                            FieldDef {
-                                id,
-                                ty: ty_ctxt.get_tyid(&f.ty, &scope),
-                            },
-                        )
-                    })
-                    .collect();
+                            ty: ty_ctxt.get_tyid(&f.ty, &scope),
+                        },
+                    );
+                }
 
                 unsafe {
                     ty_ctxt.global.insert_tyir(
@@ -207,7 +208,8 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                         TyIr::Struct(ecsl_ty::StructDef {
                             id: tyid,
                             kind: *kind,
-                            fields,
+                            field_hash: field_hash,
+                            fields: field_tys,
                         }),
                         *span,
                     )

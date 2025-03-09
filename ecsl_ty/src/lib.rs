@@ -63,6 +63,7 @@ impl From<Literal> for TyIr {
 pub struct StructDef {
     pub id: TyID,
     pub kind: DataKind,
+    pub field_hash: BTreeMap<String, FieldID>, // TODO: Temporary solution to getting the fields of a struct, pls fix
     pub fields: BTreeMap<FieldID, FieldDef>,
 }
 
