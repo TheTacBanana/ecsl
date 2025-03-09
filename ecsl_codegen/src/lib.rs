@@ -164,9 +164,16 @@ impl<'a> CodeGen<'a> {
                                             self.load_operand(op, &mut instrs);
                                         }
                                         instrs.push(ins!(CALL, Immediate::AddressOf(*ty_id)));
-                                        for _ in operands {
-                                            instrs.push(ins!(POP, Immediate::UByte(4)));
-                                            //TODO:
+
+                                        let mut argument_size = 0;
+                                        for op in operands {
+                                            argument_size += self.operand_size(op)
+                                        }
+                                        if argument_size > 0 {
+                                            instrs.push(ins!(
+                                                POP,
+                                                Immediate::UByte(argument_size as u8)
+                                            ));
                                         }
                                     }
                                     ExprKind::UnOp(op, operand) => {
@@ -225,7 +232,6 @@ impl<'a> CodeGen<'a> {
                             }
                         }
                         TerminatorKind::Switch(operand, switch_cases) => {
-                            debug!("{:?}", switch_cases);
                             for case in switch_cases {
                                 match case {
                                     SwitchCase::Value(value, block_id) => {
@@ -336,6 +342,19 @@ impl<'a> CodeGen<'a> {
                 }
             }
             Operand::Constant(const_id) => instrs.push(self.load_const(*const_id)),
+        }
+    }
+
+    pub fn operand_size(&self, operand: &Operand) -> usize {
+        match operand {
+            Operand::Copy(place) | Operand::Move(place) => {
+                if let Some(place_offset) = self.place_offset(&place) {
+                    place_offset.size
+                } else {
+                    todo!()
+                }
+            }
+            Operand::Constant(const_id) => self.const_map.get(const_id).unwrap().size_of(),
         }
     }
 

@@ -12,7 +12,7 @@ use ecsl_ast::{
 use ecsl_context::Context;
 use ecsl_diagnostics::DiagConn;
 use ecsl_error::{ext::EcslErrorExt, EcslError, ErrorLevel};
-use ecsl_index::{FieldID, GlobalID, SourceFileID, TyID};
+use ecsl_index::{FieldID, GlobalID, SourceFileID, TyID, VariantID};
 use ecsl_parse::{source::SourceFile, table::SymbolTable, LexerTy};
 use ecsl_ty::{
     def::Definition,
@@ -192,7 +192,13 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                 for (i, f) in fields.iter().enumerate() {
                     let id = FieldID::new(i);
                     let symbol = ty_ctxt.table.get_symbol(f.ident).unwrap();
-                    field_hash.insert(symbol.name, id);
+                    if field_hash.insert(symbol.name, id).is_some() {
+                        ty_ctxt.diag.push_error(
+                            EcslError::new(ErrorLevel::Error, "Duplicate field name")
+                                .with_span(|_| f.span),
+                        );
+                    }
+
                     field_tys.insert(
                         id,
                         FieldDef {
@@ -208,7 +214,7 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                         TyIr::Struct(ecsl_ty::StructDef {
                             id: tyid,
                             kind: *kind,
-                            field_hash: field_hash,
+                            field_hash,
                             fields: field_tys,
                         }),
                         *span,
@@ -218,14 +224,79 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                 scope.pop();
             }
             Definition::Enum(ast::EnumDef {
-                kind: _,
-                ident: _,
-                attributes: _,
-                generics: _,
-                variants: _,
-                ..
+                kind,
+                ident,
+                attributes,
+                generics,
+                variants,
+                span,
             }) => {
-                debug!("TODO: Enum TyIr");
+                scope.add_opt(generics.clone());
+
+                let tyid = ty_ctxt
+                    .global
+                    .get_or_create_tyid(GlobalID::new(*ident, ty_ctxt.file));
+
+                let mut variant_hash = BTreeMap::new();
+                let mut variant_kinds = BTreeMap::new();
+
+                for (i, v) in variants.iter().enumerate() {
+                    let var_id = VariantID::new(i);
+                    let var_name = ty_ctxt.table.get_symbol(v.ident).unwrap();
+
+                    if variant_hash.insert(var_name.name, var_id).is_some() {
+                        ty_ctxt.diag.push_error(
+                            EcslError::new(ErrorLevel::Error, "Duplicate variant name")
+                                .with_span(|_| v.span),
+                        );
+                    }
+
+                    let mut field_hash = BTreeMap::new();
+                    let mut field_tys = BTreeMap::new();
+
+                    for (i, f) in v.fields.iter().enumerate() {
+                        let id = FieldID::new(i);
+                        let symbol = ty_ctxt.table.get_symbol(f.ident).unwrap();
+                        if field_hash.insert(symbol.name, id).is_some() {
+                            ty_ctxt.diag.push_error(
+                                EcslError::new(ErrorLevel::Error, "Duplicate field name")
+                                    .with_span(|_| f.span),
+                            );
+                        }
+
+                        field_tys.insert(
+                            id,
+                            FieldDef {
+                                id,
+                                ty: ty_ctxt.get_tyid(&f.ty, &scope),
+                            },
+                        );
+                    }
+
+                    variant_kinds.insert(
+                        var_id,
+                        ecsl_ty::VariantDef {
+                            id: var_id,
+                            field_hash,
+                            field_tys,
+                        },
+                    );
+                }
+
+                unsafe {
+                    ty_ctxt.global.insert_tyir(
+                        tyid,
+                        TyIr::Enum(ecsl_ty::EnumDef {
+                            id: tyid,
+                            kind: *kind,
+                            variant_hash,
+                            variant_kinds,
+                        }),
+                        *span,
+                    )
+                };
+
+                scope.pop();
             }
             Definition::Function(ast::FnDef {
                 span,

@@ -1,5 +1,3 @@
-use std::collections::BTreeMap;
-
 use ecsl_ast::{
     data::DataKind,
     expr::{Literal, RangeType},
@@ -7,6 +5,7 @@ use ecsl_ast::{
     ty::Mutable,
 };
 use ecsl_index::{FieldID, SymbolID, TyID, VariantID};
+use std::collections::BTreeMap;
 
 pub mod ctxt;
 pub mod def;
@@ -71,7 +70,8 @@ pub struct StructDef {
 pub struct EnumDef {
     pub id: TyID,
     pub kind: DataKind,
-    pub variants: BTreeMap<FieldID, VariantDef>,
+    pub variant_hash: BTreeMap<String, VariantID>, // TODO: Temporary solution to getting the fields of a struct, pls fix
+    pub variant_kinds: BTreeMap<VariantID, VariantDef>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -82,7 +82,8 @@ pub struct Generics {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct VariantDef {
     pub id: VariantID,
-    pub fields: BTreeMap<FieldID, FieldDef>,
+    pub field_hash: BTreeMap<String, FieldID>, // TODO: Temporary solution to getting the fields of a variant, pls fix
+    pub field_tys: BTreeMap<FieldID, FieldDef>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
