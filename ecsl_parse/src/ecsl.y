@@ -939,6 +939,16 @@ Expr -> Result<Expr, ()>:
             $4?,
         )))
     }
+    | 'IDENT' 'PATH' 'IDENT' {
+        Ok(Expr::new($span, ExprKind::Enum(
+            P::new(Ty::new($span, TyKind::Ident(
+                table.usage($1.map_err(|_| ())?.span(), SymbolKind::Ty),
+                None,
+            ))),
+            table.usage($3.map_err(|_| ())?.span(), SymbolKind::VariantUsage),
+            Vec::new(),
+        )))
+    }    
     | 'IDENT' 'PATH' ConcreteGenerics FieldAssignments {
         Ok(Expr::new($span, ExprKind::Struct(
             P::new(Ty::new($span, TyKind::Ident(
