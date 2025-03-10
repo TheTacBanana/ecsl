@@ -34,10 +34,8 @@ pub enum TyIr {
     Range(TyID, RangeType),
     /// Reference to another type
     Ref(Mutable, TyID),
-    /// A struct type
-    Struct(StructDef),
-    /// An enum type
-    Enum(EnumDef),
+    /// ADT types
+    ADT(ADTDef),
     /// A function type
     Fn(FnDef),
     /// A sized array type
@@ -59,6 +57,22 @@ impl From<Literal> for TyIr {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ADTDef {
+    pub id: TyID,
+    pub kind: DataKind,
+    pub variant_hash: BTreeMap<String, VariantID>, // TODO: Temporary solution to getting the variants of an enum, pls fix
+    pub variant_kinds: BTreeMap<VariantID, VariantDef>,
+}
+
+impl ADTDef {
+    pub fn variant_size(&self) -> usize {
+        if self.variant_kinds.len() == 1 {
+            return 0;
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct StructDef {
     pub id: TyID,
     pub kind: DataKind,
@@ -70,7 +84,7 @@ pub struct StructDef {
 pub struct EnumDef {
     pub id: TyID,
     pub kind: DataKind,
-    pub variant_hash: BTreeMap<String, VariantID>, // TODO: Temporary solution to getting the fields of a struct, pls fix
+    pub variant_hash: BTreeMap<String, VariantID>, // TODO: Temporary solution to getting the variants of an enum, pls fix
     pub variant_kinds: BTreeMap<VariantID, VariantDef>,
 }
 
