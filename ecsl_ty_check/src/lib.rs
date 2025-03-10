@@ -1121,11 +1121,108 @@ impl Visitor for TyCheck {
 
                 Some((field_def.ty, e_op))
             }
+            ExprKind::Enum(ty, variant, fields) => {
+                let enum_tyid = self.get_tyid((ty.as_ref(), &self.generic_scope));
+                let TyIr::Enum(enum_tyir) = self.get_tyir(enum_tyid) else {
+                    self.ty_ctxt.diag.push_error(
+                        EcslError::new(ErrorLevel::Error, TyCheckError::TypeIsNotAStruct)
+                            .with_span(|_| e.span),
+                    );
+                    return VisitorCF::Break;
+                };
+
+                let local_id =
+                    self.new_local(Local::new(e.span, Mutable::Imm, enum_tyid, LocalKind::Temp));
+
+                let symbol = self.ty_ctxt.table.get_symbol(*variant).unwrap();
+                let Some(var_id) = enum_tyir.variant_hash.get(&symbol.name) else {
+                    self.ty_ctxt.diag.push_error(
+                        EcslError::new(ErrorLevel::Error, TyCheckError::NoVariantWithName)
+                            .with_span(|_| e.span),
+                    );
+                    return VisitorCF::Break;
+                };
+
+                let variant_def = enum_tyir.variant_kinds.get(var_id).unwrap();
+
+                let one_const = self.new_constant(Constant::Internal {
+                    imm: Immediate::UByte(var_id.inner() as u8),
+                });
+                self.push_stmt_to_cur_block(gir::Stmt {
+                    span: e.span,
+                    kind: gir::StmtKind::Assign(
+                        Place::from_local(local_id).with_projection(
+                            ecsl_gir::Projection::Discriminant { tyid: enum_tyid },
+                        ),
+                        gir::Expr {
+                            span: e.span,
+                            kind: gir::ExprKind::Value(Operand::Constant(one_const)),
+                        },
+                    ),
+                });
+
+                let mut field_set = BTreeSet::new();
+                for field in fields {
+                    let symbol = self.ty_ctxt.table.get_symbol(field.ident).unwrap();
+                    let Some(field_id) = variant_def.field_hash.get(&symbol.name) else {
+                        self.ty_ctxt.diag.push_error(
+                            EcslError::new(ErrorLevel::Error, TyCheckError::NoMemberWithName)
+                                .with_span(|_| field.span),
+                        );
+                        return VisitorCF::Break;
+                    };
+
+                    // Insert field into set
+                    if !field_set.insert(field_id) {
+                        self.ty_ctxt.diag.push_error(
+                            EcslError::new(ErrorLevel::Error, TyCheckError::DuplicateMember)
+                                .with_span(|_| field.span),
+                        );
+                        return VisitorCF::Break;
+                    }
+
+                    self.visit_expr(&field.expr)?;
+                    let (expr_tyid, expr_op) = self.pop();
+
+                    let field_def = variant_def.field_tys.get(field_id).unwrap();
+                    unify!(
+                        expr_tyid,
+                        field_def.ty,
+                        TyCheckError::LHSMatchRHS,
+                        field.span
+                    );
+
+                    self.push_stmt_to_cur_block(gir::Stmt {
+                        span: field.span,
+                        kind: gir::StmtKind::Assign(
+                            Place::from_local(local_id).with_projection(gir::Projection::Field {
+                                fid: *field_id,
+                                sid: enum_tyid,
+                                new_tyid: field_def.ty,
+                            }),
+                            gir::Expr {
+                                span: e.span,
+                                kind: gir::ExprKind::Value(expr_op),
+                            },
+                        ),
+                    });
+                }
+
+                // Check all fields have been defined
+                if field_set.len() != variant_def.field_tys.len() {
+                    self.ty_ctxt.diag.push_error(
+                        EcslError::new(ErrorLevel::Error, TyCheckError::MissingFields)
+                            .with_span(|_| e.span),
+                    );
+                    return VisitorCF::Break;
+                }
+
+                Some((enum_tyid, Operand::Move(Place::from_local(local_id))))
+            }
             e => panic!("{:?}", e),
             // ExprKind::Ref(mutable, expr) => todo!(),
             // ExprKind::Array(exprs) => todo!(),
             // ExprKind::MethodSelf => todo!(),
-            // ExprKind::Enum(ty, symbol_id, field_exprs) => todo!(),
             // ExprKind::Entity => todo!(),
             // ExprKind::Resource => todo!(),
             // ExprKind::Query(query_expr) => todo!(),
@@ -1153,6 +1250,7 @@ pub enum TyCheckError {
     InvalidOperation,
     InvalidCast,
     TypeIsNotAStruct,
+    TypeIsNotAnEnum,
     RedundantCast,
     AssignWrongType,
     FunctionReturnType,
@@ -1163,6 +1261,7 @@ pub enum TyCheckError {
     DuplicateMember,
     MissingFields,
     DotSyntaxOnConst,
+    NoVariantWithName,
 }
 
 impl std::fmt::Display for TyCheckError {
@@ -1188,10 +1287,12 @@ impl std::fmt::Display for TyCheckError {
             TyCheckError::InvalidCast => "Cannot perform cast between types",
             TyCheckError::RedundantCast => "Cast is redundant",
             TyCheckError::TypeIsNotAStruct => "Type is not a struct",
+            TyCheckError::TypeIsNotAnEnum => "Type is not an enum",
             TyCheckError::NoMemberWithName => "Struct does not have a member with name",
             TyCheckError::DuplicateMember => "Member has already been defined",
             TyCheckError::MissingFields => "Not all fields have been defined",
             TyCheckError::DotSyntaxOnConst => "Dot syntax on literal not allowed",
+            TyCheckError::NoVariantWithName => "Could not find variant with name",
         };
         write!(f, "{}", s)
     }

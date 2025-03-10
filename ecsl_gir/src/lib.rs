@@ -260,6 +260,9 @@ pub enum Projection {
         sid: TyID,
         new_tyid: TyID,
     },
+    Discriminant {
+        tyid: TyID,
+    },
 }
 
 impl std::fmt::Display for Place {

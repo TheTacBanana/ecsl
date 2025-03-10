@@ -123,9 +123,19 @@ impl TyCtxt {
                 }
                 total_size
             }
+            TyIr::Enum(def) => {
+                let mut max_size = 0;
+                for (_, var) in def.variant_kinds {
+                    let mut total_size = 0;
+                    for (_, field) in var.field_tys {
+                        total_size += self.internal_get_size(field.ty, sizes);
+                    }
+                    max_size = usize::max(max_size, total_size);
+                }
+                1 + max_size // TODO:
+            }
             e => panic!("{id:?} {e:?}"),
             // TyIr::String => todo!(),
-            // TyIr::Enum(enum_def) => todo!(),
             // TyIr::Fn(fn_def) => todo!(),
             // TyIr::Array(ty_id, _) => todo!(),
             // TyIr::ArrayRef(mutable, ty_id) => todo!(),

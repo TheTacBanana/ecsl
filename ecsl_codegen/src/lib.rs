@@ -198,6 +198,7 @@ impl<'a> CodeGen<'a> {
                                 }
 
                                 if let Some(place_offset) = self.place_offset(place) {
+                                    // debug!("place offset {:?}", place_offset);
                                     instrs.push(ins!(
                                         STR,
                                         Immediate::UByte(place_offset.size as u8),
@@ -232,6 +233,7 @@ impl<'a> CodeGen<'a> {
                             }
                         }
                         TerminatorKind::Switch(operand, switch_cases) => {
+                            debug!("{:?}", switch_cases);
                             for case in switch_cases {
                                 match case {
                                     SwitchCase::Value(value, block_id) => {
@@ -391,6 +393,11 @@ impl<'a> CodeGen<'a> {
                     let size = self.ty_ctxt.global.get_size(*new_tyid);
                     stack_offset.offset += offset as i64;
                     stack_offset.size = size;
+                }
+                Projection::Discriminant { tyid: _ } => {
+                    stack_offset.offset = 0;
+                    stack_offset.size = 1;
+                    debug!("TODO: Allow for more than 128 enum variants"); // TODO:
                 }
             }
         }
