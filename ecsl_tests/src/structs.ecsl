@@ -1,0 +1,20 @@
+// 42
+
+struct EmptySemi;
+
+struct EmptyCurly {}
+
+struct OneMember {
+	i: int,
+}
+
+fn main() {
+	let e1: EmptySemi = EmptySemi {};
+	
+	let e2: EmptyCurly = EmptyCurly {};
+
+	let e3: OneMember = OneMember {
+		i: 42,
+	};
+	print_int(e3.i);
+}
