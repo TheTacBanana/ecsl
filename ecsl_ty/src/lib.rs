@@ -5,7 +5,8 @@ use ecsl_ast::{
     ty::Mutable,
 };
 use ecsl_index::{FieldID, SymbolID, TyID, VariantID};
-use std::collections::BTreeMap;
+use log::debug;
+use std::{collections::BTreeMap, ops::BitAnd};
 
 pub mod ctxt;
 pub mod def;
@@ -65,28 +66,52 @@ pub struct ADTDef {
 }
 
 impl ADTDef {
-    pub fn variant_size(&self) -> usize {
-        if self.variant_kinds.len() == 1 {
-            return 0;
+    pub fn is_struct(&self) -> bool {
+        return self.variant_hash.is_empty();
+    }
+
+    pub fn is_enum(&self) -> bool {
+        return !self.variant_hash.is_empty();
+    }
+
+    pub fn discriminant_size(&self) -> Option<usize> {
+        if self.is_struct() {
+            return None;
         }
+
+        let byte_length = (self.variant_kinds.len().ilog2() as usize) / 8 + 1;
+        debug!(
+            "Discriminant {:?} {:?}",
+            self.variant_kinds.len(),
+            byte_length
+        );
+        return Some(byte_length);
+    }
+
+    // Will panic if not a struct
+    pub fn get_struct_fields(&self) -> &VariantDef {
+        if !self.is_struct() {
+            panic!("Not a struct");
+        }
+        self.variant_kinds.get(&VariantID::ZERO).as_ref().unwrap()
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct StructDef {
-    pub id: TyID,
-    pub kind: DataKind,
-    pub field_hash: BTreeMap<String, FieldID>, // TODO: Temporary solution to getting the fields of a struct, pls fix
-    pub fields: BTreeMap<FieldID, FieldDef>,
-}
+// #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+// pub struct StructDef {
+//     pub id: TyID,
+//     pub kind: DataKind,
+//     pub field_hash: BTreeMap<String, FieldID>, // TODO: Temporary solution to getting the fields of a struct, pls fix
+//     pub fields: BTreeMap<FieldID, FieldDef>,
+// }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct EnumDef {
-    pub id: TyID,
-    pub kind: DataKind,
-    pub variant_hash: BTreeMap<String, VariantID>, // TODO: Temporary solution to getting the variants of an enum, pls fix
-    pub variant_kinds: BTreeMap<VariantID, VariantDef>,
-}
+// #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+// pub struct EnumDef {
+//     pub id: TyID,
+//     pub kind: DataKind,
+//     pub variant_hash: BTreeMap<String, VariantID>, // TODO: Temporary solution to getting the variants of an enum, pls fix
+//     pub variant_kinds: BTreeMap<VariantID, VariantDef>,
+// }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Generics {

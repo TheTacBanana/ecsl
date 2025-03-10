@@ -211,11 +211,20 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                 unsafe {
                     ty_ctxt.global.insert_tyir(
                         tyid,
-                        TyIr::Struct(ecsl_ty::StructDef {
+                        TyIr::ADT(ecsl_ty::ADTDef {
                             id: tyid,
                             kind: *kind,
-                            field_hash,
-                            fields: field_tys,
+                            variant_hash: BTreeMap::new(),
+                            variant_kinds: vec![(
+                                VariantID::ZERO,
+                                ecsl_ty::VariantDef {
+                                    id: VariantID::ZERO,
+                                    field_hash,
+                                    field_tys,
+                                },
+                            )]
+                            .into_iter()
+                            .collect(),
                         }),
                         *span,
                     )
@@ -286,7 +295,7 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                 unsafe {
                     ty_ctxt.global.insert_tyir(
                         tyid,
-                        TyIr::Enum(ecsl_ty::EnumDef {
+                        TyIr::ADT(ecsl_ty::ADTDef {
                             id: tyid,
                             kind: *kind,
                             variant_hash,

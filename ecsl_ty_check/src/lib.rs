@@ -732,6 +732,26 @@ impl Visitor for TyCheck {
             };
         }
 
+        macro_rules! err_if {
+            ($c:expr, $e:expr, $s:expr) => {
+                if $c {
+                    self.ty_ctxt
+                        .diag
+                        .push_error(EcslError::new(ErrorLevel::Error, $e).with_span(|_| $s));
+                    return VisitorCF::Break;
+                }
+            };
+        }
+
+        macro_rules! err {
+            ($e:expr,$s:expr) => {
+                self.ty_ctxt
+                    .diag
+                    .push_error(EcslError::new(ErrorLevel::Error, $e).with_span(|_| $s));
+                return VisitorCF::Break;
+            };
+        }
+
         let ret_ty = match &e.kind {
             ExprKind::Assign(symbol_id, span, expr) => {
                 // Visit expr
@@ -1002,13 +1022,15 @@ impl Visitor for TyCheck {
             }
             ExprKind::Struct(ty, fields) => {
                 let struct_tyid = self.get_tyid((ty.as_ref(), &self.generic_scope));
-                let TyIr::Struct(struct_tyir) = self.get_tyir(struct_tyid) else {
-                    self.ty_ctxt.diag.push_error(
-                        EcslError::new(ErrorLevel::Error, TyCheckError::TypeIsNotAStruct)
-                            .with_span(|_| e.span),
-                    );
-                    return VisitorCF::Break;
+                let TyIr::ADT(struct_tyir) = self.get_tyir(struct_tyid) else {
+                    err!(TyCheckError::TypeIsNotAStruct, e.span);
                 };
+
+                err_if!(
+                    !struct_tyir.is_struct(),
+                    TyCheckError::TypeIsNotAStruct,
+                    e.span
+                );
 
                 let local_id = self.new_local(Local::new(
                     e.span,
@@ -1017,30 +1039,27 @@ impl Visitor for TyCheck {
                     LocalKind::Temp,
                 ));
 
+                let variant = struct_tyir.get_struct_fields();
+
                 let mut field_set = BTreeSet::new();
                 for field in fields {
                     let symbol = self.ty_ctxt.table.get_symbol(field.ident).unwrap();
-                    let Some(field_id) = struct_tyir.field_hash.get(&symbol.name) else {
-                        self.ty_ctxt.diag.push_error(
-                            EcslError::new(ErrorLevel::Error, TyCheckError::NoMemberWithName)
-                                .with_span(|_| field.span),
-                        );
-                        return VisitorCF::Break;
+
+                    let Some(field_id) = variant.field_hash.get(&symbol.name) else {
+                        err!(TyCheckError::NoMemberWithName, field.span);
                     };
 
                     // Insert field into set
-                    if !field_set.insert(field_id) {
-                        self.ty_ctxt.diag.push_error(
-                            EcslError::new(ErrorLevel::Error, TyCheckError::DuplicateMember)
-                                .with_span(|_| field.span),
-                        );
-                        return VisitorCF::Break;
-                    }
+                    err_if!(
+                        !field_set.insert(field_id),
+                        TyCheckError::DuplicateMember,
+                        field.span
+                    );
 
                     self.visit_expr(&field.expr)?;
                     let (expr_tyid, expr_op) = self.pop();
 
-                    let field_def = struct_tyir.fields.get(field_id).unwrap();
+                    let field_def = variant.field_tys.get(field_id).unwrap();
                     unify!(
                         expr_tyid,
                         field_def.ty,
@@ -1052,9 +1071,10 @@ impl Visitor for TyCheck {
                         span: field.span,
                         kind: gir::StmtKind::Assign(
                             Place::from_local(local_id).with_projection(gir::Projection::Field {
+                                ty: struct_tyid,
+                                vid: variant.id,
                                 fid: *field_id,
-                                sid: struct_tyid,
-                                new_tyid: field_def.ty,
+                                new_ty: field_def.ty,
                             }),
                             gir::Expr {
                                 span: e.span,
@@ -1065,13 +1085,11 @@ impl Visitor for TyCheck {
                 }
 
                 // Check all fields have been defined
-                if field_set.len() != struct_tyir.fields.len() {
-                    self.ty_ctxt.diag.push_error(
-                        EcslError::new(ErrorLevel::Error, TyCheckError::MissingFields)
-                            .with_span(|_| e.span),
-                    );
-                    return VisitorCF::Break;
-                }
+                err_if!(
+                    field_set.len() != variant.field_tys.len(),
+                    TyCheckError::MissingFields,
+                    e.span
+                );
 
                 Some((struct_tyid, Operand::Move(Place::from_local(local_id))))
             }
@@ -1081,39 +1099,41 @@ impl Visitor for TyCheck {
                 let (e_ty, mut e_op) = self.pop();
 
                 // Check not a literal
-                if let Operand::Constant(_) = e_op {
-                    self.ty_ctxt.diag.push_error(
-                        EcslError::new(ErrorLevel::Error, TyCheckError::DotSyntaxOnConst)
-                            .with_span(|_| e.span),
-                    );
-                    return VisitorCF::Break;
-                }
+
+                err_if!(
+                    matches!(e_op, Operand::Constant(_)),
+                    TyCheckError::DotSyntaxOnConst,
+                    e.span
+                );
 
                 // Get struct TyIR
-                let TyIr::Struct(struct_tyir) = self.get_tyir(e_ty) else {
-                    self.ty_ctxt.diag.push_error(
-                        EcslError::new(ErrorLevel::Error, TyCheckError::TypeIsNotAStruct) // TODO: Replace error message?
-                            .with_span(|_| e.span),
-                    );
-                    return VisitorCF::Break;
+                let TyIr::ADT(struct_tyir) = self.get_tyir(e_ty) else {
+                    err!(TyCheckError::TypeIsNotAStruct, e.span);
                 };
+                err_if!(
+                    !struct_tyir.is_struct(),
+                    TyCheckError::TypeIsNotAStruct,
+                    e.span
+                );
 
+                // Get the structs fields
+                let variant = struct_tyir.get_struct_fields();
+
+                // Get the field name and id
                 let symbol = self.ty_ctxt.table.get_symbol(*symbol_id).unwrap();
-                let Some(field_id) = struct_tyir.field_hash.get(&symbol.name) else {
-                    self.ty_ctxt.diag.push_error(
-                        EcslError::new(ErrorLevel::Error, TyCheckError::NoMemberWithName)
-                            .with_span(|_| e.span),
-                    );
-                    return VisitorCF::Break;
+                let Some(field_id) = variant.field_hash.get(&symbol.name) else {
+                    err!(TyCheckError::NoMemberWithName, e.span);
                 };
-                let field_def = struct_tyir.fields.get(field_id).unwrap();
 
+                // Get the field definition and create a projection to it
+                let field_def = variant.field_tys.get(field_id).unwrap();
                 match &mut e_op {
                     Operand::Copy(place) | Operand::Move(place) => {
                         place.with_projection_ref(gir::Projection::Field {
+                            ty: e_ty,
                             fid: *field_id,
-                            sid: e_ty,
-                            new_tyid: field_def.ty,
+                            vid: variant.id,
+                            new_ty: field_def.ty,
                         });
                     }
                     _ => unreachable!(),
@@ -1123,31 +1143,31 @@ impl Visitor for TyCheck {
             }
             ExprKind::Enum(ty, variant, fields) => {
                 let enum_tyid = self.get_tyid((ty.as_ref(), &self.generic_scope));
-                let TyIr::Enum(enum_tyir) = self.get_tyir(enum_tyid) else {
-                    self.ty_ctxt.diag.push_error(
-                        EcslError::new(ErrorLevel::Error, TyCheckError::TypeIsNotAStruct)
-                            .with_span(|_| e.span),
-                    );
-                    return VisitorCF::Break;
+                let TyIr::ADT(enum_tyir) = self.get_tyir(enum_tyid) else {
+                    err!(TyCheckError::TypeIsNotAnEnum, e.span);
                 };
+                err_if!(!enum_tyir.is_enum(), TyCheckError::TypeIsNotAnEnum, e.span);
 
                 let local_id =
                     self.new_local(Local::new(e.span, Mutable::Imm, enum_tyid, LocalKind::Temp));
 
+                // Get variant name and id and get the definition
                 let symbol = self.ty_ctxt.table.get_symbol(*variant).unwrap();
                 let Some(var_id) = enum_tyir.variant_hash.get(&symbol.name) else {
-                    self.ty_ctxt.diag.push_error(
-                        EcslError::new(ErrorLevel::Error, TyCheckError::NoVariantWithName)
-                            .with_span(|_| e.span),
-                    );
-                    return VisitorCF::Break;
+                    err!(TyCheckError::NoVariantWithName, e.span);
                 };
-
                 let variant_def = enum_tyir.variant_kinds.get(var_id).unwrap();
 
-                let one_const = self.new_constant(Constant::Internal {
-                    imm: Immediate::UByte(var_id.inner() as u8),
-                });
+                // Store the discriminant
+                let discriminant = enum_tyir.discriminant_size().unwrap();
+                let disc_const = match discriminant {
+                    1 => Immediate::UByte(var_id.inner() as u8),
+                    _ => {
+                        err!(TyCheckError::TooManyVariants, e.span);
+                    }
+                };
+                let disc_const = self.new_constant(Constant::Internal { imm: disc_const });
+
                 self.push_stmt_to_cur_block(gir::Stmt {
                     span: e.span,
                     kind: gir::StmtKind::Assign(
@@ -1156,7 +1176,7 @@ impl Visitor for TyCheck {
                         ),
                         gir::Expr {
                             span: e.span,
-                            kind: gir::ExprKind::Value(Operand::Constant(one_const)),
+                            kind: gir::ExprKind::Value(Operand::Constant(disc_const)),
                         },
                     ),
                 });
@@ -1165,21 +1185,15 @@ impl Visitor for TyCheck {
                 for field in fields {
                     let symbol = self.ty_ctxt.table.get_symbol(field.ident).unwrap();
                     let Some(field_id) = variant_def.field_hash.get(&symbol.name) else {
-                        self.ty_ctxt.diag.push_error(
-                            EcslError::new(ErrorLevel::Error, TyCheckError::NoMemberWithName)
-                                .with_span(|_| field.span),
-                        );
-                        return VisitorCF::Break;
+                        err!(TyCheckError::NoMemberWithName, field.span);
                     };
 
                     // Insert field into set
-                    if !field_set.insert(field_id) {
-                        self.ty_ctxt.diag.push_error(
-                            EcslError::new(ErrorLevel::Error, TyCheckError::DuplicateMember)
-                                .with_span(|_| field.span),
-                        );
-                        return VisitorCF::Break;
-                    }
+                    err_if!(
+                        !field_set.insert(field_id),
+                        TyCheckError::DuplicateMember,
+                        field.span
+                    );
 
                     self.visit_expr(&field.expr)?;
                     let (expr_tyid, expr_op) = self.pop();
@@ -1196,9 +1210,10 @@ impl Visitor for TyCheck {
                         span: field.span,
                         kind: gir::StmtKind::Assign(
                             Place::from_local(local_id).with_projection(gir::Projection::Field {
+                                ty: enum_tyid,
+                                vid: *var_id,
                                 fid: *field_id,
-                                sid: enum_tyid,
-                                new_tyid: field_def.ty,
+                                new_ty: field_def.ty,
                             }),
                             gir::Expr {
                                 span: e.span,
@@ -1209,13 +1224,11 @@ impl Visitor for TyCheck {
                 }
 
                 // Check all fields have been defined
-                if field_set.len() != variant_def.field_tys.len() {
-                    self.ty_ctxt.diag.push_error(
-                        EcslError::new(ErrorLevel::Error, TyCheckError::MissingFields)
-                            .with_span(|_| e.span),
-                    );
-                    return VisitorCF::Break;
-                }
+                err_if!(
+                    field_set.len() != variant_def.field_tys.len(),
+                    TyCheckError::MissingFields,
+                    e.span
+                );
 
                 Some((enum_tyid, Operand::Move(Place::from_local(local_id))))
             }
@@ -1262,6 +1275,7 @@ pub enum TyCheckError {
     MissingFields,
     DotSyntaxOnConst,
     NoVariantWithName,
+    TooManyVariants,
 }
 
 impl std::fmt::Display for TyCheckError {
@@ -1293,6 +1307,7 @@ impl std::fmt::Display for TyCheckError {
             TyCheckError::MissingFields => "Not all fields have been defined",
             TyCheckError::DotSyntaxOnConst => "Dot syntax on literal not allowed",
             TyCheckError::NoVariantWithName => "Could not find variant with name",
+            TyCheckError::TooManyVariants => "Variant count unsupported",
         };
         write!(f, "{}", s)
     }

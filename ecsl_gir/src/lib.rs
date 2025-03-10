@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use cfgrammar::Span;
 use cons::Constant;
 use ecsl_ast::ty::Mutable;
-use ecsl_index::{BlockID, ConstID, FieldID, LocalID, TyID};
+use ecsl_index::{BlockID, ConstID, FieldID, LocalID, TyID, VariantID};
 use stmt::Stmt;
 use term::Terminator;
 
@@ -256,9 +256,10 @@ impl Place {
 #[derive(Debug, Clone)]
 pub enum Projection {
     Field {
+        ty: TyID,
+        vid: VariantID,
         fid: FieldID,
-        sid: TyID,
-        new_tyid: TyID,
+        new_ty: TyID,
     },
     Discriminant {
         tyid: TyID,

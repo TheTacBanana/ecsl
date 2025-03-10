@@ -1,7 +1,7 @@
 use crate::{local::LocalTyCtxt, TyIr};
 use bimap::BiHashMap;
 use cfgrammar::Span;
-use ecsl_index::{FieldID, GlobalID, SourceFileID, TyID};
+use ecsl_index::{FieldID, GlobalID, SourceFileID, TyID, VariantID};
 use log::debug;
 use std::{
     collections::{btree_map::Entry, BTreeMap},
@@ -14,7 +14,7 @@ pub struct TyCtxt {
     pub tyirs: RwLock<BiHashMap<TyID, TyIr>>,
     pub cur_id: RwLock<usize>,
     pub sizes: RwLock<BTreeMap<TyID, usize>>,
-    pub field_offsets: RwLock<BTreeMap<(TyID, FieldID), usize>>,
+    pub field_offsets: RwLock<BTreeMap<(TyID, VariantID, FieldID), usize>>,
     pub spans: RwLock<BTreeMap<TyID, Span>>,
     pub entry_point: RwLock<Option<TyID>>,
 }
@@ -116,23 +116,24 @@ impl TyCtxt {
         let size = match tyir {
             TyIr::Ref(_, _) => 8,
             TyIr::Range(tyid, _) => self.internal_get_size(tyid, sizes),
-            TyIr::Struct(def) => {
-                let mut total_size = 0;
-                for (_, field) in def.fields {
-                    total_size += self.internal_get_size(field.ty, sizes);
-                }
-                total_size
-            }
-            TyIr::Enum(def) => {
-                let mut max_size = 0;
-                for (_, var) in def.variant_kinds {
+            TyIr::ADT(def) => {
+                if def.is_struct() {
                     let mut total_size = 0;
-                    for (_, field) in var.field_tys {
+                    for (_, field) in &def.get_struct_fields().field_tys {
                         total_size += self.internal_get_size(field.ty, sizes);
                     }
-                    max_size = usize::max(max_size, total_size);
+                    total_size
+                } else {
+                    let mut max_size = 0;
+                    for (_, var) in &def.variant_kinds {
+                        let mut total_size = 0;
+                        for (_, field) in &var.field_tys {
+                            total_size += self.internal_get_size(field.ty, sizes);
+                        }
+                        max_size = usize::max(max_size, total_size);
+                    }
+                    def.discriminant_size().unwrap() + max_size
                 }
-                1 + max_size // TODO:
             }
             e => panic!("{id:?} {e:?}"),
             // TyIr::String => todo!(),
@@ -145,33 +146,27 @@ impl TyCtxt {
         size
     }
 
-    pub fn get_field_offset(&self, id: TyID, fid: FieldID) -> usize {
+    pub fn get_field_offset(&self, id: TyID, vid: VariantID, fid: FieldID) -> usize {
         let mut offsets = self.field_offsets.write().unwrap();
-        if let Some(offset) = offsets.get(&(id, fid)) {
+        if let Some(offset) = offsets.get(&(id, vid, fid)) {
             return *offset;
         }
         let mut sizes = self.sizes.write().unwrap();
 
         let tyir = self.get_tyir(id);
         let offset = match tyir {
-            TyIr::Struct(def) => {
+            TyIr::ADT(def) => {
+                let fields = &def.variant_kinds.get(&vid).unwrap().field_tys;
                 let mut offset = 0;
-                for (_, field) in def.fields {
-                    offsets.insert((id, field.id), offset);
-                    debug!("{:?} {:?}", field.id, offset);
+                for (_, field) in fields {
+                    offsets.insert((id, vid, field.id), offset);
                     offset += self.internal_get_size(field.ty, &mut sizes);
                 }
-                *offsets.get(&(id, fid)).unwrap()
+                *offsets.get(&(id, vid, fid)).unwrap()
             }
+            // TyIr::Struct(def) => {
+            // }
             e => panic!("{id:?} {e:?}"),
-            // TyIr::Ref(_, _) => 8,
-            // TyIr::Range(tyid, _) => self.internal_get_size(tyid, sizes),
-            // TyIr::String => todo!(),
-            // TyIr::Enum(enum_def) => todo!(),
-            // TyIr::Fn(fn_def) => todo!(),
-            // TyIr::Array(ty_id, _) => todo!(),
-            // TyIr::ArrayRef(mutable, ty_id) => todo!(),
-            // TyIr::GenericParam(_) => todo!(),
         };
 
         return offset;

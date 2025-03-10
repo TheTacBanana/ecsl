@@ -9,7 +9,7 @@ use ecsl_gir::{
 };
 use ecsl_gir_pass::{const_eval::ConstMap, GIRPass};
 use ecsl_index::{BlockID, ConstID, LocalID};
-use ecsl_ty::local::LocalTyCtxt;
+use ecsl_ty::{local::LocalTyCtxt, TyIr};
 use log::debug;
 use std::{
     collections::{BTreeMap, HashSet},
@@ -388,16 +388,25 @@ impl<'a> CodeGen<'a> {
         let mut iter = place.projections.iter();
         while let Some(proj) = iter.next() {
             match proj {
-                Projection::Field { fid, sid, new_tyid } => {
-                    let offset = self.ty_ctxt.global.get_field_offset(*sid, *fid);
-                    let size = self.ty_ctxt.global.get_size(*new_tyid);
+                Projection::Field {
+                    ty,
+                    vid,
+                    fid,
+                    new_ty,
+                } => {
+                    let offset = self.ty_ctxt.global.get_field_offset(*ty, *vid, *fid);
+                    let size = self.ty_ctxt.global.get_size(*new_ty);
                     stack_offset.offset += offset as i64;
                     stack_offset.size = size;
                 }
-                Projection::Discriminant { tyid: _ } => {
+                Projection::Discriminant { tyid } => {
+                    let TyIr::ADT(adt) = self.ty_ctxt.global.get_tyir(*tyid) else {
+                        panic!()
+                    };
+                    let disc_size = adt.discriminant_size().unwrap();
+
                     stack_offset.offset = 0;
-                    stack_offset.size = 1;
-                    debug!("TODO: Allow for more than 128 enum variants"); // TODO:
+                    stack_offset.size = disc_size;
                 }
             }
         }
