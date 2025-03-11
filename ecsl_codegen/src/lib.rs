@@ -253,7 +253,11 @@ impl<'a> CodeGen<'a> {
                                                 ins!(EQ_F),
                                                 ins!(JMPT, Immediate::LabelOf(*block_id)),
                                             ],
-
+                                            Immediate::UByte(_) => vec![
+                                                ins!(PSHI_B, *value),
+                                                ins!(EQ_B),
+                                                ins!(JMPT, Immediate::LabelOf(*block_id)),
+                                            ],
                                             e => panic!("{:?}", e),
                                         })
                                     }

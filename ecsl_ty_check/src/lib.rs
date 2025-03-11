@@ -14,7 +14,7 @@ use ecsl_error::{ext::EcslErrorExt, EcslError, ErrorLevel};
 use ecsl_gir::cons::Constant;
 use ecsl_gir::expr::{BinOp, Operand, OperandKind, UnOp};
 use ecsl_gir::term::{SwitchCase, Terminator, TerminatorKind};
-use ecsl_gir::{Local, LocalKind, Place, GIR};
+use ecsl_gir::{Local, LocalKind, Place, Projection, GIR};
 use ecsl_index::{BlockID, ConstID, LocalID, SymbolID, TyID};
 use ecsl_ty::ctxt::TyCtxt;
 use ecsl_ty::local::LocalTyCtxt;
@@ -325,6 +325,25 @@ impl Visitor for TyCheck {
             };
         }
 
+        macro_rules! err_if {
+            ($c:expr, $e:expr, $s:expr) => {
+                if $c {
+                    self.ty_ctxt
+                        .diag
+                        .push_error(EcslError::new(ErrorLevel::Error, $e).with_span(|_| $s));
+                    return VisitorCF::Break;
+                }
+            };
+        }
+
+        macro_rules! err {
+            ($e:expr,$s:expr) => {
+                self.ty_ctxt
+                    .diag
+                    .push_error(EcslError::new(ErrorLevel::Error, $e).with_span(|_| $s));
+                return VisitorCF::Break;
+            };
+        }
         match &s.kind {
             StmtKind::Let(mutable, symbol_id, span, ty, expr) => {
                 // Visit expression
@@ -698,9 +717,88 @@ impl Visitor for TyCheck {
                     "Internal Compiler Error: symbol table incorrect after for loop"
                 );
             }
+            StmtKind::Match(expr, match_arms) => {
+                self.visit_expr(expr.as_ref())?;
+                let (ty, mut op) = self.pop();
+
+                let TyIr::ADT(enum_tyir) = self.get_tyir(ty) else {
+                    err!(TyCheckError::TypeCannotBeMatched, expr.span);
+                };
+                err_if!(
+                    !enum_tyir.is_enum(),
+                    TyCheckError::TypeCannotBeMatched,
+                    expr.span
+                );
+
+                let current_block = self.cur_block();
+                let out_block = self.new_block_without_stack();
+
+                let mut arms = BTreeMap::new();
+                let mut default_arm = None;
+
+                for arm in match_arms {
+                    if default_arm.is_some() {
+                        self.ty_ctxt.diag.push_error(
+                            EcslError::new(ErrorLevel::Warning, TyCheckError::MatchArmUnreachable)
+                                .with_span(|_| (arm.span)),
+                        );
+                        continue;
+                    }
+
+                    // Make block for arm
+                    let arm_block = self.new_block();
+                    if let Some(case) = arm.ident {
+                        let symbol = self.ty_ctxt.table.get_symbol(case).unwrap();
+                        let Some(var_id) = enum_tyir.variant_hash.get(&symbol.name) else {
+                            err!(TyCheckError::NoMemberWithName, arm.span);
+                        };
+                        arms.insert(var_id, arm_block);
+                    } else {
+                        default_arm = Some(arm_block);
+                    }
+
+                    walk_block(self, &arm.block)?;
+                    self.terminate_with_existing_block(
+                        TerminationKind::Lower,
+                        out_block,
+                        |block, out_block| {
+                            block.terminate_no_replace(Terminator {
+                                kind: TerminatorKind::Jump(out_block),
+                            });
+                        },
+                    );
+                }
+
+                err_if!(
+                    default_arm.is_none() && arms.len() != enum_tyir.variant_kinds.len(),
+                    TyCheckError::MatchNotExhaustive,
+                    expr.span
+                );
+
+                match &mut op {
+                    Operand::Copy(place) | Operand::Move(place) => {
+                        place.with_projection_ref(ecsl_gir::Projection::Discriminant { tyid: ty })
+                    }
+                    _ => panic!(),
+                };
+
+                let mut cases = Vec::new();
+                for (vid, block_id) in arms.iter() {
+                    cases.push(SwitchCase::Value(
+                        Immediate::UByte(vid.inner() as u8),
+                        *block_id,
+                    ));
+                }
+                if let Some(default) = default_arm {
+                    cases.push(SwitchCase::Default(default));
+                }
+
+                self.block_mut(current_block).terminate(Terminator {
+                    kind: TerminatorKind::Switch(op, cases),
+                });
+            }
             e => todo!("{e:?}"),
             // StmtKind::While(expr, block) => todo!(),
-            // StmtKind::Match(expr, match_arms) => todo!(),
             // StmtKind::Break => todo!(),
             // StmtKind::Continue => todo!(),
             // StmtKind::Return(expr) => todo!(),
@@ -1276,6 +1374,9 @@ pub enum TyCheckError {
     DotSyntaxOnConst,
     NoVariantWithName,
     TooManyVariants,
+    TypeCannotBeMatched,
+    MatchNotExhaustive,
+    MatchArmUnreachable,
 }
 
 impl std::fmt::Display for TyCheckError {
@@ -1308,6 +1409,9 @@ impl std::fmt::Display for TyCheckError {
             TyCheckError::DotSyntaxOnConst => "Dot syntax on literal not allowed",
             TyCheckError::NoVariantWithName => "Could not find variant with name",
             TyCheckError::TooManyVariants => "Variant count unsupported",
+            TyCheckError::TypeCannotBeMatched => "Type cannot be matched upon",
+            TyCheckError::MatchNotExhaustive => "Match is not exhaustive",
+            TyCheckError::MatchArmUnreachable => "Default case makes arm unreachable",
         };
         write!(f, "{}", s)
     }
