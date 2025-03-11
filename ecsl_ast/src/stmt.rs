@@ -71,7 +71,7 @@ pub enum StmtKind {
 #[derive(Debug, Clone, AST)]
 pub struct MatchArm {
     pub span: Span,
-    pub ident: SymbolID,
+    pub ident: Option<SymbolID>,
     pub fields: Vec<Field>,
     pub block: P<Block>,
 }

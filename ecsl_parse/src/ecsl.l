@@ -14,6 +14,7 @@ super "SUPER"
 \.\. "DOTDOT"
 \. "DOT"
 & "AMPERSAND"
+_ "UNDERSCORE"
 
 self "SELF"
 struct "STRUCT"
@@ -84,3 +85,4 @@ byt "BYT"
 "(?:\\\\|\\"|[^"\n])*" "STRING"
 '([^\t\n\r\f\\'\\]|\\[tnr'"\\])' "CHAR"
 ([\t\n\r ]+|//[^\r\n]*|/\*.*\*/) ;
+
