@@ -251,6 +251,17 @@ impl Place {
         self.projections.push(proj);
         self
     }
+
+    pub fn projected_tyid(&self, gir: &GIR) -> TyID {
+        let mut tyid = gir.get_local(self.local).tyid;
+        for proj in &self.projections {
+            match proj {
+                Projection::Field { new_ty, .. } => tyid = *new_ty,
+                Projection::Discriminant { .. } => (),
+            }
+        }
+        return tyid;
+    }
 }
 
 #[derive(Debug, Clone)]

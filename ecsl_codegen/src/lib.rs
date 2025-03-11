@@ -198,7 +198,6 @@ impl<'a> CodeGen<'a> {
                                 }
 
                                 if let Some(place_offset) = self.place_offset(place) {
-                                    // debug!("place offset {:?}", place_offset);
                                     instrs.push(ins!(
                                         STR,
                                         Immediate::UByte(place_offset.size as u8),
@@ -233,7 +232,6 @@ impl<'a> CodeGen<'a> {
                             }
                         }
                         TerminatorKind::Switch(operand, switch_cases) => {
-                            debug!("{:?}", switch_cases);
                             for case in switch_cases {
                                 match case {
                                     SwitchCase::Value(value, block_id) => {
@@ -383,9 +381,11 @@ impl<'a> CodeGen<'a> {
 
     pub fn place_offset(&self, place: &Place) -> Option<StackOffset> {
         let local = self.gir.get_local(place.local);
+        debug!("{:?}", place);
         let Some(stack_offset) = self.offsets.get(&place.local) else {
             return None;
         };
+        debug!("{:?}", stack_offset);
         let mut stack_offset = *stack_offset;
         stack_offset.size = self.ty_ctxt.global.get_size(local.tyid);
 
@@ -407,10 +407,8 @@ impl<'a> CodeGen<'a> {
                     let TyIr::ADT(adt) = self.ty_ctxt.global.get_tyir(*tyid) else {
                         panic!()
                     };
-                    let disc_size = adt.discriminant_size().unwrap();
 
-                    stack_offset.offset = 0;
-                    stack_offset.size = disc_size;
+                    stack_offset.size = adt.discriminant_size().unwrap();
                 }
             }
         }

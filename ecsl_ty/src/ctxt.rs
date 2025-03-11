@@ -158,6 +158,9 @@ impl TyCtxt {
             TyIr::ADT(def) => {
                 let fields = &def.variant_kinds.get(&vid).unwrap().field_tys;
                 let mut offset = 0;
+                if let Some(disc_size) = def.discriminant_size() {
+                    offset += disc_size;
+                }
                 for (_, field) in fields {
                     offsets.insert((id, vid, field.id), offset);
                     offset += self.internal_get_size(field.ty, &mut sizes);
