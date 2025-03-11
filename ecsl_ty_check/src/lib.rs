@@ -930,41 +930,40 @@ impl Visitor for TyCheck {
         }
 
         let ret_ty = match &e.kind {
-            ExprKind::Assign(symbol_id, span, expr) => {
-                // Visit expr
-                self.visit_expr(expr)?;
-                let (ty, op) = self.pop();
+            ExprKind::Assign(lhs, span, rhs) => {
+                // Visit lhs
+                let temp_block = self.new_block();
+                self.visit_expr(lhs)?;
+                let (lhs_ty, lhs_op) = self.pop();
+                self.pop_block();
+                self.cur_gir_mut().remove_block(temp_block);
 
-                // Search all symbols
-                let found = self.find_symbol(*symbol_id);
+                let lhs_place = match lhs_op {
+                    Operand::Copy(place) | Operand::Move(place) => place,
+                    Operand::Constant(const_id) => panic!(),
+                };
 
-                // Throw error if not found
-                if found.is_none() {
-                    self.ty_ctxt.diag.push_error(
-                        EcslError::new(ErrorLevel::Error, TyCheckError::SymbolDoesntExist)
-                            .with_span(|_| *span),
-                    );
-                    return VisitorCF::Break;
-                }
-                let found = found.unwrap();
+                // Visit rhs
+                self.visit_expr(rhs)?;
+                let (rhs_ty, rhs_op) = self.pop();
 
-                let local_tyid = found.projected_tyid(self.cur_gir());
+                let local_tyid = lhs_place.projected_tyid(self.cur_gir());
 
-                unify!(ty, local_tyid, TyCheckError::AssignWrongType, *span);
+                unify!(rhs_ty, local_tyid, TyCheckError::AssignWrongType, *span);
 
                 // Create Assignment Stmt
                 self.push_stmt_to_cur_block(gir::Stmt {
                     span: e.span,
                     kind: gir::StmtKind::Assign(
-                        found.clone(),
+                        lhs_place,
                         gir::Expr {
                             span: *span,
-                            kind: gir::ExprKind::Value(op),
+                            kind: gir::ExprKind::Value(rhs_op),
                         },
                     ),
                 });
 
-                Some((local_tyid, Operand::Copy(found)))
+                return VisitorCF::Continue;
             }
             ExprKind::Ident(symbol_id) => {
                 // Search all symbols

@@ -706,12 +706,12 @@ ExprList -> Result<Vec<Expr>, ()>:
     ;
 
 Expr -> Result<Expr, ()>:
-    'IDENT' 'ASSIGN' Expr {
+    Expr 'ASSIGN' Expr {
         Ok(Expr::new(
             $span,
             ExprKind::Assign(
-                table.usage($1.map_err(|_| ())?.span(), SymbolKind::Local),
-                $1.map_err(|_| ())?.span(),
+                P::new($1?),
+                $span,
                 P::new($3?),
             )
         ))
