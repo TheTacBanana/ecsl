@@ -940,8 +940,20 @@ impl Visitor for TyCheck {
 
                 let lhs_place = match lhs_op {
                     Operand::Copy(place) | Operand::Move(place) => place,
-                    Operand::Constant(const_id) => panic!(),
+                    Operand::Constant(_) => {
+                        err!(TyCheckError::CannotAssignToLHS, lhs.span);
+                    }
                 };
+
+                let local = self.cur_gir().get_local(lhs_place.local);
+                let can_assign = match local.kind {
+                    LocalKind::Temp => false,
+                    LocalKind::Let => true,
+                    LocalKind::Arg => true,
+                    LocalKind::Internal => false,
+                    LocalKind::Ret => panic!("Internal Compiler Error"),
+                };
+                err_if!(!can_assign, TyCheckError::CannotAssignToLHS, lhs.span);
 
                 // Visit rhs
                 self.visit_expr(rhs)?;
@@ -1445,6 +1457,7 @@ pub enum TyCheckError {
     TypeIsNotAnEnum,
     RedundantCast,
     AssignWrongType,
+    CannotAssignToLHS,
     FunctionReturnType,
     ForLoopIterator,
     RangeMustEqual,
@@ -1495,6 +1508,7 @@ impl std::fmt::Display for TyCheckError {
             TyCheckError::MatchNotExhaustive => "Match is not exhaustive",
             TyCheckError::MatchArmUnreachable => "Default case makes arm unreachable",
             TyCheckError::MatchArmDuplicate => "Variant already exists",
+            TyCheckError::CannotAssignToLHS => "Cannot assign to LHS",
         };
         write!(f, "{}", s)
     }
