@@ -1,0 +1,13 @@
+// 55
+
+fn fib(i: int) int {
+    if (i <= 1) {
+        return i;
+    } else {
+        return fib(i - 1) + fib(i - 2);
+    }
+}
+
+fn main() {
+	print_int(fib(10));
+}

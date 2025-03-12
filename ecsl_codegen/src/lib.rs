@@ -5,22 +5,23 @@ use ecsl_gir::{
     expr::{BinOp, BinOpKind, ExprKind, Operand, OperandKind, UnOp, UnOpKind},
     stmt::StmtKind,
     term::{SwitchCase, TerminatorKind},
-    LocalKind, GIR,
+    LocalKind, Place, Projection, GIR,
 };
 use ecsl_gir_pass::{const_eval::ConstMap, GIRPass};
 use ecsl_index::{BlockID, ConstID, LocalID};
-use ecsl_ty::local::LocalTyCtxt;
+use ecsl_ty::{local::LocalTyCtxt, TyIr};
 use log::debug;
 use std::{
     collections::{BTreeMap, HashSet},
     sync::Arc,
 };
 
-pub struct CodeGen {
+pub struct CodeGen<'a> {
     pub ty_ctxt: Arc<LocalTyCtxt>,
     pub const_map: ConstMap,
     pub offsets: BTreeMap<LocalID, StackOffset>,
     pub blocks: BTreeMap<BlockID, Vec<BytecodeInstruction>>,
+    pub gir: &'a GIR,
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -29,7 +30,7 @@ pub struct StackOffset {
     size: usize,
 }
 
-impl GIRPass for CodeGen {
+impl<'b> GIRPass for CodeGen<'b> {
     type PassInput<'a> = (Arc<LocalTyCtxt>, ConstMap);
     type PassResult = FunctionBytecode;
 
@@ -42,12 +43,13 @@ impl GIRPass for CodeGen {
             const_map,
             offsets: Default::default(),
             blocks: Default::default(),
+            gir: &gir,
         };
         c.generate_code(&gir)
     }
 }
 
-impl CodeGen {
+impl<'a> CodeGen<'a> {
     pub fn generate_code(&mut self, gir: &GIR) -> FunctionBytecode {
         let mut locals = gir.locals().collect::<Vec<_>>();
         let first_non_arg = locals
@@ -116,14 +118,14 @@ impl CodeGen {
                     let block = gir.get_block(*block_id).unwrap();
                     for s in block.stmts() {
                         match &s.kind {
-                            StmtKind::Assign(local_id, expr) => {
+                            StmtKind::Assign(place, expr) => {
                                 match &expr.kind {
                                     ExprKind::Value(operand) => {
-                                        instrs.push(self.load_operand(*operand));
+                                        self.load_operand(operand, &mut instrs);
                                     }
                                     ExprKind::BinOp(op, lhs, rhs) => {
-                                        instrs.push(self.load_operand(*lhs));
-                                        instrs.push(self.load_operand(*rhs));
+                                        self.load_operand(lhs, &mut instrs);
+                                        self.load_operand(rhs, &mut instrs);
 
                                         use OperandKind as OpKind;
                                         instrs.push(match op {
@@ -159,15 +161,23 @@ impl CodeGen {
                                     }
                                     ExprKind::Call(ty_id, operands) => {
                                         for op in operands {
-                                            instrs.push(self.load_operand(*op));
+                                            self.load_operand(op, &mut instrs);
                                         }
                                         instrs.push(ins!(CALL, Immediate::AddressOf(*ty_id)));
-                                        for _ in operands {
-                                            instrs.push(ins!(POP));
+
+                                        let mut argument_size = 0;
+                                        for op in operands {
+                                            argument_size += self.operand_size(op)
+                                        }
+                                        if argument_size > 0 {
+                                            instrs.push(ins!(
+                                                POP,
+                                                Immediate::UByte(argument_size as u8)
+                                            ));
                                         }
                                     }
                                     ExprKind::UnOp(op, operand) => {
-                                        instrs.push(self.load_operand(*operand));
+                                        self.load_operand(operand, &mut instrs);
 
                                         instrs.push(match op {
                                             UnOp(OperandKind::Int, UnOpKind::Neg) => ins!(NEG_I),
@@ -177,7 +187,7 @@ impl CodeGen {
                                         })
                                     }
                                     ExprKind::Cast(operand, from, to) => {
-                                        instrs.push(self.load_operand(*operand));
+                                        self.load_operand(operand, &mut instrs);
                                         instrs.push(match (from, to) {
                                             (OperandKind::Int, OperandKind::Float) => ins!(ITF),
                                             (OperandKind::Float, OperandKind::Int) => ins!(FTI),
@@ -187,7 +197,13 @@ impl CodeGen {
                                     ExprKind::Reference(_, _) => todo!(),
                                 }
 
-                                instrs.push(self.store_local(*local_id));
+                                if let Some(place_offset) = self.place_offset(place) {
+                                    instrs.push(ins!(
+                                        STR,
+                                        Immediate::UByte(place_offset.size as u8),
+                                        Immediate::Long(place_offset.offset)
+                                    ));
+                                }
                             }
                             StmtKind::BYT(byt) => {
                                 let mut byt = byt.clone();
@@ -210,17 +226,16 @@ impl CodeGen {
                         )),
                         TerminatorKind::Return => {
                             if gir.fn_id() == self.ty_ctxt.global.entry_point() {
-                                instrs.push(BytecodeInstruction::new(Opcode::HALT, []));
+                                instrs.push(ins!(HALT));
                             } else {
-                                instrs.push(BytecodeInstruction::new(Opcode::RET, []))
+                                instrs.push(ins!(RET));
                             }
                         }
                         TerminatorKind::Switch(operand, switch_cases) => {
-                            debug!("{:?}", switch_cases);
                             for case in switch_cases {
                                 match case {
                                     SwitchCase::Value(value, block_id) => {
-                                        instrs.push(self.load_operand(*operand));
+                                        self.load_operand(operand, &mut instrs);
 
                                         instrs.extend(match value {
                                             Immediate::Bool(_) => {
@@ -236,7 +251,11 @@ impl CodeGen {
                                                 ins!(EQ_F),
                                                 ins!(JMPT, Immediate::LabelOf(*block_id)),
                                             ],
-
+                                            Immediate::UByte(_) => vec![
+                                                ins!(PSHI_B, *value),
+                                                ins!(EQ_B),
+                                                ins!(JMPT, Immediate::LabelOf(*block_id)),
+                                            ],
                                             e => panic!("{:?}", e),
                                         })
                                     }
@@ -315,10 +334,31 @@ impl CodeGen {
         }
     }
 
-    pub fn load_operand(&self, operand: Operand) -> BytecodeInstruction {
+    pub fn load_operand(&self, operand: &Operand, instrs: &mut Vec<BytecodeInstruction>) {
         match operand {
-            Operand::Copy(local_id) | Operand::Move(local_id) => self.load_local(local_id),
-            Operand::Constant(const_id) => self.load_const(const_id),
+            Operand::Copy(place) | Operand::Move(place) => {
+                if let Some(place_offset) = self.place_offset(&place) {
+                    instrs.push(ins!(
+                        LDR,
+                        Immediate::UByte(place_offset.size as u8),
+                        Immediate::Long(place_offset.offset)
+                    ));
+                }
+            }
+            Operand::Constant(const_id) => instrs.push(self.load_const(*const_id)),
+        }
+    }
+
+    pub fn operand_size(&self, operand: &Operand) -> usize {
+        match operand {
+            Operand::Copy(place) | Operand::Move(place) => {
+                if let Some(place_offset) = self.place_offset(&place) {
+                    place_offset.size
+                } else {
+                    todo!()
+                }
+            }
+            Operand::Constant(const_id) => self.const_map.get(const_id).unwrap().size_of(),
         }
     }
 
@@ -339,19 +379,40 @@ impl CodeGen {
         }
     }
 
-    pub fn load_local(&self, local: LocalID) -> BytecodeInstruction {
-        if let Some(stack_offset) = self.offsets.get(&local) {
-            BytecodeInstruction::new(Opcode::LDR, [Immediate::Long(stack_offset.offset)])
-        } else {
-            BytecodeInstruction::new(Opcode::NOP, [])
-        }
-    }
+    pub fn place_offset(&self, place: &Place) -> Option<StackOffset> {
+        let local = self.gir.get_local(place.local);
+        debug!("{:?}", place);
+        let Some(stack_offset) = self.offsets.get(&place.local) else {
+            return None;
+        };
+        debug!("{:?}", stack_offset);
+        let mut stack_offset = *stack_offset;
+        stack_offset.size = self.ty_ctxt.global.get_size(local.tyid);
 
-    pub fn store_local(&self, local: LocalID) -> BytecodeInstruction {
-        if let Some(stack_offset) = self.offsets.get(&local) {
-            BytecodeInstruction::new(Opcode::STR, [Immediate::Long(stack_offset.offset)])
-        } else {
-            BytecodeInstruction::new(Opcode::NOP, [])
+        let mut iter = place.projections.iter();
+        while let Some(proj) = iter.next() {
+            match proj {
+                Projection::Field {
+                    ty,
+                    vid,
+                    fid,
+                    new_ty,
+                } => {
+                    let offset = self.ty_ctxt.global.get_field_offset(*ty, *vid, *fid);
+                    let size = self.ty_ctxt.global.get_size(*new_ty);
+                    stack_offset.offset += offset as i64;
+                    stack_offset.size = size;
+                }
+                Projection::Discriminant { tyid } => {
+                    let TyIr::ADT(adt) = self.ty_ctxt.global.get_tyir(*tyid) else {
+                        panic!()
+                    };
+
+                    stack_offset.size = adt.discriminant_size().unwrap();
+                }
+            }
         }
+
+        Some(stack_offset)
     }
 }

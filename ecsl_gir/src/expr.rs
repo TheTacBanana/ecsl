@@ -1,3 +1,4 @@
+use crate::Place;
 use cfgrammar::Span;
 pub use ecsl_ast::expr::{BinOpKind, UnOpKind};
 pub use ecsl_ast::ty::Mutable;
@@ -47,10 +48,10 @@ impl std::fmt::Display for ExprKind {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub enum Operand {
-    Copy(LocalID),
-    Move(LocalID),
+    Copy(Place),
+    Move(Place),
     Constant(ConstID),
 }
 

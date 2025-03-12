@@ -30,7 +30,7 @@ impl Stmt {
 #[derive(Debug, Clone, AST)]
 pub enum StmtKind {
     /// `let mut ident : int = 1;`
-    Let(Mutable, SymbolID, Span, P<Ty>, P<Expr>),
+    Let(Mutable, SymbolID, Span, Option<P<Ty>>, P<Expr>),
 
     /// `if (*expr*) { .. }` Option of Else
     If(P<Expr>, P<Block>, Option<P<Stmt>>),
@@ -71,7 +71,7 @@ pub enum StmtKind {
 #[derive(Debug, Clone, AST)]
 pub struct MatchArm {
     pub span: Span,
-    pub ident: SymbolID,
+    pub ident: Option<SymbolID>,
     pub fields: Vec<Field>,
     pub block: P<Block>,
 }
