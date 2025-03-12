@@ -348,11 +348,13 @@ impl Visitor for TyCheck {
             StmtKind::Let(mutable, symbol_id, span, ty, expr) => {
                 // Visit expression
                 self.visit_expr(expr)?;
+                let (rhs_ty, rhs_op) = self.pop();
 
                 // Unify Types
-                let lhs = self.get_tyid((ty.as_ref(), &self.generic_scope));
-                let (rhs_ty, rhs_op) = self.pop();
-                unify!(lhs, rhs_ty, TyCheckError::AssignWrongType);
+                if let Some(ty) = ty {
+                    let let_ty = self.get_tyid((ty.as_ref(), &self.generic_scope));
+                    unify!(let_ty, rhs_ty, TyCheckError::AssignWrongType);
+                }
 
                 let local_id = match rhs_op {
                     Operand::Copy(place) | Operand::Move(place) => {
@@ -363,7 +365,7 @@ impl Visitor for TyCheck {
 
                         place.local
                     }
-                    Operand::Constant(const_id) => {
+                    Operand::Constant(_) => {
                         // Create local ID
                         let local_id =
                             self.new_local(Local::new(*span, *mutable, rhs_ty, LocalKind::Let));

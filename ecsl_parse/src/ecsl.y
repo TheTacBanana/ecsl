@@ -503,10 +503,19 @@ Stmt -> Result<Stmt, ()>:
             $2?,
             table.definition($3.map_err(|_| ())?.span(), SymbolKind::Local),
             $3.map_err(|_| ())?.span(),
-            P::new($5?),
+            Some(P::new($5?)),
             P::new($7?),
         )))
     }
+    | 'LET' RefMutability 'IDENT' 'ASSIGN' Expr 'SEMI' {
+        Ok(Stmt::new($span, StmtKind::Let(
+            $2?,
+            table.definition($3.map_err(|_| ())?.span(), SymbolKind::Local),
+            $3.map_err(|_| ())?.span(),
+            None,
+            P::new($5?),
+        )))
+    }    
     | 'FOR' 'LBRACKET' 'IDENT' 'COLON' Ty 'IN' Expr 'RBRACKET' Block {
         Ok(Stmt::new($span, StmtKind::For(
             table.definition($3.map_err(|_| ())?.span(), SymbolKind::Local),
