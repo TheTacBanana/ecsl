@@ -1,5 +1,5 @@
-#[copy, builtin(4), allow_casing]
+[copy, builtin(4), allow_casing]
 struct int;
 
-#[copy, builtin(4), allow_casing]
+[copy, builtin(4), allow_casing]
 struct float;

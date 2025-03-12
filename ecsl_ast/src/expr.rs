@@ -22,8 +22,8 @@ impl Expr {
 #[derive(Debug, Clone, AST)]
 pub enum ExprKind {
     /// Assign expression to ident
-    /// `ident = *expr*`
-    Assign(SymbolID, Span, P<Expr>),
+    /// `*expr* = *expr*`
+    Assign(P<Expr>, Span, P<Expr>),
 
     /// Create a reference to an expression
     /// `&foo &mut bar`
@@ -95,6 +95,36 @@ pub enum Literal {
     String,
     Char,
     Bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IntKind {
+    /// I32
+    Int,
+    /// U32 or 0U
+    UInt,
+    /// I64 or 0L
+    Long,
+    /// U64 or 0UL
+    ULong,
+    /// I8 or 0B
+    Byte,
+    /// U8 or 0UB
+    UByte,
+}
+
+impl IntKind {
+    pub fn from_str(s: &str) -> Self {
+        match s {
+            "U" => Self::UInt,
+            "L" => Self::Long,
+            "UL" => Self::ULong,
+            "B" => Self::Byte,
+            "UB" => Self::UByte,
+            "" => Self::Int,
+            _ => panic!("Invalid Int Kind"),
+        }
+    }
 }
 
 impl std::fmt::Display for Literal {

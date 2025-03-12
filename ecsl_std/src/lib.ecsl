@@ -1,10 +1,10 @@
-#[prelude]
+[prelude]
 use {
     std::num::{int, float},
     std::bool::bool,
     std::char::char,
     std::lib::drop,
-    std::fmt::{print_int, print_float},
+    std::fmt::{print_int, print_float, print_bool},
     std::panic::panic,
 };
 

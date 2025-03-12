@@ -12,26 +12,42 @@ pub inline fn halt(t: *ProgramThread) void {
     t.state.status = ProgramThread.ProgramStatus.HaltProgram;
 }
 
-pub inline fn popb(self: *ProgramThread) !void {
-    _ = try self.pop_stack(u8);
+pub inline fn pop(self: *ProgramThread, size: u8) !void {
+    // Check for type larger than stack
+    if (size > self.sp) {
+        return error.EmptyStack;
+    }
+
+    // Decrement Stack
+    self.sp -= size;
 }
 
-pub inline fn pop(self: *ProgramThread) !void {
-    _ = try self.pop_stack(u32);
+pub inline fn ldr(self: *ProgramThread, size: u8, offset: i64) !void {
+    const from_slice = self.stack[self.offset_from_bp(offset)..][0..size];
+    const new_sp = self.sp + size;
+    if (new_sp >= self.stack.len) {
+        return error.StackOverflow;
+    }
+
+    const to_slice = self.stack[self.sp .. self.sp + size][0..size];
+    @memcpy(to_slice, from_slice);
+
+    self.sp = new_sp;
 }
 
-pub inline fn popl(self: *ProgramThread) !void {
-    _ = try self.pop_stack(u64);
-}
+pub inline fn str(self: *ProgramThread, size: u8, offset: i64) !void {
+    // Check for type larger than stack
+    if (size > self.sp) {
+        return error.EmptyStack;
+    }
+    // Decrement Stack
+    self.sp -= size;
 
-pub inline fn ldr(self: *ProgramThread, offset: i64) !void {
-    const value = self.read_stack_at_offset(u32, offset);
-    try self.push_stack(u32, value);
-}
+    // Get slice of stack
+    const from_slice = self.stack[self.sp..][0..size];
+    const to_slice = self.stack[self.offset_from_bp(offset)..][0..size];
 
-pub inline fn str(self: *ProgramThread, offset: i64) !void {
-    const b = try self.pop_stack(u32);
-    try self.write_stack_at_offset(u32, b.*, offset);
+    @memcpy(to_slice, from_slice);
 }
 
 pub inline fn setsp(self: *ProgramThread, offset: u64) !void {
@@ -267,6 +283,18 @@ pub fn print_f(self: *ProgramThread) !void {
     const writer = bw.writer();
     nosuspend {
         writer.print("{d}" ++ "\n", .{a.*}) catch return;
+        bw.flush() catch return;
+    }
+}
+
+pub fn print_b(self: *ProgramThread) !void {
+    const a = (try self.pop_stack(u8)).* == 1;
+
+    const stdout = std.io.getStdOut().writer();
+    var bw = std.io.bufferedWriter(stdout);
+    const writer = bw.writer();
+    nosuspend {
+        writer.print("{}" ++ "\n", .{a}) catch return;
         bw.flush() catch return;
     }
 }

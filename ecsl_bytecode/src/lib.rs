@@ -127,17 +127,14 @@ pub enum Bytecode {
     NOP,
     /// Halt the program
     HALT,
-    /// Pop the top byte of the stack
-    POPB,
-    /// Pop the top (4 bytes) of the stack
-    POP,
-    /// Pop the top (8 bytes) of the stack
-    POPL,
 
-    /// Load the 4 bytes from [BP + offset] and push to the top of the stack
-    LDR(i64),
-    /// Pop the top 4 bytes from top of stack to the signed offset from the BP
-    STR(i64),
+    /// Pop the N bytes of the stack
+    POP(u8),
+
+    /// Load the N bytes from [BP + offset] and push to the top of the stack
+    LDR(u8, i64),
+    /// Pop the top N bytes from top of stack to the signed offset from the BP
+    STR(u8, i64),
 
     /// Set the SP to the [BP + offset]
     SETSP(u64),
@@ -242,4 +239,6 @@ pub enum Bytecode {
     PRINT_I,
     /// Pop float from stack and print to stdout
     PRINT_F,
+    /// Pop bool from stack and print to stdout
+    PRINT_B,
 }

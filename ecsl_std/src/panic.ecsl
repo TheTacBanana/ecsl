@@ -1,6 +1,21 @@
+use bool::bool;
 
 fn panic() {
     byt {
         PANIC;
     }
+}
+
+fn assert_true(cond: bool) {
+    if (cond) {
+        return;
+    }
+    panic();
+}
+
+fn assert_false(cond: bool) {
+    if (!cond) {
+        return;
+    }
+    panic();
 }

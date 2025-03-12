@@ -224,7 +224,7 @@ Arg -> Result<Param, ()>:
     ;
 
 ReturnTy -> Result<RetTy, ()>:
-    'ARROW' Ty { Ok(RetTy::Ty(P::new($2?))) }
+    Ty { Ok(RetTy::Ty(P::new($1?))) }
     | {Ok(RetTy::None($span))}
     ;
 
@@ -239,10 +239,10 @@ Component -> Result<DataKind, ()>:
     ;
 
 Attributes -> Result<Attributes, ()>:
-    'HASH' 'LSQUARE' AttributeList TrailingComma 'RSQUARE' {
-        Ok(Attributes::from_vec($3?))
+    'LSQUARE' AttributeList TrailingComma 'RSQUARE' {
+        Ok(Attributes::from_vec($2?))
      }
-    | 'HASH' 'LSQUARE' 'RSQUARE' { Ok(Attributes::new())}
+    | 'LSQUARE' 'RSQUARE' { Ok(Attributes::new())}
     | { Ok(Attributes::new()) }
     ;
 
@@ -503,10 +503,19 @@ Stmt -> Result<Stmt, ()>:
             $2?,
             table.definition($3.map_err(|_| ())?.span(), SymbolKind::Local),
             $3.map_err(|_| ())?.span(),
-            P::new($5?),
+            Some(P::new($5?)),
             P::new($7?),
         )))
     }
+    | 'LET' RefMutability 'IDENT' 'ASSIGN' Expr 'SEMI' {
+        Ok(Stmt::new($span, StmtKind::Let(
+            $2?,
+            table.definition($3.map_err(|_| ())?.span(), SymbolKind::Local),
+            $3.map_err(|_| ())?.span(),
+            None,
+            P::new($5?),
+        )))
+    }    
     | 'FOR' 'LBRACKET' 'IDENT' 'COLON' Ty 'IN' Expr 'RBRACKET' Block {
         Ok(Stmt::new($span, StmtKind::For(
             table.definition($3.map_err(|_| ())?.span(), SymbolKind::Local),
@@ -597,6 +606,19 @@ Immediate -> Result<Immediate, ()>:
             table.usage($2.map_err(|_| ())?.span(), SymbolKind::Local)
         ))
     }
+    | 'HASH' 'INT' 'INTKIND' {
+        let num = table.string($2.map_err(|_| ())?.span());
+        let num_kind = table.string($3.map_err(|_| ())?.span());
+        let kind = IntKind::from_str(num_kind.as_str());
+        Ok(match kind {
+            IntKind::Int => Immediate::Int(num.parse().unwrap()),
+            IntKind::UInt => todo!(),
+            IntKind::Long => Immediate::Long(num.parse().unwrap()),
+            IntKind::ULong => Immediate::ULong(num.parse().unwrap()),
+            IntKind::Byte => todo!(),
+            IntKind::UByte => Immediate::UByte(num.parse().unwrap()),
+        })
+    }
     ;
 
 IfStmt -> Result<Stmt, ()>:
@@ -636,7 +658,7 @@ MatchArm -> Result<MatchArm, ()>:
     'IDENT' 'LCURLY' FieldList 'RCURLY' 'ARROW' Block {
         Ok(MatchArm {
             span: $span,
-            ident: table.usage($1.map_err(|_| ())?.span(), SymbolKind::VariantUsage),
+            ident: Some(table.usage($1.map_err(|_| ())?.span(), SymbolKind::VariantUsage)),
             fields: $3?,
             block: P::new($6?)
         })
@@ -644,7 +666,15 @@ MatchArm -> Result<MatchArm, ()>:
     | 'IDENT' 'ARROW' Block {
         Ok(MatchArm {
             span: $span,
-            ident: table.usage($1.map_err(|_| ())?.span(), SymbolKind::VariantUsage),
+            ident: Some(table.usage($1.map_err(|_| ())?.span(), SymbolKind::VariantUsage)),
+            fields: Vec::new(),
+            block: P::new($3?)
+        })
+    }
+    | 'UNDERSCORE' 'ARROW' Block {
+        Ok(MatchArm {
+            span: $span,
+            ident: None,
             fields: Vec::new(),
             block: P::new($3?)
         })
@@ -685,12 +715,12 @@ ExprList -> Result<Vec<Expr>, ()>:
     ;
 
 Expr -> Result<Expr, ()>:
-    'IDENT' 'ASSIGN' Expr {
+    Expr 'ASSIGN' Expr {
         Ok(Expr::new(
             $span,
             ExprKind::Assign(
-                table.usage($1.map_err(|_| ())?.span(), SymbolKind::Local),
-                $1.map_err(|_| ())?.span(),
+                P::new($1?),
+                $span,
                 P::new($3?),
             )
         ))
@@ -926,6 +956,16 @@ Expr -> Result<Expr, ()>:
             $4?,
         )))
     }
+    | 'IDENT' 'PATH' 'IDENT' {
+        Ok(Expr::new($span, ExprKind::Enum(
+            P::new(Ty::new($span, TyKind::Ident(
+                table.usage($1.map_err(|_| ())?.span(), SymbolKind::Ty),
+                None,
+            ))),
+            table.usage($3.map_err(|_| ())?.span(), SymbolKind::VariantUsage),
+            Vec::new(),
+        )))
+    }    
     | 'IDENT' 'PATH' ConcreteGenerics FieldAssignments {
         Ok(Expr::new($span, ExprKind::Struct(
             P::new(Ty::new($span, TyKind::Ident(

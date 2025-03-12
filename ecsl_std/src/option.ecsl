@@ -8,7 +8,7 @@ enum Option<T> {
 }
 
 // impl<T> Option<T> {
-//     fn is_some(&self) -> bool {
+//     fn is_some(&self) bool {
 //         match (self) {
 //             Some { val } -> {
 //                 return true;
@@ -19,7 +19,7 @@ enum Option<T> {
 //         }
 //     }
 //
-//     fn is_none(&self) -> bool {
+//     fn is_none(&self) bool {
 //         match (self) {
 //             Some { val } -> {
 //                 return false;
@@ -30,7 +30,7 @@ enum Option<T> {
 //         }
 //     }
 //
-//     fn unwrap(self) -> T {
+//     fn unwrap(self) T {
 //         match (self) {
 //             Some { val } -> {
 //                 return val;

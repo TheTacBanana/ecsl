@@ -1,5 +1,3 @@
-use std::collections::BTreeMap;
-
 use ecsl_ast::{
     data::DataKind,
     expr::{Literal, RangeType},
@@ -7,6 +5,8 @@ use ecsl_ast::{
     ty::Mutable,
 };
 use ecsl_index::{FieldID, SymbolID, TyID, VariantID};
+use log::debug;
+use std::{collections::BTreeMap, ops::BitAnd};
 
 pub mod ctxt;
 pub mod def;
@@ -35,10 +35,8 @@ pub enum TyIr {
     Range(TyID, RangeType),
     /// Reference to another type
     Ref(Mutable, TyID),
-    /// A struct type
-    Struct(StructDef),
-    /// An enum type
-    Enum(EnumDef),
+    /// ADT types
+    ADT(ADTDef),
     /// A function type
     Fn(FnDef),
     /// A sized array type
@@ -60,17 +58,38 @@ impl From<Literal> for TyIr {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct StructDef {
+pub struct ADTDef {
     pub id: TyID,
     pub kind: DataKind,
-    pub fields: BTreeMap<FieldID, FieldDef>,
+    pub variant_hash: BTreeMap<String, VariantID>, // TODO: Temporary solution to getting the variants of an enum, pls fix
+    pub variant_kinds: BTreeMap<VariantID, VariantDef>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct EnumDef {
-    pub id: TyID,
-    pub kind: DataKind,
-    pub variants: BTreeMap<FieldID, VariantDef>,
+impl ADTDef {
+    pub fn is_struct(&self) -> bool {
+        return self.variant_hash.is_empty();
+    }
+
+    pub fn is_enum(&self) -> bool {
+        return !self.variant_hash.is_empty();
+    }
+
+    pub fn discriminant_size(&self) -> Option<usize> {
+        if self.is_struct() {
+            return None;
+        }
+
+        let byte_length = (self.variant_kinds.len().ilog2() as usize) / 8 + 1;
+        return Some(byte_length);
+    }
+
+    // Will panic if not a struct
+    pub fn get_struct_fields(&self) -> &VariantDef {
+        if !self.is_struct() {
+            panic!("Not a struct");
+        }
+        self.variant_kinds.get(&VariantID::ZERO).as_ref().unwrap()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -81,7 +100,8 @@ pub struct Generics {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct VariantDef {
     pub id: VariantID,
-    pub fields: BTreeMap<FieldID, FieldDef>,
+    pub field_hash: BTreeMap<String, FieldID>, // TODO: Temporary solution to getting the fields of a variant, pls fix
+    pub field_tys: BTreeMap<FieldID, FieldDef>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

@@ -185,6 +185,7 @@ impl Driver {
             |_, _, (diag, ast, table, local_ctxt, mut girs)| {
                 let function_graph = function_graph.clone();
                 for (_, gir) in girs.iter_mut() {
+                    DeadBlocks::apply_pass(gir, ());
                     FunctionDependencies::apply_pass(gir, &function_graph);
                 }
                 Some((diag, ast, table, local_ctxt, girs, function_graph))
@@ -219,7 +220,6 @@ impl Driver {
                 let lexer = lexers.get(&src.id).unwrap();
 
                 for (_, gir) in girs.iter_mut() {
-                    DeadBlocks::apply_pass(gir, ());
                     let consts = ConstEval::apply_pass(gir, lexer);
 
                     let bytecode = CodeGen::apply_pass(gir, (local_ctxt.clone(), consts));
