@@ -129,7 +129,7 @@ pub struct MonoFnDef {
     /// Original Fn
     pub tyid: TyID,
     // Generic Tys
-    pub mono: Vec<TyID>,
+    pub mono: BTreeMap<TyID, TyID>,
 }
 
 #[derive(Debug)]

@@ -1,5 +1,10 @@
-use ecsl_gir::{stmt::StmtKind, visit::VisitorMut, GIR};
-use ecsl_index::TyID;
+use ecsl_gir::{
+    expr::ExprKind,
+    stmt::{Stmt, StmtKind},
+    visit::{VisitorCF, VisitorMut},
+    Local, GIR,
+};
+use ecsl_index::{LocalID, TyID};
 use ecsl_ty::{local::LocalTyCtxt, MonoFnDef};
 use std::sync::Arc;
 
@@ -11,8 +16,8 @@ pub struct MonomorphizeFn {
 }
 
 impl MonomorphizeFn {
-    pub fn replace_tyid(&mut self, tyid: TyID) -> TyID {
-        todo!()
+    pub fn replace_tyid(&mut self, tyid: &mut TyID) {
+        *tyid = self.monofn.mono.get(&tyid).cloned().unwrap_or(*tyid);
     }
 }
 
@@ -30,18 +35,24 @@ impl GIRPass for MonomorphizeFn {
 }
 
 impl VisitorMut for MonomorphizeFn {
-    fn visit_stmt_mut(&mut self, s: &mut ecsl_gir::stmt::Stmt) -> ecsl_gir::visit::VisitorCF {
+    fn visit_local_mut(&mut self, _: LocalID, l: &mut Local) -> VisitorCF {
+        self.replace_tyid(&mut l.tyid);
+        VisitorCF::Continue
+    }
+
+    fn visit_stmt_mut(&mut self, s: &mut Stmt) -> VisitorCF {
         match &mut s.kind {
-            StmtKind::Assign(place, expr) => match &mut expr.kind {
-                ecsl_gir::expr::ExprKind::Value(operand) => todo!(),
-                ecsl_gir::expr::ExprKind::BinOp(bin_op, operand, operand1) => todo!(),
-                ecsl_gir::expr::ExprKind::UnOp(un_op, operand) => todo!(),
-                ecsl_gir::expr::ExprKind::Reference(mutable, local_id) => todo!(),
-                ecsl_gir::expr::ExprKind::Cast(operand, operand_kind, operand_kind1) => todo!(),
-                ecsl_gir::expr::ExprKind::Call(ty_id, operands) => todo!(),
+            StmtKind::Assign(_, expr) => match &mut expr.kind {
+                ExprKind::Call(ty_id, _) => self.replace_tyid(ty_id),
+                ExprKind::Cast(_, _, _)
+                | ExprKind::Value(_)
+                | ExprKind::BinOp(_, _, _)
+                | ExprKind::UnOp(_, _)
+                | ExprKind::Reference(_, _) => (),
             },
-            StmtKind::AllocReturn(ty_id) => todo!(),
-            StmtKind::BYT(bytecode_instruction) => todo!(),
+            StmtKind::AllocReturn(ty_id) => self.replace_tyid(ty_id),
+            StmtKind::BYT(_) => (),
         }
+        VisitorCF::Continue
     }
 }

@@ -6,4 +6,6 @@ edition = "2021"
 [dependencies]
 ecsl_bytecode = { path = "../ecsl_bytecode" }
 ecsl_index = { path = "../ecsl_index" }
+ecsl_gir = { path = "../ecsl_gir" }
+ecsl_ty = { path = "../ecsl_ty" }
 log.workspace = true

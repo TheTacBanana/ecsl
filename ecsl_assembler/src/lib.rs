@@ -10,6 +10,7 @@ use header::{FileType, SectionPointer, SectionType};
 use log::debug;
 
 pub mod header;
+pub mod linker;
 
 pub struct Assembler<T> {
     _phantom: PhantomData<T>,

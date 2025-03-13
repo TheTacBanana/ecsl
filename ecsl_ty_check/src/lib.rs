@@ -1,3 +1,4 @@
+use ecsl_assembler::linker::FunctionLinker;
 use ecsl_ast::expr::{BinOpKind, RangeType, UnOpKind};
 use ecsl_ast::parse::{Immediate, ParamKind};
 use ecsl_ast::stmt::InlineBytecode;
@@ -33,18 +34,17 @@ mod gir {
 
 pub mod ext;
 
-pub fn ty_check(ast: &SourceAST, ty_ctxt: Arc<LocalTyCtxt>) -> BTreeMap<TyID, GIR> {
-    let mut ty_check = TyCheck::new(ty_ctxt);
+pub fn ty_check(ast: &SourceAST, ty_ctxt: Arc<LocalTyCtxt>, linker: Arc<FunctionLinker>) {
+    let mut ty_check = TyCheck::new(ty_ctxt, linker);
     ty_check.visit_ast(ast);
-    ty_check.to_girs()
 }
 
 pub struct TyCheck {
     ty_ctxt: Arc<LocalTyCtxt>,
+    linker: Arc<FunctionLinker>,
     generic_scope: GenericsScope,
 
-    cur_gir: Option<TyID>,
-    gir: BTreeMap<TyID, GIR>,
+    cur_gir: Option<GIR>,
 
     block_stack: Vec<BlockID>,
     symbols: Vec<BTreeMap<SymbolID, Place>>,
@@ -59,20 +59,16 @@ enum TerminationKind {
 }
 
 impl TyCheck {
-    pub fn new(ty_ctxt: Arc<LocalTyCtxt>) -> Self {
+    pub fn new(ty_ctxt: Arc<LocalTyCtxt>, linker: Arc<FunctionLinker>) -> Self {
         Self {
             ty_ctxt,
+            linker,
             generic_scope: GenericsScope::new(),
             cur_gir: None,
-            gir: Default::default(),
             block_stack: Default::default(),
             symbols: Default::default(),
             stack: Default::default(),
         }
-    }
-
-    pub fn to_girs(self) -> BTreeMap<TyID, GIR> {
-        self.gir
     }
 
     pub fn get_tyir(&self, t: impl IntoTyID) -> TyIr {
@@ -84,29 +80,22 @@ impl TyCheck {
     }
 
     pub fn cur_gir(&self) -> &GIR {
-        self.gir.get(&self.cur_gir.unwrap()).unwrap()
+        self.cur_gir.as_ref().unwrap()
     }
 
     pub fn cur_gir_mut(&mut self) -> &mut GIR {
-        self.gir.get_mut(&self.cur_gir.unwrap()).unwrap()
+        self.cur_gir.as_mut().unwrap()
     }
 
     pub fn new_block(&mut self) -> BlockID {
-        let block = self
-            .gir
-            .get_mut(&self.cur_gir.unwrap())
-            .unwrap()
-            .new_block();
+        let block = self.cur_gir.as_mut().unwrap().new_block();
         self.block_stack.push(block);
         self.symbols.push(Default::default());
         block
     }
 
     pub fn new_block_without_stack(&mut self) -> BlockID {
-        self.gir
-            .get_mut(&self.cur_gir.unwrap())
-            .unwrap()
-            .new_block()
+        self.cur_gir.as_mut().unwrap().new_block()
     }
 
     pub fn push_block_stack(&mut self, block: BlockID) {
@@ -120,10 +109,7 @@ impl TyCheck {
     }
 
     pub fn new_local(&mut self, local: Local) -> LocalID {
-        self.gir
-            .get_mut(&self.cur_gir.unwrap())
-            .unwrap()
-            .new_local(local)
+        self.cur_gir.as_mut().unwrap().new_local(local)
     }
 
     pub fn get_local_mut(&mut self, local: LocalID) -> &mut Local {
@@ -131,16 +117,13 @@ impl TyCheck {
     }
 
     pub fn new_constant(&mut self, cons: Constant) -> ConstID {
-        self.gir
-            .get_mut(&self.cur_gir.unwrap())
-            .unwrap()
-            .new_constant(cons)
+        self.cur_gir.as_mut().unwrap().new_constant(cons)
     }
 
     pub fn push_stmt_to_cur_block(&mut self, stmt: ecsl_gir::stmt::Stmt) {
         let block_id = self.cur_block();
-        self.gir
-            .get_mut(&self.cur_gir.unwrap())
+        self.cur_gir
+            .as_mut()
             .unwrap()
             .get_block_mut(block_id)
             .unwrap()
@@ -152,11 +135,7 @@ impl TyCheck {
     }
 
     pub fn block_mut(&mut self, block: BlockID) -> &mut gir::Block {
-        self.gir
-            .get_mut(&self.cur_gir.unwrap())
-            .unwrap()
-            .get_block_mut(block)
-            .unwrap()
+        self.cur_gir.as_mut().unwrap().get_block_mut(block).unwrap()
     }
 
     fn terminate_with_new_block(
@@ -230,8 +209,7 @@ impl Visitor for TyCheck {
 
         // Create GIR for Fn
         let tyid = self.get_tyid(f.ident);
-        self.gir.insert(tyid, GIR::new(tyid));
-        self.cur_gir = Some(tyid);
+        self.cur_gir = Some(GIR::new(tyid));
 
         // Get tyir
         let TyIr::Fn(fn_tyir) = self.get_tyir(f.ident) else {
@@ -278,8 +256,6 @@ impl Visitor for TyCheck {
             }
         }
 
-        // TODO: Currently not walking generics
-
         // Make block and iter
         self.new_block();
         walk_block(self, &f.block)?;
@@ -293,10 +269,11 @@ impl Visitor for TyCheck {
 
         self.pop_block();
 
-        debug!("{}", self.cur_gir());
-
         // Remove symbols for function
         self.symbols.pop().unwrap();
+
+        self.linker.add_gir(tyid, self.cur_gir.take().unwrap());
+
         VisitorCF::Continue
     }
 
@@ -1014,7 +991,7 @@ impl Visitor for TyCheck {
 
                 debug!("{:?} {:?}", fn_tyir.generics, generics);
 
-                let mut concrete_generics = Vec::new();
+                let mut concrete_generics = BTreeMap::new();
                 if fn_tyir.generics.is_some() && generics.is_some() {
                     let generic_count = fn_tyir.generics.unwrap();
                     let generics = generics.as_ref().unwrap();
@@ -1024,16 +1001,18 @@ impl Visitor for TyCheck {
                         generics.span
                     );
 
-                    for p in &generics.params {
-                        concrete_generics.push(self.get_tyid((p, &self.generic_scope)));
+                    for (i, p) in generics.params.iter().enumerate() {
+                        concrete_generics.insert(
+                            self.get_tyid(TyIr::GenericParam(i)),
+                            self.get_tyid((p, &self.generic_scope)),
+                        );
                     }
                 }
 
-                let ret_ty = if let TyIr::GenericParam(index) = self.get_tyir(fn_tyir.ret) {
-                    *concrete_generics.get(index).unwrap()
-                } else {
-                    fn_tyir.ret
-                };
+                let ret_ty = concrete_generics
+                    .get(&fn_tyir.ret)
+                    .cloned()
+                    .unwrap_or(fn_tyir.ret);
 
                 // Preallocate the size of the return value on the stack
                 self.push_stmt_to_cur_block(gir::Stmt {
@@ -1057,15 +1036,9 @@ impl Visitor for TyCheck {
 
                 let mut operands = Vec::new();
                 for ((l, op, span), r) in exprs_tys.iter().zip(&fn_tyir.params) {
-                    if let TyIr::GenericParam(index) = self.get_tyir(*r) {
-                        err_if!(
-                            concrete_generics.get(index) != Some(l),
-                            TyCheckError::IncorrectFunctionArguments,
-                            *span
-                        )
-                    } else {
-                        unify!(*l, *r, TyCheckError::IncorrectFunctionArguments, *span);
-                    }
+                    let r = concrete_generics.get(r).cloned().unwrap_or(*r);
+
+                    unify!(*l, r, TyCheckError::IncorrectFunctionArguments, *span);
 
                     operands.push(op.clone());
                 }

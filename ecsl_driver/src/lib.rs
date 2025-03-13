@@ -1,5 +1,5 @@
 use anyhow::Result;
-use ecsl_assembler::Assembler;
+use ecsl_assembler::{linker::FunctionLinker, Assembler};
 use ecsl_ast_pass::*;
 use ecsl_codegen::CodeGen;
 use ecsl_context::{Context, MapAssocExt};
@@ -153,13 +153,14 @@ impl Driver {
         )?;
 
         // Perform type checking
+        let linker = Arc::new(FunctionLinker::new(ty_ctxt.clone()));
         info!("Type Checking");
         let assoc = (&context, assoc).par_map_assoc(
             |_, _, (diag, ast, table, local_ctxt)| {
                 debug!("Type Checking source file {}", ast.file);
-                let girs = ty_check(&ast, local_ctxt.clone());
+                ty_check(&ast, local_ctxt.clone(), linker.clone());
 
-                Some((diag, ast, table, local_ctxt, girs))
+                Some((diag, ast, table, local_ctxt))
             },
             || diag.finish_stage(lexer_func),
         )?;
@@ -182,13 +183,13 @@ impl Driver {
         debug!("Building Function Graph");
         let function_graph = Arc::new(FunctionGraph::new());
         let assoc = (&context, assoc).par_map_assoc(
-            |_, _, (diag, ast, table, local_ctxt, mut girs)| {
+            |_, _, (diag, ast, table, local_ctxt)| {
                 let function_graph = function_graph.clone();
                 for (_, gir) in girs.iter_mut() {
                     DeadBlocks::apply_pass(gir, ());
                     FunctionDependencies::apply_pass(gir, &function_graph);
                 }
-                Some((diag, ast, table, local_ctxt, girs, function_graph))
+                Some((diag, ast, table, local_ctxt, function_graph))
             },
             || diag.finish_stage(lexer_func),
         )?;
@@ -196,7 +197,7 @@ impl Driver {
 
         debug!("Prune unused functions");
         let assoc = (&context, assoc).par_map_assoc(
-            |_, _, (diag, ast, table, local_ctxt, mut girs, function_graph)| {
+            |_, _, (diag, ast, table, local_ctxt, function_graph)| {
                 let graph = function_graph.graph.read().unwrap();
                 girs.retain(|_, g| graph.contains_node(g.fn_id()));
 
