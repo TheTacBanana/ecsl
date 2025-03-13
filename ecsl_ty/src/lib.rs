@@ -6,7 +6,10 @@ use ecsl_ast::{
 };
 use ecsl_index::{FieldID, SymbolID, TyID, VariantID};
 use log::debug;
-use std::{collections::BTreeMap, ops::BitAnd};
+use std::{
+    collections::{BTreeMap, VecDeque},
+    ops::BitAnd,
+};
 
 pub mod ctxt;
 pub mod def;
@@ -39,6 +42,8 @@ pub enum TyIr {
     ADT(ADTDef),
     /// A function type
     Fn(FnDef),
+    /// A monomorphized function variant
+    MonoFn(MonoFnDef),
     /// A sized array type
     Array(TyID, usize),
     ArrayRef(Mutable, TyID),
@@ -116,6 +121,15 @@ pub struct FnDef {
     pub kind: FnKind,
     pub params: Vec<TyID>,
     pub ret: TyID,
+    pub generics: Option<usize>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct MonoFnDef {
+    /// Original Fn
+    pub tyid: TyID,
+    // Generic Tys
+    pub mono: Vec<TyID>,
 }
 
 #[derive(Debug)]
@@ -132,10 +146,13 @@ impl GenericsScope {
         self.scopes.push(g);
     }
 
-    pub fn add_opt(&mut self, g: Option<ecsl_ast::ty::Generics>) {
+    pub fn add_opt(&mut self, g: Option<ecsl_ast::ty::Generics>) -> Option<usize> {
         if let Some(g) = g {
+            let len = g.params.len();
             self.scopes.push(g);
+            return Some(len);
         }
+        return None;
     }
 
     pub fn scope_index(&self, id: SymbolID) -> Option<usize> {

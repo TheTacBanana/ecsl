@@ -84,7 +84,7 @@ impl GIRPass for FunctionDependencies {
 impl Visitor for FunctionDependencies {
     fn visit_stmt(&mut self, s: &Stmt) -> VisitorCF {
         match &s.kind {
-            StmtKind::Assign(_, expr) | StmtKind::Expr(expr) => {
+            StmtKind::Assign(_, expr) => {
                 match expr.kind {
                     ExprKind::Call(ty_id, _) => {
                         self.depends.push(ty_id);

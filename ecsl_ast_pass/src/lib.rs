@@ -316,7 +316,7 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                 ret,
                 ..
             }) => {
-                scope.add_opt(generics.clone());
+                let generics = scope.add_opt(generics.clone());
 
                 let tyid = ty_ctxt
                     .global
@@ -345,6 +345,7 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                             kind: *kind,
                             params,
                             ret,
+                            generics,
                         }),
                         *span,
                     )

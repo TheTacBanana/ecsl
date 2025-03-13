@@ -862,7 +862,7 @@ Expr -> Result<Expr, ()>:
     | 'IDENT' 'PATH' ConcreteGenerics 'PATH' FnArgExpr {
         Ok(Expr::new($span, ExprKind::Function(
             None,
-            None,
+            $3?,
             table.usage($1.map_err(|_| ())?.span(), SymbolKind::FunctionUsage),
             $5?,
         )))

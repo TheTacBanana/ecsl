@@ -9,7 +9,6 @@ use ecsl_ast::{
     stmt::{Block, Stmt, StmtKind},
     visit::{walk_block, FnCtxt, Visitor, VisitorCF},
 };
-use ecsl_bytecode::ins;
 use ecsl_error::{ext::EcslErrorExt, EcslError, ErrorLevel};
 use ecsl_gir::cons::Constant;
 use ecsl_gir::expr::{BinOp, Operand, OperandKind, UnOp};
@@ -18,7 +17,7 @@ use ecsl_gir::{Local, LocalKind, Place, Projection, GIR};
 use ecsl_index::{BlockID, ConstID, LocalID, SymbolID, TyID};
 use ecsl_ty::ctxt::TyCtxt;
 use ecsl_ty::local::LocalTyCtxt;
-use ecsl_ty::{GenericsScope, TyIr};
+use ecsl_ty::{GenericsScope, MonoFnDef, TyIr};
 use ext::IntoTyID;
 use log::debug;
 use std::collections::{BTreeMap, BTreeSet};
@@ -227,6 +226,8 @@ impl TyCheck {
 
 impl Visitor for TyCheck {
     fn visit_fn(&mut self, f: &FnDef, _ctxt: FnCtxt) -> VisitorCF {
+        self.generic_scope.add_opt(f.generics.clone());
+
         // Create GIR for Fn
         let tyid = self.get_tyid(f.ident);
         self.gir.insert(tyid, GIR::new(tyid));
@@ -1005,25 +1006,40 @@ impl Visitor for TyCheck {
 
                 Some((tyid, Operand::Constant(const_id)))
             }
-            ExprKind::Function(None, _, symbol_id, exprs) => {
-                //TODO: Generics
+            ExprKind::Function(None, generics, symbol_id, exprs) => {
                 // Get TyIr
                 let TyIr::Fn(fn_tyir) = self.get_tyir(*symbol_id) else {
-                    self.ty_ctxt.diag.push_error(
-                        EcslError::new(ErrorLevel::Error, TyCheckError::FunctionDoesntExist)
-                            .with_span(|_| e.span),
-                    );
-                    return VisitorCF::Break;
+                    err!(TyCheckError::FunctionDoesntExist, e.span);
                 };
 
-                // Preallocate the size of the retun value on the stack
-                let ret_size = self.ty_ctxt.global.get_size(fn_tyir.ret) as i64;
-                if ret_size > 0 {
-                    self.push_stmt_to_cur_block(gir::Stmt {
-                        span: e.span,
-                        kind: gir::StmtKind::BYT(ins!(SETSPR, Immediate::Long(ret_size))),
-                    });
+                debug!("{:?} {:?}", fn_tyir.generics, generics);
+
+                let mut concrete_generics = Vec::new();
+                if fn_tyir.generics.is_some() && generics.is_some() {
+                    let generic_count = fn_tyir.generics.unwrap();
+                    let generics = generics.as_ref().unwrap();
+                    err_if!(
+                        generic_count != generics.params.len(),
+                        TyCheckError::InvalidGenericTypes,
+                        generics.span
+                    );
+
+                    for p in &generics.params {
+                        concrete_generics.push(self.get_tyid((p, &self.generic_scope)));
+                    }
                 }
+
+                let ret_ty = if let TyIr::GenericParam(index) = self.get_tyir(fn_tyir.ret) {
+                    *concrete_generics.get(index).unwrap()
+                } else {
+                    fn_tyir.ret
+                };
+
+                // Preallocate the size of the return value on the stack
+                self.push_stmt_to_cur_block(gir::Stmt {
+                    span: e.span,
+                    kind: gir::StmtKind::AllocReturn(ret_ty),
+                });
 
                 // Iter over all expressions
                 let mut exprs_tys = Vec::new();
@@ -1033,18 +1049,34 @@ impl Visitor for TyCheck {
                     exprs_tys.push((ty, op, expr.span))
                 }
 
+                err_if!(
+                    exprs_tys.len() != fn_tyir.params.len(),
+                    TyCheckError::IncorrectFunctionArguments,
+                    e.span
+                );
+
                 let mut operands = Vec::new();
                 for ((l, op, span), r) in exprs_tys.iter().zip(&fn_tyir.params) {
-                    unify!(*l, *r, TyCheckError::IncorrectFunctionArgument, *span);
+                    if let TyIr::GenericParam(index) = self.get_tyir(*r) {
+                        err_if!(
+                            concrete_generics.get(index) != Some(l),
+                            TyCheckError::IncorrectFunctionArguments,
+                            *span
+                        )
+                    } else {
+                        unify!(*l, *r, TyCheckError::IncorrectFunctionArguments, *span);
+                    }
+
                     operands.push(op.clone());
                 }
 
-                let local_id = self.new_local(Local::new(
-                    e.span,
-                    Mutable::Imm,
-                    fn_tyir.ret,
-                    LocalKind::Temp,
-                ));
+                let mono_tyid = self.ty_ctxt.global.tyid_from_tyir(TyIr::MonoFn(MonoFnDef {
+                    tyid: fn_tyir.tyid,
+                    mono: concrete_generics,
+                }));
+
+                let local_id =
+                    self.new_local(Local::new(e.span, Mutable::Imm, ret_ty, LocalKind::Temp));
 
                 // Create Assignment Stmt
                 self.push_stmt_to_cur_block(gir::Stmt {
@@ -1053,12 +1085,12 @@ impl Visitor for TyCheck {
                         Place::from_local(local_id),
                         gir::Expr {
                             span: e.span, //TODO: Replace Span
-                            kind: gir::ExprKind::Call(fn_tyir.tyid, operands),
+                            kind: gir::ExprKind::Call(mono_tyid, operands),
                         },
                     ),
                 });
 
-                Some((fn_tyir.ret, Operand::Move(Place::from_local(local_id))))
+                Some((ret_ty, Operand::Move(Place::from_local(local_id))))
             }
             ExprKind::BinOp(op, lhs, rhs) => {
                 // Visit LHS
@@ -1449,7 +1481,7 @@ pub enum TyCheckError {
     SymbolDoesntExistBytecode,
     SymbolDoesntExist,
     FunctionDoesntExist,
-    IncorrectFunctionArgument,
+    IncorrectFunctionArguments,
     SymbolIsNotFunction,
     SymbolRedefined,
     ExpectedBoolean,
@@ -1474,6 +1506,8 @@ pub enum TyCheckError {
     MatchNotExhaustive,
     MatchArmDuplicate,
     MatchArmUnreachable,
+
+    InvalidGenericTypes,
 }
 
 impl std::fmt::Display for TyCheckError {
@@ -1490,9 +1524,7 @@ impl std::fmt::Display for TyCheckError {
             TyCheckError::RangeMustEqual => "LHS and RHS of range expression must be the same",
             TyCheckError::FunctionDoesntExist => "Could not find defined or imported ",
             TyCheckError::SymbolIsNotFunction => "Symbol is not a function",
-            TyCheckError::IncorrectFunctionArgument => {
-                "Type of argument does not match Type of signature"
-            }
+            TyCheckError::IncorrectFunctionArguments => "Arguments do not match function signature",
             TyCheckError::SymbolDoesntExistBytecode => {
                 "Symbol specified in bytecode does not exist"
             }
@@ -1511,6 +1543,9 @@ impl std::fmt::Display for TyCheckError {
             TyCheckError::MatchArmUnreachable => "Default case makes arm unreachable",
             TyCheckError::MatchArmDuplicate => "Variant already exists",
             TyCheckError::CannotAssignToLHS => "Cannot assign to LHS",
+            TyCheckError::InvalidGenericTypes => {
+                "Generics of caller do not match generics of callee"
+            }
         };
         write!(f, "{}", s)
     }

@@ -51,6 +51,7 @@ impl<'b> GIRPass for CodeGen<'b> {
 
 impl<'a> CodeGen<'a> {
     pub fn generate_code(&mut self, gir: &GIR) -> FunctionBytecode {
+        debug!("Codegen {:?}", gir.fn_id());
         let mut locals = gir.locals().collect::<Vec<_>>();
         let first_non_arg = locals
             .iter()
@@ -205,6 +206,12 @@ impl<'a> CodeGen<'a> {
                                     ));
                                 }
                             }
+                            StmtKind::AllocReturn(ty_id) => {
+                                let size = self.ty_ctxt.global.get_size(*ty_id);
+                                if size > 0 {
+                                    instrs.push(ins!(SETSPR, Immediate::Long(size as i64)));
+                                }
+                            }
                             StmtKind::BYT(byt) => {
                                 let mut byt = byt.clone();
                                 for imm in byt.operand.iter_mut() {
@@ -215,7 +222,6 @@ impl<'a> CodeGen<'a> {
                                 }
                                 instrs.push(byt)
                             }
-                            StmtKind::Expr(_) => todo!(),
                         }
                     }
 
