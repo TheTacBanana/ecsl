@@ -72,7 +72,7 @@ impl GIRPass for FunctionDependencies {
 
     fn apply_pass<'a>(gir: &mut GIR, fn_graph: &'a Arc<FunctionGraph>) -> () {
         let mut s = FunctionDependencies {
-            fnid: gir.fn_id(),
+            fnid: gir.fn_id,
             depends: Vec::new(),
         };
         s.visit_gir(gir);

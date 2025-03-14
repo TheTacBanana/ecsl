@@ -17,7 +17,7 @@ use ecsl_gir::{Local, LocalKind, Place, Projection, GIR};
 use ecsl_gir_pass::linker::FunctionLinker;
 use ecsl_index::{BlockID, ConstID, LocalID, SymbolID, TyID};
 use ecsl_ty::ctxt::TyCtxt;
-use ecsl_ty::local::LocalTyCtxt;
+use ecsl_ty::local::{LocalTyCtxt, LocalTyCtxtExt};
 use ecsl_ty::{GenericsScope, MonoFnDef, TyIr};
 use ext::IntoTyID;
 use log::debug;
@@ -344,14 +344,36 @@ impl Visitor for TyCheck {
                     unify!(let_ty, rhs_ty, TyCheckError::AssignWrongType);
                 }
 
-                let local_id = match rhs_op {
+                debug!("{:?}", rhs_op);
+
+                let local_id = match &rhs_op {
                     Operand::Copy(place) | Operand::Move(place) => {
                         let local = self.get_local_mut(place.local);
-                        local.kind = LocalKind::Let;
-                        local.mutable = *mutable;
-                        local.span = *span;
 
-                        place.local
+                        if local.kind == LocalKind::Temp {
+                            local.kind = LocalKind::Let;
+                            local.mutable = *mutable;
+                            local.span = *span;
+
+                            place.local
+                        } else {
+                            let local_id =
+                                self.new_local(Local::new(*span, *mutable, rhs_ty, LocalKind::Let));
+
+                            // Create Assignment Stmt
+                            self.push_stmt_to_cur_block(gir::Stmt {
+                                span: *span,
+                                kind: gir::StmtKind::Assign(
+                                    Place::from_local(local_id),
+                                    gir::Expr {
+                                        span: *span,
+                                        kind: gir::ExprKind::Value(rhs_op),
+                                    },
+                                ),
+                            });
+
+                            local_id
+                        }
                     }
                     Operand::Constant(_) => {
                         // Create local ID
@@ -388,6 +410,8 @@ impl Visitor for TyCheck {
                     );
                     return VisitorCF::Break;
                 }
+
+                debug!("Hiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii");
             }
             StmtKind::ElseIf(_, _, _) | StmtKind::Else(_) => panic!("If statement in wrong place"),
             StmtKind::If(expr, block, stmt) => {
@@ -1053,12 +1077,16 @@ impl Visitor for TyCheck {
                     operands.push(op.clone());
                 }
 
-                let mono_tyid = self.ty_ctxt.global.tyid_from_tyir(TyIr::MonoFn(MonoFnDef {
-                    tyid: fn_tyir.tyid,
-                    mono: concrete_generics,
-                }));
+                let mut tyid = fn_tyir.tyid;
 
-                self.linker.mono.insert(fn_tyir.tyid, mono_tyid);
+                if concrete_generics.len() > 0 {
+                    tyid = self.ty_ctxt.global.tyid_from_tyir(TyIr::MonoFn(MonoFnDef {
+                        tyid: fn_tyir.tyid,
+                        mono: concrete_generics,
+                    }));
+
+                    self.linker.mono.insert(fn_tyir.tyid, tyid);
+                }
 
                 let local_id =
                     self.new_local(Local::new(e.span, Mutable::Imm, ret_ty, LocalKind::Temp));
@@ -1070,7 +1098,7 @@ impl Visitor for TyCheck {
                         Place::from_local(local_id),
                         gir::Expr {
                             span: e.span, //TODO: Replace Span
-                            kind: gir::ExprKind::Call(mono_tyid, operands),
+                            kind: gir::ExprKind::Call(tyid, operands),
                         },
                     ),
                 });

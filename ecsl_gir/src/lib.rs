@@ -18,7 +18,7 @@ pub type P<T> = Box<T>;
 /// (Control Flow) Graph Intermediate Representation for a given function
 #[derive(Debug, Clone)]
 pub struct GIR {
-    fn_id: TyID,
+    pub fn_id: TyID,
     locals: BTreeMap<LocalID, Local>,
     consts: BTreeMap<ConstID, Constant>,
     blocks: BTreeMap<BlockID, Block>,
@@ -54,14 +54,6 @@ impl GIR {
             consts: Default::default(),
             blocks: Default::default(),
         }
-    }
-
-    pub fn fn_id(&self) -> TyID {
-        self.fn_id
-    }
-
-    pub fn set_fn_id(&mut self, tyid: TyID) {
-        self.fn_id = tyid;
     }
 
     pub fn new_local(&mut self, local: Local) -> LocalID {

@@ -51,7 +51,7 @@ impl<'b> GIRPass for CodeGen<'b> {
 
 impl<'a> CodeGen<'a> {
     pub fn generate_code(&mut self, gir: &GIR) -> FunctionBytecode {
-        debug!("Codegen {:?}", gir.fn_id());
+        debug!("Codegen {:?}", gir.fn_id);
         let mut locals = gir.locals().collect::<Vec<_>>();
         let first_non_arg = locals
             .iter()
@@ -231,7 +231,7 @@ impl<'a> CodeGen<'a> {
                             [Immediate::LabelOf(*block_id)],
                         )),
                         TerminatorKind::Return => {
-                            if gir.fn_id() == self.ty_ctxt.global.entry_point() {
+                            if gir.fn_id == self.ty_ctxt.global.entry_point() {
                                 instrs.push(ins!(HALT));
                             } else {
                                 instrs.push(ins!(RET));
@@ -300,7 +300,7 @@ impl<'a> CodeGen<'a> {
         // Instructions
         let mut ins = Vec::new();
 
-        if gir.fn_id() == self.ty_ctxt.global.entry_point() {
+        if gir.fn_id == self.ty_ctxt.global.entry_point() {
             post_offset += 8;
         }
 
@@ -333,7 +333,7 @@ impl<'a> CodeGen<'a> {
         }
 
         FunctionBytecode {
-            tyid: gir.fn_id(),
+            tyid: gir.fn_id,
             total_size: ins.bytecode_size(),
             block_offsets: offsets,
             ins,

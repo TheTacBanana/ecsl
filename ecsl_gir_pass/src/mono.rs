@@ -58,11 +58,13 @@ pub fn monomorphize(linker: &mut FunctionLinker, mono: &Arc<Mono>, ctxt: &Arc<Lo
                 panic!()
             };
             MonomorphizeFn::apply_pass(&mut new_gir, mono_fn);
-            new_gir.set_fn_id(v);
+            new_gir.fn_id = v;
 
             generated.insert(v, new_gir);
         }
-        debug!("{:?}", generated);
+        for g in &generated {
+            debug!("{}", g.1);
+        }
     }
     linker.fn_gir.extend(generated);
 }
