@@ -1,16 +1,14 @@
+use ecsl_bytecode::{FunctionBytecode, Immediate};
+use ecsl_index::TyID;
+use header::{FileType, SectionPointer, SectionType};
+use log::debug;
 use std::collections::BTreeMap;
 use std::io::{prelude::*, SeekFrom};
 use std::marker::PhantomData;
 use std::sync::RwLock;
 use std::{fs::File, path::PathBuf};
 
-use ecsl_bytecode::{FunctionBytecode, Immediate};
-use ecsl_index::TyID;
-use header::{FileType, SectionPointer, SectionType};
-use log::debug;
-
 pub mod header;
-pub mod linker;
 
 pub struct Assembler<T> {
     _phantom: PhantomData<T>,
@@ -139,8 +137,10 @@ impl Assembler<Executable> {
                 for op in ins.operand.iter_mut() {
                     match op {
                         Immediate::AddressOf(ty_id) => {
-                            *op =
-                                Immediate::ULong(start_pos + *function_offsets.get(&ty_id).unwrap())
+                            *op = Immediate::ULong(
+                                start_pos
+                                    + *function_offsets.get(&ty_id).expect(&format!("{:?}", ty_id)),
+                            )
                         }
                         Immediate::LabelOf(block_id) => {
                             *op = Immediate::ULong(

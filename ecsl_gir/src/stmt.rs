@@ -3,7 +3,7 @@ use cfgrammar::Span;
 use ecsl_ast::parse::BytecodeInstruction;
 use ecsl_index::TyID;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Stmt {
     pub span: Span,
     pub kind: StmtKind,
@@ -15,7 +15,7 @@ impl std::fmt::Display for Stmt {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum StmtKind {
     Assign(Place, Expr),
     AllocReturn(TyID),

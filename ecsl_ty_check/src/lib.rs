@@ -1,4 +1,3 @@
-use ecsl_assembler::linker::FunctionLinker;
 use ecsl_ast::expr::{BinOpKind, RangeType, UnOpKind};
 use ecsl_ast::parse::{Immediate, ParamKind};
 use ecsl_ast::stmt::InlineBytecode;
@@ -15,6 +14,7 @@ use ecsl_gir::cons::Constant;
 use ecsl_gir::expr::{BinOp, Operand, OperandKind, UnOp};
 use ecsl_gir::term::{SwitchCase, Terminator, TerminatorKind};
 use ecsl_gir::{Local, LocalKind, Place, Projection, GIR};
+use ecsl_gir_pass::linker::FunctionLinker;
 use ecsl_index::{BlockID, ConstID, LocalID, SymbolID, TyID};
 use ecsl_ty::ctxt::TyCtxt;
 use ecsl_ty::local::LocalTyCtxt;
@@ -34,17 +34,23 @@ mod gir {
 
 pub mod ext;
 
-pub fn ty_check(ast: &SourceAST, ty_ctxt: Arc<LocalTyCtxt>, linker: Arc<FunctionLinker>) {
+pub fn ty_check(
+    ast: &SourceAST,
+    ty_ctxt: Arc<LocalTyCtxt>,
+    linker: FunctionLinker,
+) -> FunctionLinker {
     let mut ty_check = TyCheck::new(ty_ctxt, linker);
     ty_check.visit_ast(ast);
+    ty_check.linker
 }
 
 pub struct TyCheck {
     ty_ctxt: Arc<LocalTyCtxt>,
-    linker: Arc<FunctionLinker>,
+    linker: FunctionLinker,
     generic_scope: GenericsScope,
 
     cur_gir: Option<GIR>,
+    generated_gir: Vec<TyID>,
 
     block_stack: Vec<BlockID>,
     symbols: Vec<BTreeMap<SymbolID, Place>>,
@@ -59,12 +65,13 @@ enum TerminationKind {
 }
 
 impl TyCheck {
-    pub fn new(ty_ctxt: Arc<LocalTyCtxt>, linker: Arc<FunctionLinker>) -> Self {
+    pub fn new(ty_ctxt: Arc<LocalTyCtxt>, linker: FunctionLinker) -> Self {
         Self {
             ty_ctxt,
             linker,
             generic_scope: GenericsScope::new(),
             cur_gir: None,
+            generated_gir: Default::default(),
             block_stack: Default::default(),
             symbols: Default::default(),
             stack: Default::default(),
@@ -272,7 +279,10 @@ impl Visitor for TyCheck {
         // Remove symbols for function
         self.symbols.pop().unwrap();
 
+        debug!("{}", self.cur_gir());
+
         self.linker.add_gir(tyid, self.cur_gir.take().unwrap());
+        self.generated_gir.push(tyid);
 
         VisitorCF::Continue
     }
@@ -1047,6 +1057,8 @@ impl Visitor for TyCheck {
                     tyid: fn_tyir.tyid,
                     mono: concrete_generics,
                 }));
+
+                self.linker.mono.insert(fn_tyir.tyid, mono_tyid);
 
                 let local_id =
                     self.new_local(Local::new(e.span, Mutable::Imm, ret_ty, LocalKind::Temp));

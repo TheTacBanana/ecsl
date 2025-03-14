@@ -16,7 +16,7 @@ pub mod visit;
 pub type P<T> = Box<T>;
 
 /// (Control Flow) Graph Intermediate Representation for a given function
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct GIR {
     fn_id: TyID,
     locals: BTreeMap<LocalID, Local>,
@@ -58,6 +58,10 @@ impl GIR {
 
     pub fn fn_id(&self) -> TyID {
         self.fn_id
+    }
+
+    pub fn set_fn_id(&mut self, tyid: TyID) {
+        self.fn_id = tyid;
     }
 
     pub fn new_local(&mut self, local: Local) -> LocalID {
@@ -124,7 +128,7 @@ impl GIR {
 }
 
 // Individual block
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Block {
     id: BlockID,
     stmts: Vec<Stmt>,
@@ -191,7 +195,7 @@ impl Block {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Local {
     pub span: Span,
     pub mutable: Mutable,
@@ -199,7 +203,7 @@ pub struct Local {
     pub kind: LocalKind,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum LocalKind {
     Ret,
     Arg,

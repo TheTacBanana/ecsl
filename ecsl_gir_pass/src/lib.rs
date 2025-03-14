@@ -3,6 +3,7 @@ use ecsl_gir::GIR;
 pub mod const_eval;
 pub mod dead_block;
 pub mod function_graph;
+pub mod linker;
 pub mod mono;
 
 pub trait GIRPass {

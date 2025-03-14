@@ -4,7 +4,7 @@ pub use ecsl_ast::expr::{BinOpKind, UnOpKind};
 pub use ecsl_ast::ty::Mutable;
 use ecsl_index::{ConstID, LocalID, TyID};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Expr {
     pub span: Span,
     pub kind: ExprKind,
@@ -16,7 +16,7 @@ impl std::fmt::Display for Expr {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ExprKind {
     Value(Operand),
     BinOp(BinOp, Operand, Operand),

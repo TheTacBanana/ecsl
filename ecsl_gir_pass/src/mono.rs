@@ -1,3 +1,4 @@
+use crate::{linker::FunctionLinker, GIRPass};
 use ecsl_gir::{
     expr::ExprKind,
     stmt::{Stmt, StmtKind},
@@ -5,13 +6,68 @@ use ecsl_gir::{
     Local, GIR,
 };
 use ecsl_index::{LocalID, TyID};
-use ecsl_ty::{local::LocalTyCtxt, MonoFnDef};
-use std::sync::Arc;
+use ecsl_ty::{local::LocalTyCtxt, MonoFnDef, TyIr};
+use log::debug;
+use std::{
+    collections::{btree_map::Entry, BTreeMap, BTreeSet},
+    sync::{Arc, RwLock},
+};
 
-use crate::GIRPass;
+#[derive(Debug, Default)]
+pub struct Mono {
+    /// Function which needs to be monomorphized
+    variants: RwLock<BTreeMap<TyID, BTreeSet<TyID>>>,
+}
+
+impl Mono {
+    pub fn new() -> Self {
+        Mono {
+            variants: Default::default(),
+        }
+    }
+
+    pub fn insert(&self, tyid: TyID, variant: TyID) {
+        let mut lock = self.variants.write().unwrap();
+        match lock.entry(tyid) {
+            Entry::Vacant(vacant_entry) => {
+                vacant_entry.insert(vec![variant].drain(..).collect());
+            }
+            Entry::Occupied(mut occupied_entry) => {
+                occupied_entry.get_mut().insert(variant);
+            }
+        }
+    }
+
+    pub fn take_variants(&self, tyid: TyID) -> Option<BTreeSet<TyID>> {
+        let mut lock = self.variants.write().unwrap();
+        lock.remove(&tyid)
+    }
+}
+
+pub fn monomorphize(linker: &mut FunctionLinker, mono: &Arc<Mono>, ctxt: &Arc<LocalTyCtxt>) {
+    let mut generated = BTreeMap::new();
+    for (f, gir) in linker.fn_gir.iter() {
+        let variants = mono.take_variants(*f).unwrap_or_default();
+
+        debug!("{:?} {:?}", f, variants);
+        for v in variants {
+            debug!("Monomorphizing {v:?}");
+
+            let mut new_gir = gir.clone();
+            let TyIr::MonoFn(mono_fn) = ctxt.global.get_tyir(v) else {
+                panic!()
+            };
+            MonomorphizeFn::apply_pass(&mut new_gir, mono_fn);
+            new_gir.set_fn_id(v);
+
+            generated.insert(v, new_gir);
+        }
+        debug!("{:?}", generated);
+    }
+    linker.fn_gir.extend(generated);
+}
 
 pub struct MonomorphizeFn {
-    ctxt: Arc<LocalTyCtxt>,
     monofn: MonoFnDef,
 }
 
@@ -22,14 +78,11 @@ impl MonomorphizeFn {
 }
 
 impl GIRPass for MonomorphizeFn {
-    type PassInput<'a> = (MonoFnDef, Arc<LocalTyCtxt>);
+    type PassInput<'a> = MonoFnDef;
     type PassResult = ();
 
-    fn apply_pass<'a>(gir: &mut GIR, t: Self::PassInput<'a>) -> Self::PassResult {
-        let mut m = MonomorphizeFn {
-            monofn: t.0,
-            ctxt: t.1,
-        };
+    fn apply_pass<'a>(gir: &mut GIR, t: MonoFnDef) -> Self::PassResult {
+        let mut m = MonomorphizeFn { monofn: t };
         m.visit_gir_mut(gir);
     }
 }
