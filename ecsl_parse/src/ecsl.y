@@ -417,36 +417,37 @@ TyList -> Result<Vec<Ty>, ()>:
 
 Ty -> Result<Ty, ()>:
     'IDENT' ConcreteGenerics {
-        Ok(Ty::new($span, TyKind::Ident(
-            table.usage($1.map_err(|_| ())?.span(), SymbolKind::Ty),
+        Ok(Ty::new(
+            $span, 
+            TyKind::Ident(table.usage($1.map_err(|_| ())?.span(), SymbolKind::Ty)),
             $2?
-        )))
+        ))
     }
     | 'LSQUARE' Ty 'COLON' 'INT' 'RSQUARE' {
         Ok(Ty::new($span, TyKind::Array(
             P::new($2?), table.string($4.map_err(|_| ())?.span()).parse().map_err(|_| ())?
-        )))
+        ), None))
     }
     | 'AMPERSAND' RefMutability 'LSQUARE' Ty 'RSQUARE' {
         Ok(Ty::new($span, TyKind::ArrayRef(
             $2?, P::new($4?)
-        )))
+        ), None))
     }
     | 'AMPERSAND' RefMutability Ty {
         Ok(Ty::new($span, TyKind::Ref(
             $2?, P::new($3?)
-        )))
+        ), None))
     }
     | 'STAR' PtrMutability Ty {
         Ok(Ty::new($span, TyKind::Ptr(
             $2?, P::new($3?)
-        )))
+        ), None))
     }
     | EntityTy {
-        Ok(Ty::new($span, TyKind::Entity($1?)))
+        Ok(Ty::new($span, TyKind::Entity($1?), None))
     }
     | 'SCHEDULE' {
-        Ok(Ty::new($span, TyKind::Schedule))
+        Ok(Ty::new($span, TyKind::Schedule, None))
     }
     ;
 
@@ -903,10 +904,8 @@ Expr -> Result<Expr, ()>:
             P::new(
                 Ty::new(
                     $3.map_err(|_| ())?.span(),
-                    TyKind::Ident(
-                        table.usage($3.map_err(|_| ())?.span(), SymbolKind::Ty),
-                        None,
-                    )
+                    TyKind::Ident(table.usage($3.map_err(|_| ())?.span(), SymbolKind::Ty)),
+                    None,
                 )
             ),
         )))
@@ -938,49 +937,54 @@ Expr -> Result<Expr, ()>:
 
     | 'IDENT' 'PATH' ConcreteGenerics 'PATH' 'IDENT' FieldAssignments {
         Ok(Expr::new($span, ExprKind::Enum(
-            P::new(Ty::new($span, TyKind::Ident(
-                table.usage($1.map_err(|_| ())?.span(), SymbolKind::Ty),
+            P::new(Ty::new(
+                $span, 
+                TyKind::Ident(table.usage($1.map_err(|_| ())?.span(), SymbolKind::Ty)), 
                 $3?
-            ))),
+            )),
             table.usage($5.map_err(|_| ())?.span(), SymbolKind::VariantUsage),
             $6?,
         )))
     }
     | 'IDENT' 'PATH' 'IDENT' FieldAssignments {
         Ok(Expr::new($span, ExprKind::Enum(
-            P::new(Ty::new($span, TyKind::Ident(
-                table.usage($1.map_err(|_| ())?.span(), SymbolKind::Ty),
+            P::new(Ty::new(
+                $span, 
+                TyKind::Ident(table.usage($1.map_err(|_| ())?.span(), SymbolKind::Ty)),
                 None,
-            ))),
+            )),
             table.usage($3.map_err(|_| ())?.span(), SymbolKind::VariantUsage),
             $4?,
         )))
     }
     | 'IDENT' 'PATH' 'IDENT' {
         Ok(Expr::new($span, ExprKind::Enum(
-            P::new(Ty::new($span, TyKind::Ident(
-                table.usage($1.map_err(|_| ())?.span(), SymbolKind::Ty),
+            P::new(Ty::new(
+                $span, 
+                TyKind::Ident(table.usage($1.map_err(|_| ())?.span(), SymbolKind::Ty)),
                 None,
-            ))),
+            )),
             table.usage($3.map_err(|_| ())?.span(), SymbolKind::VariantUsage),
             Vec::new(),
         )))
     }    
     | 'IDENT' 'PATH' ConcreteGenerics FieldAssignments {
         Ok(Expr::new($span, ExprKind::Struct(
-            P::new(Ty::new($span, TyKind::Ident(
-                table.usage($1.map_err(|_| ())?.span(), SymbolKind::Ty),
-                $3?
-            ))),
+            P::new(Ty::new(
+                $span, 
+                TyKind::Ident(table.usage($1.map_err(|_| ())?.span(), SymbolKind::Ty)),
+                $3?,
+            )),
             $4?,
         )))
     }
     | 'IDENT' FieldAssignments {
         Ok(Expr::new($span, ExprKind::Struct(
-            P::new(Ty::new($span, TyKind::Ident(
-                table.usage($1.map_err(|_| ())?.span(), SymbolKind::Ty),
+            P::new(Ty::new(
+                $span, 
+                TyKind::Ident(table.usage($1.map_err(|_| ())?.span(), SymbolKind::Ty)),
                 None,
-            ))),
+            )),
             $2?,
         )))
     }

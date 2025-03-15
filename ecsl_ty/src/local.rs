@@ -4,11 +4,13 @@ use crate::{
     import::{Import, ImportPath},
     GenericsScope, TyIr, TypeError,
 };
+use core::panic;
 use ecsl_ast::ty::{Ty, TyKind};
 use ecsl_diagnostics::DiagConn;
 use ecsl_error::{ext::EcslErrorExt, EcslError, ErrorLevel};
 use ecsl_index::{GlobalID, SourceFileID, SymbolID, TyID};
 use ecsl_parse::table::SymbolTable;
+use log::debug;
 use std::{
     collections::BTreeMap,
     sync::{Arc, RwLock},
@@ -154,7 +156,7 @@ impl LocalTyCtxt {
         }
 
         match &ty.kind {
-            TyKind::Ident(symbol_id, _) => resolve_tyid!(symbol_id),
+            TyKind::Ident(symbol_id) => resolve_tyid!(symbol_id),
             TyKind::Ref(mutable, ty) => from_tyir!(TyIr::Ref(*mutable, self.get_tyid(ty, scope))),
             TyKind::Array(ty, span) => from_tyir!(TyIr::Array(self.get_tyid(ty, scope), *span)),
             e => todo!("{:?}", e),

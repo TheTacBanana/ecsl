@@ -1,3 +1,4 @@
+use ctxt::TyCtxt;
 use ecsl_ast::{
     data::DataKind,
     expr::{Literal, RangeType},
@@ -9,6 +10,7 @@ use log::debug;
 use std::{
     collections::{BTreeMap, VecDeque},
     ops::BitAnd,
+    sync::Arc,
 };
 
 pub mod ctxt;
@@ -42,7 +44,9 @@ pub enum TyIr {
     ADT(ADTDef),
     /// A function type
     Fn(FnDef),
-    /// A monomorphized function variant
+    // /// A monomorphized adt variant
+    // MonoADT(MonoADTDef),
+    // /// A monomorphized function variant
     MonoFn(MonoFnDef),
     /// A sized array type
     Array(TyID, usize),
@@ -62,12 +66,36 @@ impl From<Literal> for TyIr {
     }
 }
 
+impl TyIr {
+    pub fn get_generics(&self) -> Option<usize> {
+        match self {
+            TyIr::ADT(adtdef) => adtdef.generics,
+            TyIr::Fn(fn_def) => fn_def.generics,
+            _ => None,
+        }
+    }
+
+    pub fn into_adt(self) -> Option<ADTDef> {
+        match self {
+            TyIr::ADT(adtdef) => Some(adtdef),
+            _ => None,
+        }
+    }
+    pub fn into_fn(self) -> Option<FnDef> {
+        match self {
+            TyIr::Fn(fndef) => Some(fndef),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ADTDef {
     pub id: TyID,
     pub kind: DataKind,
     pub variant_hash: BTreeMap<String, VariantID>, // TODO: Temporary solution to getting the variants of an enum, pls fix
     pub variant_kinds: BTreeMap<VariantID, VariantDef>,
+    pub generics: Option<usize>,
 }
 
 impl ADTDef {

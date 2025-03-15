@@ -1,7 +1,7 @@
 use ecsl_ast::expr::{BinOpKind, RangeType, UnOpKind};
 use ecsl_ast::parse::{Immediate, ParamKind};
 use ecsl_ast::stmt::InlineBytecode;
-use ecsl_ast::ty::Mutable;
+use ecsl_ast::ty::{Mutable, TyKind};
 use ecsl_ast::SourceAST;
 use ecsl_ast::{
     expr::{Expr, ExprKind},
@@ -17,7 +17,7 @@ use ecsl_gir::{Local, LocalKind, Place, Projection, GIR};
 use ecsl_gir_pass::linker::FunctionLinker;
 use ecsl_index::{BlockID, ConstID, LocalID, SymbolID, TyID};
 use ecsl_ty::ctxt::TyCtxt;
-use ecsl_ty::local::{LocalTyCtxt, LocalTyCtxtExt};
+use ecsl_ty::local::LocalTyCtxt;
 use ecsl_ty::{GenericsScope, MonoFnDef, TyIr};
 use ext::IntoTyID;
 use log::debug;
@@ -344,8 +344,6 @@ impl Visitor for TyCheck {
                     unify!(let_ty, rhs_ty, TyCheckError::AssignWrongType);
                 }
 
-                debug!("{:?}", rhs_op);
-
                 let local_id = match &rhs_op {
                     Operand::Copy(place) | Operand::Move(place) => {
                         let local = self.get_local_mut(place.local);
@@ -410,8 +408,6 @@ impl Visitor for TyCheck {
                     );
                     return VisitorCF::Break;
                 }
-
-                debug!("Hiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii");
             }
             StmtKind::ElseIf(_, _, _) | StmtKind::Else(_) => panic!("If statement in wrong place"),
             StmtKind::If(expr, block, stmt) => {
@@ -1023,8 +1019,6 @@ impl Visitor for TyCheck {
                     err!(TyCheckError::FunctionDoesntExist, e.span);
                 };
 
-                debug!("{:?} {:?}", fn_tyir.generics, generics);
-
                 let mut concrete_generics = BTreeMap::new();
                 if fn_tyir.generics.is_some() && generics.is_some() {
                     let generic_count = fn_tyir.generics.unwrap();
@@ -1256,16 +1250,30 @@ impl Visitor for TyCheck {
                 panic!()
             }
             ExprKind::Struct(ty, fields) => {
-                let struct_tyid = self.get_tyid((ty.as_ref(), &self.generic_scope));
-                let TyIr::ADT(struct_tyir) = self.get_tyir(struct_tyid) else {
+                let mut struct_tyid = self.get_tyid((ty.as_ref(), &self.generic_scope));
+                let TyIr::ADT(mut struct_tyir) = self.get_tyir(struct_tyid) else {
                     err!(TyCheckError::TypeIsNotAStruct, e.span);
                 };
-
                 err_if!(
                     !struct_tyir.is_struct(),
                     TyCheckError::TypeIsNotAStruct,
                     e.span
                 );
+
+                let generics = ty.generics.as_ref();
+                if generics.map(|ty| ty.params.len()) != struct_tyir.generics {
+                    err!(TyCheckError::InvalidGenericTypes, e.span);
+                }
+
+                if let Some(generics) = generics {
+                    let mut tyids = Vec::new();
+                    for p in &generics.params {
+                        tyids.push(self.get_tyid((p, &self.generic_scope)));
+                    }
+
+                    struct_tyid = self.ty_ctxt.global.get_mono_variant(struct_tyid, &tyids);
+                    struct_tyir = self.get_tyir(struct_tyid).into_adt().unwrap()
+                }
 
                 let local_id = self.new_local(Local::new(
                     e.span,
@@ -1377,11 +1385,26 @@ impl Visitor for TyCheck {
                 Some((field_def.ty, e_op))
             }
             ExprKind::Enum(ty, variant, fields) => {
-                let enum_tyid = self.get_tyid((ty.as_ref(), &self.generic_scope));
-                let TyIr::ADT(enum_tyir) = self.get_tyir(enum_tyid) else {
+                let mut enum_tyid = self.get_tyid((ty.as_ref(), &self.generic_scope));
+                let TyIr::ADT(mut enum_tyir) = self.get_tyir(enum_tyid) else {
                     err!(TyCheckError::TypeIsNotAnEnum, e.span);
                 };
                 err_if!(!enum_tyir.is_enum(), TyCheckError::TypeIsNotAnEnum, e.span);
+
+                let generics = ty.generics.as_ref();
+                if generics.map(|ty| ty.params.len()) != enum_tyir.generics {
+                    err!(TyCheckError::InvalidGenericTypes, e.span);
+                }
+
+                if let Some(generics) = generics {
+                    let mut tyids = Vec::new();
+                    for p in &generics.params {
+                        tyids.push(self.get_tyid((p, &self.generic_scope)));
+                    }
+
+                    enum_tyid = self.ty_ctxt.global.get_mono_variant(enum_tyid, &tyids);
+                    enum_tyir = self.get_tyir(enum_tyid).into_adt().unwrap()
+                }
 
                 let local_id = self.new_local(Local::new(
                     e.span,

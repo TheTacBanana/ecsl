@@ -161,7 +161,7 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                 attributes,
                 ..
             }) => {
-                scope.add_opt(generics.clone());
+                let generics = scope.add_opt(generics.clone());
 
                 let tyid = ty_ctxt
                     .global
@@ -170,7 +170,6 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                 if let Some(symbol) = ty_ctxt.table.get_symbol(*ident)
                     && let Some(builtin_size) = attributes.get_value(AttributeValue::Builtin)
                 {
-                    debug!("{:?}", symbol);
                     let tyir = match symbol.name.as_str() {
                         "int" => Some(TyIr::Int),
                         "float" => Some(TyIr::Float),
@@ -225,6 +224,7 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                             )]
                             .into_iter()
                             .collect(),
+                            generics,
                         }),
                         *span,
                     )
@@ -240,7 +240,7 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                 variants,
                 span,
             }) => {
-                scope.add_opt(generics.clone());
+                let generics = scope.add_opt(generics.clone());
 
                 let tyid = ty_ctxt
                     .global
@@ -300,6 +300,7 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                             kind: *kind,
                             variant_hash,
                             variant_kinds,
+                            generics,
                         }),
                         *span,
                     )

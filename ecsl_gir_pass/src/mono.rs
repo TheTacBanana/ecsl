@@ -49,10 +49,7 @@ pub fn monomorphize(linker: &mut FunctionLinker, mono: &Arc<Mono>, ctxt: &Arc<Lo
     for (f, gir) in linker.fn_gir.iter() {
         let variants = mono.take_variants(*f).unwrap_or_default();
 
-        debug!("{:?} {:?}", f, variants);
         for v in variants {
-            debug!("Monomorphizing {v:?}");
-
             let mut new_gir = gir.clone();
             let TyIr::MonoFn(mono_fn) = ctxt.global.get_tyir(v) else {
                 panic!()

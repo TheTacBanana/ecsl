@@ -6,6 +6,7 @@ use {
     std::lib::drop,
     std::fmt::{print_int, print_float, print_bool},
     std::panic::panic,
+    std::option::Option,
 };
 
 //fn drop<T>(val: T) { }

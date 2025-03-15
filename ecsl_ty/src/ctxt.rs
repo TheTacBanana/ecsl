@@ -12,6 +12,8 @@ pub struct TyCtxt {
     pub sources: RwLock<BTreeMap<SourceFileID, Arc<LocalTyCtxt>>>,
     pub mappings: RwLock<BTreeMap<GlobalID, TyID>>,
     pub tyirs: RwLock<BiHashMap<TyID, TyIr>>,
+    /// Mapping of tyid and concrete generics to monomorphized tyid
+    pub monos: RwLock<BTreeMap<(TyID, Vec<TyID>), TyID>>,
     pub cur_id: RwLock<usize>,
     pub sizes: RwLock<BTreeMap<TyID, usize>>,
     pub field_offsets: RwLock<BTreeMap<(TyID, VariantID, FieldID), usize>>,
@@ -25,6 +27,7 @@ impl TyCtxt {
             sources: Default::default(),
             mappings: Default::default(),
             tyirs: Default::default(),
+            monos: Default::default(),
             cur_id: Default::default(),
             sizes: Default::default(),
             entry_point: Default::default(),
@@ -173,6 +176,33 @@ impl TyCtxt {
         };
 
         return offset;
+    }
+
+    pub fn get_mono_variant(&self, id: TyID, params: &Vec<TyID>) -> TyID {
+        let mut monos = self.monos.write().unwrap();
+
+        let key = (id, params.clone());
+        if let Some(mono) = monos.get(&key) {
+            *mono
+        } else {
+            let mut adt_tyir = self.get_tyir(id).into_adt().unwrap().clone();
+
+            for (_, var) in &mut adt_tyir.variant_kinds {
+                for (_, field) in &mut var.field_tys {
+                    let field_tyir = self.get_tyir(field.ty);
+                    field.ty = match field_tyir {
+                        TyIr::GenericParam(i) => params.get(i).copied().unwrap(),
+                        TyIr::ADT(adtdef) => todo!(),
+                        _ => {
+                            todo!("Unsupported"); //TODO:
+                        }
+                    }
+                }
+            }
+            let new_tyid = self.tyid_from_tyir(TyIr::ADT(adt_tyir));
+            monos.insert(key, new_tyid);
+            new_tyid
+        }
     }
 
     pub fn is_primitive(&self, id: TyID) -> bool {
