@@ -1,5 +1,13 @@
 use num::{int, float};
 use bool::{bool};
+use string::str;
+
+fn print(s: str) {
+    byt {
+        LDR #8UB #s;
+        PRINT_S;
+    }
+}
 
 fn print_int(i: int) {
     byt {
