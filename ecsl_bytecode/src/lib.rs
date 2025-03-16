@@ -1,7 +1,7 @@
 #![allow(non_camel_case_types)]
 
 use ecsl_bytecode_derive::Bytecode;
-use ecsl_index::{BlockID, LocalID, SymbolID, TyID};
+use ecsl_index::{AssemblerConstID, BlockID, LocalID, SymbolID, TyID};
 use std::{collections::BTreeMap, usize};
 
 pub mod ext;
@@ -49,6 +49,7 @@ macro_rules! ins {
 pub enum Immediate {
     // Used temporarily in compilation
     AddressOf(TyID),
+    ConstAddressOf(AssemblerConstID),
     LabelOf(BlockID),
     LocalOf(LocalID),
     SymbolOf(SymbolID),
@@ -70,6 +71,7 @@ impl Immediate {
             Immediate::LabelOf(_) => 8,
             Immediate::LocalOf(_) => 8,
             Immediate::SymbolOf(_) => 8,
+            Immediate::ConstAddressOf(_) => 8,
 
             Immediate::Bool(_) => 1,
             Immediate::UByte(_) => 1,
@@ -235,6 +237,8 @@ pub enum Bytecode {
     FTI,
 
     // Print instructions
+    /// Pop a char pointer and print the string to stdout
+    PRINT_S,
     /// Pop integer from stack and print to stdout
     PRINT_I,
     /// Pop float from stack and print to stdout

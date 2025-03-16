@@ -263,6 +263,20 @@ pub inline fn fti(self: *ProgramThread) !void {
     try self.push_stack(i32, @constCast(&@as(i32, @intFromFloat(a.*))));
 }
 
+pub fn print_s(self: *ProgramThread) !void {
+    const a = try self.pop_stack(u64);
+
+    const str_pointer: [*:0]u8 = @ptrCast(try self.get_ptr(a.*));
+
+    const stdout = std.io.getStdOut().writer();
+    var bw = std.io.bufferedWriter(stdout);
+    const writer = bw.writer();
+    nosuspend {
+        writer.print("{s}" ++ "\n", .{str_pointer}) catch return;
+        bw.flush() catch return;
+    }
+}
+
 pub fn print_i(self: *ProgramThread) !void {
     const a = try self.pop_stack(i32);
 
