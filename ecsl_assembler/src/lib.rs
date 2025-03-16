@@ -127,7 +127,7 @@ impl Assembler<ConstData> {
             let const_data = self.const_data.read().unwrap();
             for (id, cons) in const_data.iter() {
                 self.const_data_offsets
-                    .insert(*id, (start_pos + current_offset));
+                    .insert(*id, start_pos + current_offset);
                 current_offset += cons.len() as u64;
 
                 buffer.extend_from_slice(cons);

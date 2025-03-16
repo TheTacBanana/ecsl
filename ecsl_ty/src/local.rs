@@ -10,7 +10,6 @@ use ecsl_diagnostics::DiagConn;
 use ecsl_error::{ext::EcslErrorExt, EcslError, ErrorLevel};
 use ecsl_index::{GlobalID, SourceFileID, SymbolID, TyID};
 use ecsl_parse::table::SymbolTable;
-use log::debug;
 use std::{
     collections::BTreeMap,
     sync::{Arc, RwLock},
@@ -158,15 +157,13 @@ impl LocalTyCtxt {
         match &ty.kind {
             TyKind::Ident(symbol_id) => {
                 let adt_base_id = resolve_tyid!(symbol_id);
-                if let Some(generics) = &ty.generics {
-                    let mut l = Vec::new();
-                    for g in &generics.params {
-                        let param_tyid = self.get_tyid(g, scope);
-
-                        l.push();
-                    }
-
-                    debug!("{:?}", l);
+                if let Some(_) = &ty.generics {
+                    // let mut l = Vec::new();
+                    // for g in &generics.params {
+                    // let param_tyid = self.get_tyid(g, scope);
+                    // l.push();
+                    // }
+                    // debug!("{:?}", l);
 
                     panic!();
                 } else {
@@ -175,6 +172,7 @@ impl LocalTyCtxt {
             }
             TyKind::Ref(mutable, ty) => from_tyir!(TyIr::Ref(*mutable, self.get_tyid(ty, scope))),
             TyKind::Array(ty, span) => from_tyir!(TyIr::Array(self.get_tyid(ty, scope), *span)),
+            TyKind::Ptr(mutable, ty) => from_tyir!(TyIr::Ptr(*mutable, self.get_tyid(ty, scope))),
             e => todo!("{:?}", e),
             // TyKind::Ptr(mutable, ty) => todo!(),
             // TyKind::ArrayRef(mutable, ty) => todo!(),

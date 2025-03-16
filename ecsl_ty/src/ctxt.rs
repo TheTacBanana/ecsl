@@ -1,6 +1,8 @@
 use crate::{local::LocalTyCtxt, TyIr};
 use bimap::BiHashMap;
 use cfgrammar::Span;
+use ecsl_diagnostics::DiagConn;
+use ecsl_error::{EcslError, ErrorLevel};
 use ecsl_index::{FieldID, GlobalID, SourceFileID, TyID, VariantID};
 use log::debug;
 use std::{
@@ -9,6 +11,7 @@ use std::{
 };
 
 pub struct TyCtxt {
+    pub diag: DiagConn,
     pub sources: RwLock<BTreeMap<SourceFileID, Arc<LocalTyCtxt>>>,
     pub mappings: RwLock<BTreeMap<GlobalID, TyID>>,
     pub tyirs: RwLock<BiHashMap<TyID, TyIr>>,
@@ -22,8 +25,9 @@ pub struct TyCtxt {
 }
 
 impl TyCtxt {
-    pub fn new() -> Self {
+    pub fn new(diag: DiagConn) -> Self {
         let ty_ctxt = TyCtxt {
+            diag,
             sources: Default::default(),
             mappings: Default::default(),
             tyirs: Default::default(),
@@ -193,12 +197,15 @@ impl TyCtxt {
                     field.ty = match field_tyir {
                         TyIr::GenericParam(i) => params.get(i).copied().unwrap(),
                         TyIr::ADT(adtdef) => {
-                            todo!();
-                            // if let Some(generics) = generics {
-                            //     self.
-                            // } else {
-
-                            // }
+                            if adtdef.generics.is_some() {
+                                self.diag.push_error(EcslError::new(
+                                    ErrorLevel::Error,
+                                    "Recursive generics unsupported",
+                                ));
+                                TyID::UNKNOWN
+                            } else {
+                                field.ty
+                            }
                         }
                         _ => {
                             todo!("Unsupported"); //TODO:

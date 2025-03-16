@@ -1,4 +1,5 @@
 use crate::GIRPass;
+use ecsl_assembler::{Assembler, ConstData};
 use ecsl_bytecode::Immediate;
 use ecsl_gir::{
     cons::{Constant, Literal},
@@ -8,9 +9,11 @@ use ecsl_gir::{
 use ecsl_index::ConstID;
 use ecsl_parse::{LexerTy, NonStreamingLexer};
 use std::{collections::BTreeMap, ops::Deref};
+use unescape::unescape;
 
 pub struct ConstEval<'a> {
     lexer: &'a LexerTy<'a, 'a>,
+    assembler: &'a Assembler<ConstData>,
     out: ConstMap,
 }
 
@@ -28,12 +31,13 @@ impl Deref for ConstMap {
 }
 
 impl<'a> GIRPass for ConstEval<'a> {
-    type PassInput<'t> = &'t LexerTy<'t, 't>;
+    type PassInput<'t> = (&'t LexerTy<'t, 't>, &'t Assembler<ConstData>);
     type PassResult = ConstMap;
 
-    fn apply_pass<'t>(gir: &mut GIR, lexer: Self::PassInput<'t>) -> ConstMap {
+    fn apply_pass<'t>(gir: &mut GIR, (lexer, assembler): Self::PassInput<'t>) -> ConstMap {
         let mut s = ConstEval {
             lexer,
+            assembler,
             out: Default::default(),
         };
 
@@ -75,7 +79,13 @@ impl<'a> Visitor for ConstEval<'a> {
                             c.encode_utf8(&mut buffer);
                             buffer[0]
                         }),
-                        Literal::String => panic!("String"),
+                        Literal::String => {
+                            let s = unescape(&s.to_string()[1..(s.len() - 1)]).unwrap(); // TODO: Perhaps remove dependency in the future
+                            let mut bytes = s.bytes().collect::<Vec<u8>>();
+                            bytes.push(0);
+                            let id = self.assembler.add_const_data(bytes);
+                            Immediate::ConstAddressOf(id)
+                        }
                     }
                 }
             },

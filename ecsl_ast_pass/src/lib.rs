@@ -174,6 +174,7 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                         "float" => Some(TyIr::Float),
                         "bool" => Some(TyIr::Bool),
                         "char" => Some(TyIr::Char),
+                        "str" => Some(TyIr::Str),
                         _ => None,
                     };
 
@@ -234,10 +235,10 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
             Definition::Enum(ast::EnumDef {
                 kind,
                 ident,
-                attributes,
                 generics,
                 variants,
                 span,
+                ..
             }) => {
                 let generics = scope.add_opt(generics.clone());
 

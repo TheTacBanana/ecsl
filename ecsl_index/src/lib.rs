@@ -63,6 +63,9 @@ generate_index_type!(BlockID);
 generate_index_type!(LocalID);
 generate_index_type!(ConstID);
 
+// Assembly indexs
+generate_index_type!(AssemblerConstID);
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct GlobalID(SymbolID, SourceFileID);
 

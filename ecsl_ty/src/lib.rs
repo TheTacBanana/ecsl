@@ -1,4 +1,3 @@
-use ctxt::TyCtxt;
 use ecsl_ast::{
     data::DataKind,
     expr::{Literal, RangeType},
@@ -6,12 +5,7 @@ use ecsl_ast::{
     ty::Mutable,
 };
 use ecsl_index::{FieldID, SymbolID, TyID, VariantID};
-use log::debug;
-use std::{
-    collections::{BTreeMap, VecDeque},
-    ops::BitAnd,
-    sync::Arc,
-};
+use std::collections::BTreeMap;
 
 pub mod ctxt;
 pub mod def;
@@ -35,18 +29,18 @@ pub enum TyIr {
     /// Intrinsic float type
     Float,
     /// Intrinsic string type
-    String,
+    Str,
     /// Range over a numeric type
     Range(TyID, RangeType),
     /// Reference to another type
     Ref(Mutable, TyID),
+    // Pointer to another type
+    Ptr(Mutable, TyID),
     /// ADT types
     ADT(ADTDef),
     /// A function type
     Fn(FnDef),
-    // /// A monomorphized adt variant
-    // MonoADT(MonoADTDef),
-    // /// A monomorphized function variant
+    /// A monomorphized function variant
     MonoFn(MonoFnDef),
     /// A sized array type
     Array(TyID, usize),
@@ -59,7 +53,7 @@ impl From<Literal> for TyIr {
         match lit {
             Literal::Int => TyIr::Int,
             Literal::Float => TyIr::Float,
-            Literal::String => TyIr::String,
+            Literal::String => TyIr::Str,
             Literal::Char => TyIr::Char,
             Literal::Bool => TyIr::Bool,
         }

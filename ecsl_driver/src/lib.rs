@@ -10,11 +10,11 @@ use ecsl_gir_pass::{
     dead_block::DeadBlocks,
     function_graph::{FunctionDependencies, FunctionGraph},
     linker::FunctionLinker,
-    mono::{monomorphize, Mono, MonomorphizeFn},
+    mono::{monomorphize, Mono},
     GIRPass,
 };
 use ecsl_parse::parse_file;
-use ecsl_ty::{ctxt::TyCtxt, local::LocalTyCtxtExt, TyIr};
+use ecsl_ty::{ctxt::TyCtxt, local::LocalTyCtxtExt};
 use ecsl_ty_check::ty_check;
 use log::{debug, info};
 use std::{collections::BTreeMap, path::PathBuf, sync::Arc, time::Instant};
@@ -118,7 +118,7 @@ impl Driver {
 
         // AST validation, Collect Definitions and Casing Warnings
         info!("AST Passes");
-        let ty_ctxt = Arc::new(TyCtxt::new());
+        let ty_ctxt = Arc::new(TyCtxt::new(diag.empty_conn()));
         let assoc = (&context, assoc).par_map_assoc(
             |ctxt, src, (diag, ast, table)| {
                 let local_ctxt = ty_ctxt.new_local_ctxt(src.id, table.clone(), diag.clone());
@@ -226,25 +226,34 @@ impl Driver {
         );
 
         let assembler = assembler.write_temp_header().unwrap();
-        let assembler = assembler.write_const_data().unwrap();
 
         info!("GIR Passes");
-        let _ = (&context, assoc).par_map_assoc(
+        let assoc = (&context, assoc).par_map_assoc(
             |_, src, (_, _, _, local_ctxt, mut linker)| {
                 let lexer = lexers.get(&src.id).unwrap();
+                let mut gir_consts = BTreeMap::new();
+                for (id, gir) in linker.fn_gir.iter_mut() {
+                    let consts = ConstEval::apply_pass(gir, (lexer, &assembler));
+                    gir_consts.insert(*id, consts);
+                }
+                Some((local_ctxt, linker, gir_consts))
+            },
+            || diag.finish_stage(lexer_func),
+        )?;
+        let assembler = assembler.write_const_data().unwrap();
 
-                for (_, gir) in linker.fn_gir.iter_mut() {
-                    let consts = ConstEval::apply_pass(gir, lexer);
-
+        let _ = (&context, assoc).par_map_assoc(
+            |_, _, (local_ctxt, mut linker, gir_consts)| {
+                for (id, gir) in linker.fn_gir.iter_mut() {
+                    let consts = gir_consts.get(id).unwrap();
                     let bytecode = CodeGen::apply_pass(gir, (local_ctxt.clone(), consts));
+
                     assembler.include_function(bytecode);
                 }
-
                 Some(())
             },
             || diag.finish_stage(lexer_func),
         )?;
-
         let assember = assembler.write_bytecode(entry_point.0).unwrap();
 
         Ok(assember.output().unwrap())

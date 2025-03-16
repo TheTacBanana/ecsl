@@ -18,9 +18,9 @@ use std::{
 
 pub struct CodeGen<'a> {
     pub ty_ctxt: Arc<LocalTyCtxt>,
-    pub const_map: ConstMap,
     pub offsets: BTreeMap<LocalID, StackOffset>,
     pub blocks: BTreeMap<BlockID, Vec<BytecodeInstruction>>,
+    pub const_map: &'a ConstMap,
     pub gir: &'a GIR,
 }
 
@@ -31,7 +31,7 @@ pub struct StackOffset {
 }
 
 impl<'b> GIRPass for CodeGen<'b> {
-    type PassInput<'a> = (Arc<LocalTyCtxt>, ConstMap);
+    type PassInput<'a> = (Arc<LocalTyCtxt>, &'a ConstMap);
     type PassResult = FunctionBytecode;
 
     fn apply_pass<'a>(
@@ -40,9 +40,9 @@ impl<'b> GIRPass for CodeGen<'b> {
     ) -> Self::PassResult {
         let mut c = CodeGen {
             ty_ctxt,
-            const_map,
             offsets: Default::default(),
             blocks: Default::default(),
+            const_map,
             gir: &gir,
         };
         c.generate_code(&gir)
@@ -372,16 +372,13 @@ impl<'a> CodeGen<'a> {
         let cons = self.const_map.get(&cons).unwrap();
         match cons {
             Immediate::AddressOf(_) => ins!(PSHI_L, *cons),
+            Immediate::ConstAddressOf(_) => ins!(PSHI_L, *cons),
             Immediate::LabelOf(_) => ins!(PSHI_L, *cons),
             Immediate::Int(_) => ins!(PSHI, *cons),
             Immediate::Bool(_) => ins!(PSHI_B, *cons),
             Immediate::UByte(_) => ins!(PSHI_B, *cons),
             Immediate::Float(_) => ins!(PSHI, *cons),
             e => panic!("{:?}", e),
-            // Immediate::UInt(_) => todo!(),
-            // Immediate::Long(_) => todo!(),
-            // Immediate::ULong(_) => todo!(),
-            // Immediate::Double(_) => todo!(),
         }
     }
 

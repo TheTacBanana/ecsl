@@ -1,7 +1,7 @@
 use ecsl_ast::expr::{BinOpKind, RangeType, UnOpKind};
 use ecsl_ast::parse::{Immediate, ParamKind};
 use ecsl_ast::stmt::InlineBytecode;
-use ecsl_ast::ty::{Mutable, TyKind};
+use ecsl_ast::ty::Mutable;
 use ecsl_ast::SourceAST;
 use ecsl_ast::{
     expr::{Expr, ExprKind},
@@ -944,7 +944,7 @@ impl Visitor for TyCheck {
                 // Visit lhs
                 let temp_block = self.new_block();
                 self.visit_expr(lhs)?;
-                let (lhs_ty, lhs_op) = self.pop();
+                let (_, lhs_op) = self.pop();
                 self.pop_block();
                 self.cur_gir_mut().remove_block(temp_block);
 
