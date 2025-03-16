@@ -4,7 +4,6 @@ use crate::{
     import::{Import, ImportPath},
     GenericsScope, TyIr, TypeError,
 };
-use core::panic;
 use ecsl_ast::ty::{Ty, TyKind};
 use ecsl_diagnostics::DiagConn;
 use ecsl_error::{ext::EcslErrorExt, EcslError, ErrorLevel};
@@ -157,15 +156,27 @@ impl LocalTyCtxt {
         match &ty.kind {
             TyKind::Ident(symbol_id) => {
                 let adt_base_id = resolve_tyid!(symbol_id);
-                if let Some(_) = &ty.generics {
-                    // let mut l = Vec::new();
-                    // for g in &generics.params {
-                    // let param_tyid = self.get_tyid(g, scope);
-                    // l.push();
-                    // }
-                    // debug!("{:?}", l);
+                if let Some(generics) = &ty.generics {
+                    let mut params = Vec::new();
+                    let mut known_tys = 0;
+                    for g in &generics.params {
+                        let param_tyid = self.get_tyid(g, scope);
+                        let tyir = self.global.get_tyir(param_tyid);
+                        params.push(param_tyid);
 
-                    panic!();
+                        match tyir {
+                            TyIr::GenericParam(_) => (),
+                            _ => known_tys += 1, //TODO: Generic
+                        }
+                    }
+
+                    if known_tys == 0 {
+                        adt_base_id
+                    } else if known_tys == params.len() {
+                        self.get_mono_variant(adt_base_id, &params)
+                    } else {
+                        TyID::UNKNOWN
+                    }
                 } else {
                     adt_base_id
                 }
@@ -181,6 +192,52 @@ impl LocalTyCtxt {
         }
     }
 
+    pub fn get_mono_variant(&self, id: TyID, params: &Vec<TyID>) -> TyID {
+        let monos = self.global.monos.read().unwrap();
+
+        let key = (id, params.clone());
+        if let Some(mono) = monos.get(&key) {
+            *mono
+        } else {
+            drop(monos);
+
+            let mut adt_tyir = self.global.get_tyir(id).into_adt().unwrap().clone();
+
+            for (_, var) in &mut adt_tyir.variant_kinds {
+                for (_, field) in &mut var.field_tys {
+                    let field_tyir = self.global.get_tyir(field.ty);
+                    field.ty = match field_tyir {
+                        TyIr::GenericParam(i) => params.get(i).copied().unwrap(),
+                        TyIr::ADT(adtdef) => {
+                            let mut field_params = Vec::new();
+                            for i in &field.params {
+                                field_params.push(match self.global.get_tyir(*i) {
+                                    TyIr::GenericParam(index) => *params.get(index).unwrap(),
+                                    _ => *i,
+                                })
+                            }
+
+                            if adtdef.generics != Some(field_params.len()) {
+                                self.diag.push_error(EcslError::new(
+                                    ErrorLevel::Error,
+                                    "Mismatched generics",
+                                ));
+                                return TyID::UNKNOWN;
+                            }
+
+                            self.get_mono_variant(field.ty, &field_params)
+                        }
+                        _ => field.ty,
+                    }
+                }
+            }
+
+            let mut monos = self.global.monos.write().unwrap();
+            let new_tyid = self.global.tyid_from_tyir(TyIr::ADT(adt_tyir));
+            monos.insert(key, new_tyid);
+            new_tyid
+        }
+    }
     pub fn get_global_id(&self, id: SymbolID) -> Option<GlobalID> {
         {
             let defined = self.defined.read().unwrap();

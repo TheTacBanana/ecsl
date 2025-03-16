@@ -1271,7 +1271,7 @@ impl Visitor for TyCheck {
                         tyids.push(self.get_tyid((p, &self.generic_scope)));
                     }
 
-                    struct_tyid = self.ty_ctxt.global.get_mono_variant(struct_tyid, &tyids);
+                    struct_tyid = self.ty_ctxt.get_mono_variant(struct_tyid, &tyids);
                     struct_tyir = self.get_tyir(struct_tyid).into_adt().unwrap()
                 }
 
@@ -1402,7 +1402,7 @@ impl Visitor for TyCheck {
                         tyids.push(self.get_tyid((p, &self.generic_scope)));
                     }
 
-                    enum_tyid = self.ty_ctxt.global.get_mono_variant(enum_tyid, &tyids);
+                    enum_tyid = self.ty_ctxt.get_mono_variant(enum_tyid, &tyids);
                     enum_tyir = self.get_tyir(enum_tyid).into_adt().unwrap()
                 }
 

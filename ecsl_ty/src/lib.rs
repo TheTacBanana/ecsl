@@ -135,6 +135,7 @@ pub struct VariantDef {
 pub struct FieldDef {
     pub id: FieldID,
     pub ty: TyID,
+    pub params: Vec<TyID>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

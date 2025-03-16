@@ -198,11 +198,22 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                         );
                     }
 
+                    let params =
+                        f.ty.generics
+                            .as_ref()
+                            .map(|g| {
+                                g.params
+                                    .iter()
+                                    .map(|ty| ty_ctxt.get_tyid(ty, &scope))
+                                    .collect()
+                            })
+                            .unwrap_or_default();
                     field_tys.insert(
                         id,
                         FieldDef {
                             id,
                             ty: ty_ctxt.get_tyid(&f.ty, &scope),
+                            params,
                         },
                     );
                 }
@@ -273,11 +284,23 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                             );
                         }
 
+                        let params =
+                            f.ty.generics
+                                .as_ref()
+                                .map(|g| {
+                                    g.params
+                                        .iter()
+                                        .map(|ty| ty_ctxt.get_tyid(ty, &scope))
+                                        .collect()
+                                })
+                                .unwrap_or_default();
+
                         field_tys.insert(
                             id,
                             FieldDef {
                                 id,
                                 ty: ty_ctxt.get_tyid(&f.ty, &scope),
+                                params,
                             },
                         );
                     }

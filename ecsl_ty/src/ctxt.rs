@@ -2,7 +2,6 @@ use crate::{local::LocalTyCtxt, TyIr};
 use bimap::BiHashMap;
 use cfgrammar::Span;
 use ecsl_diagnostics::DiagConn;
-use ecsl_error::{EcslError, ErrorLevel};
 use ecsl_index::{FieldID, GlobalID, SourceFileID, TyID, VariantID};
 use log::debug;
 use std::{
@@ -180,43 +179,6 @@ impl TyCtxt {
         };
 
         return offset;
-    }
-
-    pub fn get_mono_variant(&self, id: TyID, params: &Vec<TyID>) -> TyID {
-        let mut monos = self.monos.write().unwrap();
-
-        let key = (id, params.clone());
-        if let Some(mono) = monos.get(&key) {
-            *mono
-        } else {
-            let mut adt_tyir = self.get_tyir(id).into_adt().unwrap().clone();
-
-            for (_, var) in &mut adt_tyir.variant_kinds {
-                for (_, field) in &mut var.field_tys {
-                    let field_tyir = self.get_tyir(field.ty);
-                    field.ty = match field_tyir {
-                        TyIr::GenericParam(i) => params.get(i).copied().unwrap(),
-                        TyIr::ADT(adtdef) => {
-                            if adtdef.generics.is_some() {
-                                self.diag.push_error(EcslError::new(
-                                    ErrorLevel::Error,
-                                    "Recursive generics unsupported",
-                                ));
-                                TyID::UNKNOWN
-                            } else {
-                                field.ty
-                            }
-                        }
-                        _ => {
-                            todo!("Unsupported"); //TODO:
-                        }
-                    }
-                }
-            }
-            let new_tyid = self.tyid_from_tyir(TyIr::ADT(adt_tyir));
-            monos.insert(key, new_tyid);
-            new_tyid
-        }
     }
 
     pub fn is_primitive(&self, id: TyID) -> bool {
