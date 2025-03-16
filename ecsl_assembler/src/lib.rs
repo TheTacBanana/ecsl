@@ -1,5 +1,5 @@
 use ecsl_bytecode::{FunctionBytecode, Immediate};
-use ecsl_index::TyID;
+use ecsl_index::{AssemblerConstID, TyID};
 use header::{FileType, SectionPointer, SectionType};
 use log::debug;
 use std::collections::BTreeMap;
@@ -10,6 +10,7 @@ use std::{fs::File, path::PathBuf};
 
 pub mod header;
 
+#[derive(Debug)]
 pub struct Assembler<T> {
     _phantom: PhantomData<T>,
 
@@ -19,7 +20,8 @@ pub struct Assembler<T> {
 
     file_type: FileType,
 
-    const_data: Vec<u8>,
+    const_data: RwLock<BTreeMap<AssemblerConstID, Vec<u8>>>,
+    const_data_offsets: BTreeMap<AssemblerConstID, u64>,
 
     functions: RwLock<BTreeMap<TyID, FunctionBytecode>>,
 
@@ -55,6 +57,7 @@ impl<T> Assembler<T> {
             file_type: self.file_type,
             functions: self.functions,
             const_data: self.const_data,
+            const_data_offsets: self.const_data_offsets,
             sections: self.sections,
         }
     }
@@ -78,7 +81,8 @@ impl Assembler<Pre> {
             temp_path,
             file,
             file_type: FileType::Executable,
-            const_data: Vec::new(),
+            const_data: Default::default(),
+            const_data_offsets: Default::default(),
             sections: Vec::new(),
             functions: Default::default(),
         }
@@ -105,9 +109,40 @@ impl Assembler<Pre> {
 }
 
 impl Assembler<ConstData> {
+    pub fn add_const_data(&self, bytes: Vec<u8>) -> AssemblerConstID {
+        let mut const_data = self.const_data.write().unwrap();
+        let next_id = AssemblerConstID::new(const_data.len());
+        const_data.insert(next_id, bytes);
+        next_id
+    }
+
     /// Write the const data section
-    pub fn write_const_data(self) -> std::io::Result<Assembler<Executable>> {
-        debug!("TODO: Write Const Data");
+    pub fn write_const_data(mut self) -> std::io::Result<Assembler<Executable>> {
+        let start_pos = self.offset_to_alignment()?;
+
+        let mut buffer = Vec::new();
+        let mut current_offset = 0;
+
+        {
+            let const_data = self.const_data.read().unwrap();
+            for (id, cons) in const_data.iter() {
+                self.const_data_offsets
+                    .insert(*id, (start_pos + current_offset));
+                current_offset += cons.len() as u64;
+
+                buffer.extend_from_slice(cons);
+            }
+        }
+
+        self.file.write(&buffer)?;
+        let end_pos = self.file.seek(SeekFrom::End(0))?;
+
+        self.sections.push(SectionPointer {
+            section_type: SectionType::Data,
+            length: (end_pos as u64 - start_pos) as u32,
+            address: start_pos,
+        });
+
         Ok(self.cast())
     }
 }
@@ -148,6 +183,9 @@ impl Assembler<Executable> {
                                     + *func_offset
                                     + *byt.block_offsets.get(block_id).unwrap() as u64,
                             );
+                        }
+                        Immediate::ConstAddressOf(const_id) => {
+                            *op = Immediate::ULong(*self.const_data_offsets.get(const_id).unwrap())
                         }
                         _ => (),
                     }
