@@ -156,7 +156,23 @@ impl LocalTyCtxt {
         }
 
         match &ty.kind {
-            TyKind::Ident(symbol_id) => resolve_tyid!(symbol_id),
+            TyKind::Ident(symbol_id) => {
+                let adt_base_id = resolve_tyid!(symbol_id);
+                if let Some(generics) = &ty.generics {
+                    let mut l = Vec::new();
+                    for g in &generics.params {
+                        let param_tyid = self.get_tyid(g, scope);
+
+                        l.push();
+                    }
+
+                    debug!("{:?}", l);
+
+                    panic!();
+                } else {
+                    adt_base_id
+                }
+            }
             TyKind::Ref(mutable, ty) => from_tyir!(TyIr::Ref(*mutable, self.get_tyid(ty, scope))),
             TyKind::Array(ty, span) => from_tyir!(TyIr::Array(self.get_tyid(ty, scope), *span)),
             e => todo!("{:?}", e),

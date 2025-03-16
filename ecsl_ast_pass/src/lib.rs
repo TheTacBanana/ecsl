@@ -23,7 +23,6 @@ use ecsl_ty::{
 use entry_point::{EntryPoint, EntryPointError, EntryPointKind};
 use fn_validator::FnValidator;
 use import_collector::ImportCollector;
-use log::debug;
 use prelude::{rewrite_use_path, Prelude};
 use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
 

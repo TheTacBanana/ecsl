@@ -192,7 +192,14 @@ impl TyCtxt {
                     let field_tyir = self.get_tyir(field.ty);
                     field.ty = match field_tyir {
                         TyIr::GenericParam(i) => params.get(i).copied().unwrap(),
-                        TyIr::ADT(adtdef) => todo!(),
+                        TyIr::ADT(adtdef) => {
+                            todo!();
+                            // if let Some(generics) = generics {
+                            //     self.
+                            // } else {
+
+                            // }
+                        }
                         _ => {
                             todo!("Unsupported"); //TODO:
                         }
