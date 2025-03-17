@@ -4,6 +4,7 @@ use cfgrammar::Span;
 use cons::Constant;
 use ecsl_ast::ty::Mutable;
 use ecsl_index::{BlockID, ConstID, FieldID, LocalID, TyID, VariantID};
+use petgraph::prelude::DiGraphMap;
 use stmt::Stmt;
 use term::Terminator;
 
@@ -22,6 +23,7 @@ pub struct GIR {
     locals: BTreeMap<LocalID, Local>,
     consts: BTreeMap<ConstID, Constant>,
     blocks: BTreeMap<BlockID, Block>,
+    block_order: DiGraphMap<BlockID, ()>,
 }
 
 impl std::fmt::Display for GIR {
@@ -53,6 +55,7 @@ impl GIR {
             locals: Default::default(),
             consts: Default::default(),
             blocks: Default::default(),
+            block_order: Default::default(),
         }
     }
 
@@ -116,6 +119,14 @@ impl GIR {
 
     pub fn locals(&self) -> impl Iterator<Item = (&LocalID, &Local)> {
         self.locals.iter()
+    }
+
+    pub fn with_ordering(&mut self, ordering: DiGraphMap<BlockID, ()>) {
+        self.block_order = ordering;
+    }
+
+    pub fn ordering(&self) -> &DiGraphMap<BlockID, ()> {
+        &self.block_order
     }
 }
 
@@ -182,8 +193,8 @@ impl Block {
         self.stmts.iter()
     }
 
-    pub fn term(&self) -> &Terminator {
-        self.term.as_ref().unwrap()
+    pub fn term(&self) -> Option<&Terminator> {
+        self.term.as_ref()
     }
 }
 
@@ -195,7 +206,7 @@ pub struct Local {
     pub kind: LocalKind,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum LocalKind {
     Ret,
     Arg,
