@@ -46,7 +46,9 @@ pub fn walk_block<V: Visitor>(v: &mut V, b: &Block) -> VisitorCF {
     for s in &b.stmts {
         v.visit_stmt(s)?;
     }
-    v.visit_term(b.term.as_ref().expect("No terminator for block"))?;
+    if let Some(term) = b.term.as_ref() {
+        v.visit_term(term)?;
+    }
     VisitorCF::Continue
 }
 
@@ -94,7 +96,7 @@ pub fn walk_block_mut<V: VisitorMut>(v: &mut V, b: &mut Block) -> VisitorCF {
     for s in &mut b.stmts {
         v.visit_stmt_mut(s)?;
     }
-    if let Some(term) = &mut b.term {
+    if let Some(term) = b.term.as_mut() {
         v.visit_term_mut(term)?;
     }
     VisitorCF::Continue

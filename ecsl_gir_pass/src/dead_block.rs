@@ -1,8 +1,6 @@
 use crate::GIRPass;
-use ecsl_gir::{
-    visit::{VisitorCF, VisitorMut},
-    GIR,
-};
+use ecsl_gir::GIR;
+use ecsl_index::BlockID;
 
 pub struct DeadBlocks;
 
@@ -11,21 +9,14 @@ impl GIRPass for DeadBlocks {
     type PassResult = ();
 
     fn apply_pass(gir: &mut GIR, _: Self::PassInput<'_>) -> () {
-        DeadBlocks {}.visit_gir_mut(gir);
-    }
-}
-
-impl VisitorMut for DeadBlocks {
-    fn visit_gir_mut(&mut self, gir: &mut GIR) -> VisitorCF {
         let mut removals = Vec::new();
         for (i, b) in gir.blocks() {
-            if b.empty() {
+            if b.empty() && *i != BlockID::ZERO {
                 removals.push(*i);
             }
         }
         for i in removals {
             _ = gir.remove_block(i);
         }
-        VisitorCF::Continue
     }
 }

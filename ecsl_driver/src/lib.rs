@@ -6,11 +6,14 @@ use ecsl_context::{Context, MapAssocExt};
 use ecsl_diagnostics::{Diagnostics, DiagnosticsExt};
 use ecsl_error::{ext::EcslErrorExt, EcslError};
 use ecsl_gir_pass::{
+    block_order::BlockOrder,
     const_eval::ConstEval,
     dead_block::DeadBlocks,
     function_graph::{FunctionDependencies, FunctionGraph},
     linker::FunctionLinker,
     mono::{monomorphize, Mono},
+    mutability::Mutability,
+    return_path::ReturnPath,
     GIRPass,
 };
 use ecsl_parse::parse_file;
@@ -193,13 +196,26 @@ impl Driver {
             || diag.finish_stage(lexer_func),
         )?;
 
+        info!("GIR Passes");
+        let assoc = (&context, assoc).par_map_assoc(
+            |_, _, (diag, ast, table, local_ctxt, mut linker)| {
+                for (_, gir) in linker.fn_gir.iter_mut() {
+                    DeadBlocks::apply_pass(gir, ());
+                    BlockOrder::apply_pass(gir, ());
+                    ReturnPath::apply_pass(gir, diag.clone());
+                    // Mutability::apply_pass(gir, diag.clone());
+                }
+                Some((diag, ast, table, local_ctxt, linker))
+            },
+            || diag.finish_stage(lexer_func),
+        )?;
+
         debug!("Building Function Graph");
         let function_graph = Arc::new(FunctionGraph::new());
         let assoc = (&context, assoc).par_map_assoc(
             |_, _, (diag, ast, table, local_ctxt, mut linker)| {
                 let function_graph = function_graph.clone();
                 for (_, gir) in linker.fn_gir.iter_mut() {
-                    DeadBlocks::apply_pass(gir, ());
                     FunctionDependencies::apply_pass(gir, &function_graph);
                 }
                 Some((diag, ast, table, local_ctxt, linker, function_graph))
@@ -227,7 +243,6 @@ impl Driver {
 
         let assembler = assembler.write_temp_header().unwrap();
 
-        info!("GIR Passes");
         let assoc = (&context, assoc).par_map_assoc(
             |_, src, (_, _, _, local_ctxt, mut linker)| {
                 let lexer = lexers.get(&src.id).unwrap();
