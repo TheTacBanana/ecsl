@@ -9,4 +9,5 @@ ecsl_gir = { path = "../ecsl_gir" }
 ecsl_gir_pass = { path = "../ecsl_gir_pass" }
 ecsl_bytecode = { path = "../ecsl_bytecode" }
 ecsl_index = { path = "../ecsl_index" }
+petgraph = "0.6.5"
 log.workspace = true

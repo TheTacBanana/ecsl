@@ -11,10 +11,8 @@ use ecsl_gir_pass::{const_eval::ConstMap, GIRPass};
 use ecsl_index::{BlockID, ConstID, LocalID};
 use ecsl_ty::{local::LocalTyCtxt, TyIr};
 use log::debug;
-use std::{
-    collections::{BTreeMap, HashSet},
-    sync::Arc,
-};
+use petgraph::{algo::toposort, visit::Bfs};
+use std::{collections::BTreeMap, sync::Arc};
 
 pub struct CodeGen<'a> {
     pub ty_ctxt: Arc<LocalTyCtxt>,
@@ -98,199 +96,167 @@ impl<'a> CodeGen<'a> {
             post_offset += size as i64;
         }
 
-        let mut visit_order = Vec::new();
-        let mut visited = HashSet::new();
-        let mut frontier = vec![BlockID::ZERO];
-        let mut next_frontier = Vec::new();
-        loop {
-            if frontier.is_empty() {
-                break;
-            }
-            for block_id in frontier.iter() {
-                if visited.contains(block_id) {
-                    continue;
-                }
-                // Set block as visited
-                visited.insert(*block_id);
-                visit_order.push(*block_id);
+        let mut bfs = Bfs::new(gir.ordering(), BlockID::ZERO);
+        while let Some(block_id) = bfs.next(gir.ordering()) {
+            let mut instrs = Vec::new();
+            let block = gir.get_block(block_id).unwrap();
+            for s in block.stmts() {
+                match &s.kind {
+                    StmtKind::Assign(place, expr) => {
+                        match &expr.kind {
+                            ExprKind::Value(operand) => {
+                                self.load_operand(operand, &mut instrs);
+                            }
+                            ExprKind::BinOp(op, lhs, rhs) => {
+                                self.load_operand(lhs, &mut instrs);
+                                self.load_operand(rhs, &mut instrs);
 
-                {
-                    let mut instrs = Vec::new();
-                    let block = gir.get_block(*block_id).unwrap();
-                    for s in block.stmts() {
-                        match &s.kind {
-                            StmtKind::Assign(place, expr) => {
-                                match &expr.kind {
-                                    ExprKind::Value(operand) => {
-                                        self.load_operand(operand, &mut instrs);
-                                    }
-                                    ExprKind::BinOp(op, lhs, rhs) => {
-                                        self.load_operand(lhs, &mut instrs);
-                                        self.load_operand(rhs, &mut instrs);
+                                use OperandKind as OpKind;
+                                instrs.push(match op {
+                                    BinOp(OpKind::Int, BinOpKind::Add) => ins!(ADD_I),
+                                    BinOp(OpKind::Int, BinOpKind::Sub) => ins!(SUB_I),
+                                    BinOp(OpKind::Int, BinOpKind::Mul) => ins!(MUL_I),
+                                    BinOp(OpKind::Int, BinOpKind::Div) => ins!(DIV_I),
+                                    BinOp(OpKind::Int, BinOpKind::Eq) => ins!(EQ_I),
+                                    BinOp(OpKind::Int, BinOpKind::Neq) => ins!(NEQ_I),
+                                    BinOp(OpKind::Int, BinOpKind::Lt) => ins!(LT_I),
+                                    BinOp(OpKind::Int, BinOpKind::Leq) => ins!(LEQ_I),
+                                    BinOp(OpKind::Int, BinOpKind::Gt) => ins!(GT_I),
+                                    BinOp(OpKind::Int, BinOpKind::Geq) => ins!(GEQ_I),
 
-                                        use OperandKind as OpKind;
-                                        instrs.push(match op {
-                                            BinOp(OpKind::Int, BinOpKind::Add) => ins!(ADD_I),
-                                            BinOp(OpKind::Int, BinOpKind::Sub) => ins!(SUB_I),
-                                            BinOp(OpKind::Int, BinOpKind::Mul) => ins!(MUL_I),
-                                            BinOp(OpKind::Int, BinOpKind::Div) => ins!(DIV_I),
-                                            BinOp(OpKind::Int, BinOpKind::Eq) => ins!(EQ_I),
-                                            BinOp(OpKind::Int, BinOpKind::Neq) => ins!(NEQ_I),
-                                            BinOp(OpKind::Int, BinOpKind::Lt) => ins!(LT_I),
-                                            BinOp(OpKind::Int, BinOpKind::Leq) => ins!(LEQ_I),
-                                            BinOp(OpKind::Int, BinOpKind::Gt) => ins!(GT_I),
-                                            BinOp(OpKind::Int, BinOpKind::Geq) => ins!(GEQ_I),
+                                    BinOp(OpKind::Float, BinOpKind::Add) => ins!(ADD_F),
+                                    BinOp(OpKind::Float, BinOpKind::Sub) => ins!(SUB_F),
+                                    BinOp(OpKind::Float, BinOpKind::Mul) => ins!(MUL_F),
+                                    BinOp(OpKind::Float, BinOpKind::Div) => ins!(DIV_F),
+                                    BinOp(OpKind::Float, BinOpKind::Eq) => ins!(EQ_F),
+                                    BinOp(OpKind::Float, BinOpKind::Neq) => ins!(NEQ_F),
+                                    BinOp(OpKind::Float, BinOpKind::Lt) => ins!(LT_F),
+                                    BinOp(OpKind::Float, BinOpKind::Leq) => ins!(LEQ_F),
+                                    BinOp(OpKind::Float, BinOpKind::Gt) => ins!(GT_F),
+                                    BinOp(OpKind::Float, BinOpKind::Geq) => ins!(GEQ_F),
 
-                                            BinOp(OpKind::Float, BinOpKind::Add) => ins!(ADD_F),
-                                            BinOp(OpKind::Float, BinOpKind::Sub) => ins!(SUB_F),
-                                            BinOp(OpKind::Float, BinOpKind::Mul) => ins!(MUL_F),
-                                            BinOp(OpKind::Float, BinOpKind::Div) => ins!(DIV_F),
-                                            BinOp(OpKind::Float, BinOpKind::Eq) => ins!(EQ_F),
-                                            BinOp(OpKind::Float, BinOpKind::Neq) => ins!(NEQ_F),
-                                            BinOp(OpKind::Float, BinOpKind::Lt) => ins!(LT_F),
-                                            BinOp(OpKind::Float, BinOpKind::Leq) => ins!(LEQ_F),
-                                            BinOp(OpKind::Float, BinOpKind::Gt) => ins!(GT_F),
-                                            BinOp(OpKind::Float, BinOpKind::Geq) => ins!(GEQ_F),
+                                    BinOp(OperandKind::Bool, BinOpKind::Eq) => ins!(EQ_B),
+                                    BinOp(OperandKind::Bool, BinOpKind::Neq) => ins!(NEQ_B),
+                                    BinOp(OperandKind::Bool, BinOpKind::And) => ins!(AND_B),
+                                    BinOp(OperandKind::Bool, BinOpKind::Or) => ins!(OR_B),
 
-                                            BinOp(OperandKind::Bool, BinOpKind::Eq) => ins!(EQ_B),
-                                            BinOp(OperandKind::Bool, BinOpKind::Neq) => ins!(NEQ_B),
-                                            BinOp(OperandKind::Bool, BinOpKind::And) => ins!(AND_B),
-                                            BinOp(OperandKind::Bool, BinOpKind::Or) => ins!(OR_B),
-
-                                            e => panic!("{:?}", e),
-                                        });
-                                    }
-                                    ExprKind::Call(ty_id, operands) => {
-                                        for op in operands {
-                                            self.load_operand(op, &mut instrs);
-                                        }
-                                        instrs.push(ins!(CALL, Immediate::AddressOf(*ty_id)));
-
-                                        let mut argument_size = 0;
-                                        for op in operands {
-                                            argument_size += self.operand_size(op)
-                                        }
-                                        if argument_size > 0 {
-                                            instrs.push(ins!(
-                                                POP,
-                                                Immediate::UByte(argument_size as u8)
-                                            ));
-                                        }
-                                    }
-                                    ExprKind::UnOp(op, operand) => {
-                                        self.load_operand(operand, &mut instrs);
-
-                                        instrs.push(match op {
-                                            UnOp(OperandKind::Int, UnOpKind::Neg) => ins!(NEG_I),
-                                            UnOp(OperandKind::Float, UnOpKind::Neg) => ins!(NEG_F),
-                                            UnOp(OperandKind::Bool, UnOpKind::Not) => ins!(NOT_B),
-                                            e => panic!("{:?}", e),
-                                        })
-                                    }
-                                    ExprKind::Cast(operand, from, to) => {
-                                        self.load_operand(operand, &mut instrs);
-                                        instrs.push(match (from, to) {
-                                            (OperandKind::Int, OperandKind::Float) => ins!(ITF),
-                                            (OperandKind::Float, OperandKind::Int) => ins!(FTI),
-                                            e => panic!("{:?}", e),
-                                        })
-                                    }
-                                    ExprKind::Reference(_, _) => todo!(),
+                                    e => panic!("{:?}", e),
+                                });
+                            }
+                            ExprKind::Call(ty_id, operands) => {
+                                for op in operands {
+                                    self.load_operand(op, &mut instrs);
                                 }
+                                instrs.push(ins!(CALL, Immediate::AddressOf(*ty_id)));
 
-                                if let Some(place_offset) = self.place_offset(place) {
-                                    instrs.push(ins!(
-                                        STR,
-                                        Immediate::UByte(place_offset.size as u8),
-                                        Immediate::Long(place_offset.offset)
-                                    ));
+                                let mut argument_size = 0;
+                                for op in operands {
+                                    argument_size += self.operand_size(op)
+                                }
+                                if argument_size > 0 {
+                                    instrs.push(ins!(POP, Immediate::UByte(argument_size as u8)));
                                 }
                             }
-                            StmtKind::AllocReturn(ty_id) => {
-                                let size = self.ty_ctxt.global.get_size(*ty_id);
-                                if size > 0 {
-                                    instrs.push(ins!(SETSPR, Immediate::Long(size as i64)));
-                                }
+                            ExprKind::UnOp(op, operand) => {
+                                self.load_operand(operand, &mut instrs);
+
+                                instrs.push(match op {
+                                    UnOp(OperandKind::Int, UnOpKind::Neg) => ins!(NEG_I),
+                                    UnOp(OperandKind::Float, UnOpKind::Neg) => ins!(NEG_F),
+                                    UnOp(OperandKind::Bool, UnOpKind::Not) => ins!(NOT_B),
+                                    e => panic!("{:?}", e),
+                                })
                             }
-                            StmtKind::BYT(byt) => {
-                                let mut byt = byt.clone();
-                                for imm in byt.operand.iter_mut() {
-                                    if let Immediate::LocalOf(local_id) = imm {
-                                        let offset = self.offsets.get(&local_id).unwrap();
-                                        *imm = Immediate::Long(offset.offset)
-                                    }
-                                }
-                                instrs.push(byt)
+                            ExprKind::Cast(operand, from, to) => {
+                                self.load_operand(operand, &mut instrs);
+                                instrs.push(match (from, to) {
+                                    (OperandKind::Int, OperandKind::Float) => ins!(ITF),
+                                    (OperandKind::Float, OperandKind::Int) => ins!(FTI),
+                                    e => panic!("{:?}", e),
+                                })
                             }
+                            ExprKind::Reference(_, _) => todo!(),
+                        }
+
+                        if let Some(place_offset) = self.place_offset(place) {
+                            instrs.push(ins!(
+                                STR,
+                                Immediate::UByte(place_offset.size as u8),
+                                Immediate::Long(place_offset.offset)
+                            ));
                         }
                     }
-
-                    match &block.term().kind {
-                        TerminatorKind::Jump(block_id) => instrs.push(BytecodeInstruction::new(
-                            Opcode::JMP,
-                            [Immediate::LabelOf(*block_id)],
-                        )),
-                        TerminatorKind::Return => {
-                            if gir.fn_id == self.ty_ctxt.global.entry_point() {
-                                instrs.push(ins!(HALT));
-                            } else {
-                                instrs.push(ins!(RET));
-                            }
-                        }
-                        TerminatorKind::Switch(operand, switch_cases) => {
-                            for case in switch_cases {
-                                match case {
-                                    SwitchCase::Value(value, block_id) => {
-                                        self.load_operand(operand, &mut instrs);
-
-                                        instrs.extend(match value {
-                                            Immediate::Bool(_) => {
-                                                vec![ins!(JMPT, Immediate::LabelOf(*block_id))]
-                                            }
-                                            Immediate::Int(_) => vec![
-                                                ins!(PSHI, *value),
-                                                ins!(EQ_I),
-                                                ins!(JMPT, Immediate::LabelOf(*block_id)),
-                                            ],
-                                            Immediate::Float(_) => vec![
-                                                ins!(PSHI, *value),
-                                                ins!(EQ_F),
-                                                ins!(JMPT, Immediate::LabelOf(*block_id)),
-                                            ],
-                                            Immediate::UByte(_) => vec![
-                                                ins!(PSHI_B, *value),
-                                                ins!(EQ_B),
-                                                ins!(JMPT, Immediate::LabelOf(*block_id)),
-                                            ],
-                                            e => panic!("{:?}", e),
-                                        })
-                                    }
-                                    SwitchCase::Default(block_id) => {
-                                        instrs.push(ins!(JMP, Immediate::LabelOf(*block_id)))
-                                    }
-                                }
-                            }
+                    StmtKind::AllocReturn(ty_id) => {
+                        let size = self.ty_ctxt.global.get_size(*ty_id);
+                        if size > 0 {
+                            instrs.push(ins!(SETSPR, Immediate::Long(size as i64)));
                         }
                     }
-
-                    self.blocks.insert(*block_id, instrs);
-                }
-
-                // Extend frontier
-                let term = gir.get_block(*block_id).unwrap().term();
-                match &term.kind {
-                    TerminatorKind::Jump(id) => next_frontier.push(*id),
-                    TerminatorKind::Switch(_, switch_cases) => {
-                        next_frontier.extend(switch_cases.iter().map(|c| match c {
-                            SwitchCase::Value(_, id) => *id,
-                            SwitchCase::Default(id) => *id,
-                        }));
+                    StmtKind::BYT(byt) => {
+                        let mut byt = byt.clone();
+                        for imm in byt.operand.iter_mut() {
+                            if let Immediate::LocalOf(local_id) = imm {
+                                let offset = self.offsets.get(&local_id).unwrap();
+                                *imm = Immediate::Long(offset.offset)
+                            }
+                        }
+                        instrs.push(byt)
                     }
-                    TerminatorKind::Return => (),
                 }
             }
-            frontier = std::mem::take(&mut next_frontier);
+
+            match &block.term().unwrap().kind {
+                TerminatorKind::Jump(block_id) => instrs.push(BytecodeInstruction::new(
+                    Opcode::JMP,
+                    [Immediate::LabelOf(*block_id)],
+                )),
+                TerminatorKind::Return => {
+                    if gir.fn_id == self.ty_ctxt.global.entry_point() {
+                        instrs.push(ins!(HALT));
+                    } else {
+                        instrs.push(ins!(RET));
+                    }
+                }
+                TerminatorKind::Switch(operand, switch_cases) => {
+                    for case in switch_cases {
+                        match case {
+                            SwitchCase::Value(value, block_id) => {
+                                self.load_operand(operand, &mut instrs);
+
+                                instrs.extend(match value {
+                                    Immediate::Bool(_) => {
+                                        vec![ins!(JMPT, Immediate::LabelOf(*block_id))]
+                                    }
+                                    Immediate::Int(_) => vec![
+                                        ins!(PSHI, *value),
+                                        ins!(EQ_I),
+                                        ins!(JMPT, Immediate::LabelOf(*block_id)),
+                                    ],
+                                    Immediate::Float(_) => vec![
+                                        ins!(PSHI, *value),
+                                        ins!(EQ_F),
+                                        ins!(JMPT, Immediate::LabelOf(*block_id)),
+                                    ],
+                                    Immediate::UByte(_) => vec![
+                                        ins!(PSHI_B, *value),
+                                        ins!(EQ_B),
+                                        ins!(JMPT, Immediate::LabelOf(*block_id)),
+                                    ],
+                                    e => panic!("{:?}", e),
+                                })
+                            }
+                            SwitchCase::Default(block_id) => {
+                                instrs.push(ins!(JMP, Immediate::LabelOf(*block_id)))
+                            }
+                        }
+                    }
+                }
+            }
+
+            self.blocks.insert(block_id, instrs);
         }
+
+        let visit_order = toposort(gir.ordering(), None).unwrap();
 
         // Remove all No Ops
         for (_, block) in self.blocks.iter_mut() {
