@@ -327,7 +327,7 @@ impl<'a> CodeGen<'a> {
                 if let Some(place_offset) = self.place_offset(&place) {
                     place_offset.size
                 } else {
-                    todo!()
+                    todo!("{:?}", operand);
                 }
             }
             Operand::Constant(const_id) => self.const_map.get(const_id).unwrap().size_of(),

@@ -141,6 +141,10 @@ impl TyCheck {
         *self.block_stack.last().unwrap()
     }
 
+    pub fn block(&mut self, block: BlockID) -> &gir::Block {
+        self.cur_gir.as_ref().unwrap().get_block(block).unwrap()
+    }
+
     pub fn block_mut(&mut self, block: BlockID) -> &mut gir::Block {
         self.cur_gir.as_mut().unwrap().get_block_mut(block).unwrap()
     }
@@ -332,6 +336,14 @@ impl Visitor for TyCheck {
                 return VisitorCF::Break;
             };
         }
+
+        if self.block(self.cur_block()).terminated() {
+            self.ty_ctxt.diag.push_error(
+                EcslError::new(ErrorLevel::Error, TyCheckError::DeadCode).with_span(|_| s.span),
+            );
+            return VisitorCF::Break;
+        }
+
         match &s.kind {
             StmtKind::Let(mutable, symbol_id, span, ty, expr) => {
                 // Visit expression
@@ -1082,8 +1094,12 @@ impl Visitor for TyCheck {
                     self.linker.mono.insert(fn_tyir.tyid, tyid);
                 }
 
-                let local_id =
-                    self.new_local(Local::new(e.span, Mutable::Imm, ret_ty, LocalKind::Temp));
+                let local_id = self.new_local(Local::new(
+                    e.span,
+                    Mutable::Imm,
+                    ret_ty,
+                    LocalKind::Internal,
+                ));
 
                 // Create Assignment Stmt
                 self.push_stmt_to_cur_block(gir::Stmt {
@@ -1544,6 +1560,8 @@ pub enum TyCheckError {
     MatchArmUnreachable,
 
     InvalidGenericTypes,
+
+    DeadCode,
 }
 
 impl std::fmt::Display for TyCheckError {
@@ -1582,6 +1600,7 @@ impl std::fmt::Display for TyCheckError {
             TyCheckError::InvalidGenericTypes => {
                 "Generics of caller do not match generics of callee"
             }
+            TyCheckError::DeadCode => "Stmts after terminator",
         };
         write!(f, "{}", s)
     }
