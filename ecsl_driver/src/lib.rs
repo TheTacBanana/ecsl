@@ -6,9 +6,14 @@ use ecsl_context::{Context, MapAssocExt};
 use ecsl_diagnostics::{Diagnostics, DiagnosticsExt};
 use ecsl_error::{ext::EcslErrorExt, EcslError};
 use ecsl_gir_pass::{
+    block_order::BlockOrder,
     const_eval::ConstEval,
     dead_block::DeadBlocks,
     function_graph::{FunctionDependencies, FunctionGraph},
+    linker::FunctionLinker,
+    mono::{monomorphize, Mono},
+    mutability::Mutability,
+    return_path::ReturnPath,
     GIRPass,
 };
 use ecsl_parse::parse_file;
@@ -28,7 +33,9 @@ impl Driver {
         let path = Driver::inner(std_path, diag.clone());
         diag.finish_stage(|_| ())?;
 
-        info!("Compilation took {:?}", start_time.elapsed());
+        if path.is_ok() {
+            info!("Compilation took {:?}", start_time.elapsed());
+        }
 
         Ok(path?)
     }
@@ -116,7 +123,7 @@ impl Driver {
 
         // AST validation, Collect Definitions and Casing Warnings
         info!("AST Passes");
-        let ty_ctxt = Arc::new(TyCtxt::new());
+        let ty_ctxt = Arc::new(TyCtxt::new(diag.empty_conn()));
         let assoc = (&context, assoc).par_map_assoc(
             |ctxt, src, (diag, ast, table)| {
                 let local_ctxt = ty_ctxt.new_local_ctxt(src.id, table.clone(), diag.clone());
@@ -146,20 +153,28 @@ impl Driver {
         let assoc = (&context, assoc).par_map_assoc(
             |_, _, (diag, ast, table, local_ctxt)| {
                 generate_definition_tyir(local_ctxt.clone());
-
+                Some((diag, ast, table, local_ctxt))
+            },
+            || diag.finish_stage(lexer_func),
+        )?;
+        let assoc = (&context, assoc).par_map_assoc(
+            |_, _, (diag, ast, table, local_ctxt)| {
+                validate_field_generics(local_ctxt.clone());
                 Some((diag, ast, table, local_ctxt))
             },
             || diag.finish_stage(lexer_func),
         )?;
 
         // Perform type checking
+        let mono = Arc::new(Mono::new());
         info!("Type Checking");
         let assoc = (&context, assoc).par_map_assoc(
             |_, _, (diag, ast, table, local_ctxt)| {
                 debug!("Type Checking source file {}", ast.file);
-                let girs = ty_check(&ast, local_ctxt.clone());
 
-                Some((diag, ast, table, local_ctxt, girs))
+                let linker = ty_check(&ast, local_ctxt.clone(), FunctionLinker::new(mono.clone()));
+
+                Some((diag, ast, table, local_ctxt, linker))
             },
             || diag.finish_stage(lexer_func),
         )?;
@@ -179,16 +194,39 @@ impl Driver {
         };
         ty_ctxt.insert_entry_point(entry_point.0);
 
+        info!("Monomorphization");
+        let assoc = (&context, assoc).par_map_assoc(
+            |_, _, (diag, ast, table, local_ctxt, mut linker)| {
+                monomorphize(&mut linker, &mono, &local_ctxt);
+
+                Some((diag, ast, table, local_ctxt, linker))
+            },
+            || diag.finish_stage(lexer_func),
+        )?;
+
+        info!("GIR Passes");
+        let assoc = (&context, assoc).par_map_assoc(
+            |_, _, (diag, ast, table, local_ctxt, mut linker)| {
+                for (_, gir) in linker.fn_gir.iter_mut() {
+                    DeadBlocks::apply_pass(gir, ());
+                    BlockOrder::apply_pass(gir, ());
+                    ReturnPath::apply_pass(gir, diag.clone());
+                    // Mutability::apply_pass(gir, diag.clone());
+                }
+                Some((diag, ast, table, local_ctxt, linker))
+            },
+            || diag.finish_stage(lexer_func),
+        )?;
+
         debug!("Building Function Graph");
         let function_graph = Arc::new(FunctionGraph::new());
         let assoc = (&context, assoc).par_map_assoc(
-            |_, _, (diag, ast, table, local_ctxt, mut girs)| {
+            |_, _, (diag, ast, table, local_ctxt, mut linker)| {
                 let function_graph = function_graph.clone();
-                for (_, gir) in girs.iter_mut() {
-                    DeadBlocks::apply_pass(gir, ());
+                for (_, gir) in linker.fn_gir.iter_mut() {
                     FunctionDependencies::apply_pass(gir, &function_graph);
                 }
-                Some((diag, ast, table, local_ctxt, girs, function_graph))
+                Some((diag, ast, table, local_ctxt, linker, function_graph))
             },
             || diag.finish_stage(lexer_func),
         )?;
@@ -196,11 +234,11 @@ impl Driver {
 
         debug!("Prune unused functions");
         let assoc = (&context, assoc).par_map_assoc(
-            |_, _, (diag, ast, table, local_ctxt, mut girs, function_graph)| {
+            |_, _, (diag, ast, table, local_ctxt, mut linker, function_graph)| {
                 let graph = function_graph.graph.read().unwrap();
-                girs.retain(|_, g| graph.contains_node(g.fn_id()));
+                linker.fn_gir.retain(|tyid, _| graph.contains_node(*tyid));
 
-                Some((diag, ast, table, local_ctxt, girs))
+                Some((diag, ast, table, local_ctxt, linker))
             },
             || diag.finish_stage(lexer_func),
         )?;
@@ -212,25 +250,33 @@ impl Driver {
         );
 
         let assembler = assembler.write_temp_header().unwrap();
-        let assembler = assembler.write_const_data().unwrap();
 
-        info!("GIR Passes");
-        let _ = (&context, assoc).par_map_assoc(
-            |_, src, (diag, ast, table, local_ctxt, mut girs)| {
+        let assoc = (&context, assoc).par_map_assoc(
+            |_, src, (_, _, _, local_ctxt, mut linker)| {
                 let lexer = lexers.get(&src.id).unwrap();
-
-                for (_, gir) in girs.iter_mut() {
-                    let consts = ConstEval::apply_pass(gir, lexer);
-
-                    let bytecode = CodeGen::apply_pass(gir, (local_ctxt.clone(), consts));
-                    assembler.include_function(bytecode);
+                let mut gir_consts = BTreeMap::new();
+                for (id, gir) in linker.fn_gir.iter_mut() {
+                    let consts = ConstEval::apply_pass(gir, (lexer, &assembler));
+                    gir_consts.insert(*id, consts);
                 }
-
-                Some((diag, ast, table, local_ctxt, girs))
+                Some((local_ctxt, linker, gir_consts))
             },
             || diag.finish_stage(lexer_func),
         )?;
+        let assembler = assembler.write_const_data().unwrap();
 
+        let _ = (&context, assoc).par_map_assoc(
+            |_, _, (local_ctxt, mut linker, gir_consts)| {
+                for (id, gir) in linker.fn_gir.iter_mut() {
+                    let consts = gir_consts.get(id).unwrap();
+                    let bytecode = CodeGen::apply_pass(gir, (local_ctxt.clone(), consts));
+
+                    assembler.include_function(bytecode);
+                }
+                Some(())
+            },
+            || diag.finish_stage(lexer_func),
+        )?;
         let assember = assembler.write_bytecode(entry_point.0).unwrap();
 
         Ok(assember.output().unwrap())

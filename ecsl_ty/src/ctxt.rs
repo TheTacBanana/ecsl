@@ -1,6 +1,7 @@
 use crate::{local::LocalTyCtxt, TyIr};
 use bimap::BiHashMap;
 use cfgrammar::Span;
+use ecsl_diagnostics::DiagConn;
 use ecsl_index::{FieldID, GlobalID, SourceFileID, TyID, VariantID};
 use log::debug;
 use std::{
@@ -9,9 +10,12 @@ use std::{
 };
 
 pub struct TyCtxt {
+    pub diag: DiagConn,
     pub sources: RwLock<BTreeMap<SourceFileID, Arc<LocalTyCtxt>>>,
     pub mappings: RwLock<BTreeMap<GlobalID, TyID>>,
     pub tyirs: RwLock<BiHashMap<TyID, TyIr>>,
+    /// Mapping of tyid and concrete generics to monomorphized tyid
+    pub monos: RwLock<BTreeMap<(TyID, Vec<TyID>), TyID>>,
     pub cur_id: RwLock<usize>,
     pub sizes: RwLock<BTreeMap<TyID, usize>>,
     pub field_offsets: RwLock<BTreeMap<(TyID, VariantID, FieldID), usize>>,
@@ -20,11 +24,13 @@ pub struct TyCtxt {
 }
 
 impl TyCtxt {
-    pub fn new() -> Self {
+    pub fn new(diag: DiagConn) -> Self {
         let ty_ctxt = TyCtxt {
+            diag,
             sources: Default::default(),
             mappings: Default::default(),
             tyirs: Default::default(),
+            monos: Default::default(),
             cur_id: Default::default(),
             sizes: Default::default(),
             entry_point: Default::default(),

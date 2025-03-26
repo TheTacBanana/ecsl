@@ -10,5 +10,7 @@ ecsl_ty = { path = "../ecsl_ty" }
 ecsl_error = { path = "../ecsl_error" }
 ecsl_index = { path = "../ecsl_index" }
 ecsl_gir = { path = "../ecsl_gir"}
+ecsl_gir_pass = { path = "../ecsl_gir_pass"}
+ecsl_assembler = { path = "../ecsl_assembler"}
 lrpar.workspace = true
 log.workspace = true

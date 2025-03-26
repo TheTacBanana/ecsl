@@ -8,7 +8,10 @@ ecsl_gir = { path = "../ecsl_gir" }
 ecsl_ty = { path = "../ecsl_ty" }
 ecsl_index = { path = "../ecsl_index" }
 ecsl_diagnostics = { path = "../ecsl_diagnostics" }
+ecsl_error = { path = "../ecsl_error" }
 ecsl_parse = { path = "../ecsl_parse" }
 ecsl_bytecode = { path = "../ecsl_bytecode" }
+ecsl_assembler = { path = "../ecsl_assembler"}
 petgraph = "0.6.5"
 log.workspace = true
+unescape = "0.1.0"

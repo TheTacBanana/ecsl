@@ -4,6 +4,7 @@ use cfgrammar::Span;
 use cons::Constant;
 use ecsl_ast::ty::Mutable;
 use ecsl_index::{BlockID, ConstID, FieldID, LocalID, TyID, VariantID};
+use petgraph::prelude::DiGraphMap;
 use stmt::Stmt;
 use term::Terminator;
 
@@ -16,16 +17,18 @@ pub mod visit;
 pub type P<T> = Box<T>;
 
 /// (Control Flow) Graph Intermediate Representation for a given function
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct GIR {
-    fn_id: TyID,
+    pub fn_id: TyID,
     locals: BTreeMap<LocalID, Local>,
     consts: BTreeMap<ConstID, Constant>,
     blocks: BTreeMap<BlockID, Block>,
+    block_order: DiGraphMap<BlockID, ()>,
 }
 
 impl std::fmt::Display for GIR {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "FnId: {:?}", self.fn_id)?;
         writeln!(f, "Locals:")?;
         for (i, local) in &self.locals {
             writeln!(f, "  {} : {}", i, local)?;
@@ -52,11 +55,8 @@ impl GIR {
             locals: Default::default(),
             consts: Default::default(),
             blocks: Default::default(),
+            block_order: Default::default(),
         }
-    }
-
-    pub fn fn_id(&self) -> TyID {
-        self.fn_id
     }
 
     pub fn new_local(&mut self, local: Local) -> LocalID {
@@ -120,10 +120,18 @@ impl GIR {
     pub fn locals(&self) -> impl Iterator<Item = (&LocalID, &Local)> {
         self.locals.iter()
     }
+
+    pub fn with_ordering(&mut self, ordering: DiGraphMap<BlockID, ()>) {
+        self.block_order = ordering;
+    }
+
+    pub fn ordering(&self) -> &DiGraphMap<BlockID, ()> {
+        &self.block_order
+    }
 }
 
 // Individual block
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Block {
     id: BlockID,
     stmts: Vec<Stmt>,
@@ -185,12 +193,12 @@ impl Block {
         self.stmts.iter()
     }
 
-    pub fn term(&self) -> &Terminator {
-        self.term.as_ref().unwrap()
+    pub fn term(&self) -> Option<&Terminator> {
+        self.term.as_ref()
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Local {
     pub span: Span,
     pub mutable: Mutable,
@@ -198,7 +206,7 @@ pub struct Local {
     pub kind: LocalKind,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum LocalKind {
     Ret,
     Arg,

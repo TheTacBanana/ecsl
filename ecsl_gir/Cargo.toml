@@ -7,5 +7,6 @@ edition = "2021"
 ecsl_index = { path = "../ecsl_index" }
 ecsl_ty = { path = "../ecsl_ty" }
 ecsl_ast = { path = "../ecsl_ast" }
+petgraph = "0.6.5"
 cfgrammar.workspace = true
 log.workspace = true

@@ -3,7 +3,7 @@ pub use ecsl_ast::expr::Literal;
 use ecsl_ast::parse::Immediate;
 use ecsl_index::TyID;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Constant {
     Internal {
         imm: Immediate,

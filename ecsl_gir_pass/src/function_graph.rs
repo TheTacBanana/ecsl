@@ -72,7 +72,7 @@ impl GIRPass for FunctionDependencies {
 
     fn apply_pass<'a>(gir: &mut GIR, fn_graph: &'a Arc<FunctionGraph>) -> () {
         let mut s = FunctionDependencies {
-            fnid: gir.fn_id(),
+            fnid: gir.fn_id,
             depends: Vec::new(),
         };
         s.visit_gir(gir);
@@ -84,7 +84,7 @@ impl GIRPass for FunctionDependencies {
 impl Visitor for FunctionDependencies {
     fn visit_stmt(&mut self, s: &Stmt) -> VisitorCF {
         match &s.kind {
-            StmtKind::Assign(_, expr) | StmtKind::Expr(expr) => {
+            StmtKind::Assign(_, expr) => {
                 match expr.kind {
                     ExprKind::Call(ty_id, _) => {
                         self.depends.push(ty_id);

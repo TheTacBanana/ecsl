@@ -332,12 +332,11 @@ pub fn walk_expr<V: Visitor>(v: &mut V, expr: &Expr) -> VisitorCF {
 }
 
 pub fn walk_ty<V: Visitor>(v: &mut V, typ: &Ty) -> VisitorCF {
+    if let Some(c) = &typ.generics {
+        visit!(v.visit_concrete_generics(&c))
+    }
     match &typ.kind {
-        TyKind::Ident(_, c) => {
-            if let Some(c) = c {
-                visit!(v.visit_concrete_generics(c))
-            }
-        }
+        TyKind::Ident(_) => {}
         TyKind::Array(ty, _) => visit!(v.visit_ty(ty)),
         TyKind::ArrayRef(_, ty) => visit!(v.visit_ty(ty)),
         TyKind::Ref(_, ty) => visit!(v.visit_ty(ty)),

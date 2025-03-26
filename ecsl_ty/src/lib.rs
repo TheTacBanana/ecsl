@@ -5,8 +5,7 @@ use ecsl_ast::{
     ty::Mutable,
 };
 use ecsl_index::{FieldID, SymbolID, TyID, VariantID};
-use log::debug;
-use std::{collections::BTreeMap, ops::BitAnd};
+use std::collections::BTreeMap;
 
 pub mod ctxt;
 pub mod def;
@@ -30,15 +29,19 @@ pub enum TyIr {
     /// Intrinsic float type
     Float,
     /// Intrinsic string type
-    String,
+    Str,
     /// Range over a numeric type
     Range(TyID, RangeType),
     /// Reference to another type
     Ref(Mutable, TyID),
+    // Pointer to another type
+    Ptr(Mutable, TyID),
     /// ADT types
     ADT(ADTDef),
     /// A function type
     Fn(FnDef),
+    /// A monomorphized function variant
+    MonoFn(MonoFnDef),
     /// A sized array type
     Array(TyID, usize),
     ArrayRef(Mutable, TyID),
@@ -50,9 +53,32 @@ impl From<Literal> for TyIr {
         match lit {
             Literal::Int => TyIr::Int,
             Literal::Float => TyIr::Float,
-            Literal::String => TyIr::String,
+            Literal::String => TyIr::Str,
             Literal::Char => TyIr::Char,
             Literal::Bool => TyIr::Bool,
+        }
+    }
+}
+
+impl TyIr {
+    pub fn get_generics(&self) -> Option<usize> {
+        match self {
+            TyIr::ADT(adtdef) => adtdef.generics,
+            TyIr::Fn(fn_def) => fn_def.generics,
+            _ => None,
+        }
+    }
+
+    pub fn into_adt(self) -> Option<ADTDef> {
+        match self {
+            TyIr::ADT(adtdef) => Some(adtdef),
+            _ => None,
+        }
+    }
+    pub fn into_fn(self) -> Option<FnDef> {
+        match self {
+            TyIr::Fn(fndef) => Some(fndef),
+            _ => None,
         }
     }
 }
@@ -63,6 +89,7 @@ pub struct ADTDef {
     pub kind: DataKind,
     pub variant_hash: BTreeMap<String, VariantID>, // TODO: Temporary solution to getting the variants of an enum, pls fix
     pub variant_kinds: BTreeMap<VariantID, VariantDef>,
+    pub generics: Option<usize>,
 }
 
 impl ADTDef {
@@ -108,14 +135,24 @@ pub struct VariantDef {
 pub struct FieldDef {
     pub id: FieldID,
     pub ty: TyID,
+    pub params: Vec<TyID>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct FnDef {
     pub tyid: TyID,
     pub kind: FnKind,
-    pub params: Vec<TyID>,
+    pub params: BTreeMap<FieldID, FieldDef>,
     pub ret: TyID,
+    pub generics: Option<usize>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct MonoFnDef {
+    /// Original Fn
+    pub tyid: TyID,
+    // Generic Tys
+    pub mono: BTreeMap<TyID, TyID>,
 }
 
 #[derive(Debug)]
@@ -132,10 +169,13 @@ impl GenericsScope {
         self.scopes.push(g);
     }
 
-    pub fn add_opt(&mut self, g: Option<ecsl_ast::ty::Generics>) {
+    pub fn add_opt(&mut self, g: Option<ecsl_ast::ty::Generics>) -> Option<usize> {
         if let Some(g) = g {
+            let len = g.params.len();
             self.scopes.push(g);
+            return Some(len);
         }
+        return None;
     }
 
     pub fn scope_index(&self, id: SymbolID) -> Option<usize> {

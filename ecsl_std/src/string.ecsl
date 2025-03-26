@@ -1,0 +1,7 @@
+use num::int;
+use char::char;
+
+[builtin(8), allow_casing]
+struct str {
+	ptr: *imm char,
+}

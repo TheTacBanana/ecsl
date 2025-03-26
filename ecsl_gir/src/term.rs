@@ -2,7 +2,7 @@ use crate::expr::Operand;
 use ecsl_ast::parse::Immediate;
 use ecsl_index::BlockID;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Terminator {
     pub kind: TerminatorKind,
 }
@@ -13,7 +13,7 @@ impl std::fmt::Display for Terminator {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum TerminatorKind {
     Jump(BlockID),
     Switch(Operand, Vec<SwitchCase>),
@@ -38,7 +38,7 @@ impl std::fmt::Display for TerminatorKind {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum SwitchCase {
     Value(Immediate, BlockID),
     Default(BlockID),

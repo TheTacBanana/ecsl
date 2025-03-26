@@ -1,10 +1,10 @@
-
 #[derive(Debug, Clone, Copy)]
 pub enum FileType {
     Unknown = 0,
     Executable = 1,
 }
 
+#[derive(Debug, Clone, Copy)]
 pub struct SectionPointer {
     pub section_type: SectionType,
     pub length: u32,

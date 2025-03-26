@@ -8,18 +8,23 @@ use ecsl_index::SymbolID;
 pub struct Ty {
     pub span: Span,
     pub kind: TyKind,
+    pub generics: Option<ConcreteGenerics>,
 }
 
 impl Ty {
-    pub fn new(span: Span, kind: TyKind) -> Self {
-        Self { span, kind }
+    pub fn new(span: Span, kind: TyKind, generics: Option<ConcreteGenerics>) -> Self {
+        Self {
+            span,
+            kind,
+            generics,
+        }
     }
 }
 
 #[derive(Debug, Clone, AST)]
 pub enum TyKind {
     /// Identifier
-    Ident(SymbolID, Option<ConcreteGenerics>),
+    Ident(SymbolID),
 
     /// Array with associated size constant
     // Includes span of constant

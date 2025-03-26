@@ -31,6 +31,8 @@ pub const ProgramThread = struct {
         PanicNoMessage,
         /// Stack has exceeded its limits
         StackOverflow,
+        /// Invalid Pointer
+        InvalidPointer,
     };
 
     /// Incorrect behaviour from incorrectly generated code
@@ -231,6 +233,19 @@ pub const ProgramThread = struct {
         self.sp = new_sp;
     }
 
+    pub fn get_ptr(
+        self: *ProgramThread,
+        address: u64,
+    ) ProgramError!*u8 {
+        const binary_len = self.vm_ptr.binary.len;
+        if (address < binary_len) {
+            return &self.vm_ptr.binary[address];
+        } else if (address < (binary_len + self.stack.len)) {
+            return &self.stack[address - binary_len];
+        } else {
+            return error.InvalidPointer;
+        }
+    }
     pub fn execute_from_address(self: *ProgramThread, from: u64) ProgramStatus {
         self.pc = from;
 
