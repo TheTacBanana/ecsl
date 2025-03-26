@@ -327,7 +327,9 @@ impl<'a> CodeGen<'a> {
                 if let Some(place_offset) = self.place_offset(&place) {
                     place_offset.size
                 } else {
-                    todo!("{:?}", operand);
+                    assert!(place.projections.len() == 0);
+                    let tyid = self.gir.get_local(place.local).tyid;
+                    self.ty_ctxt.global.get_size(tyid)
                 }
             }
             Operand::Constant(const_id) => self.const_map.get(const_id).unwrap().size_of(),
@@ -350,11 +352,9 @@ impl<'a> CodeGen<'a> {
 
     pub fn place_offset(&self, place: &Place) -> Option<StackOffset> {
         let local = self.gir.get_local(place.local);
-        debug!("{:?}", place);
         let Some(stack_offset) = self.offsets.get(&place.local) else {
             return None;
         };
-        debug!("{:?}", stack_offset);
         let mut stack_offset = *stack_offset;
         stack_offset.size = self.ty_ctxt.global.get_size(local.tyid);
 

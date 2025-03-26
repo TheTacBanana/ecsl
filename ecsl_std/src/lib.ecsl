@@ -6,7 +6,7 @@ use {
     std::string::str,
     std::lib::drop,
     std::fmt::{print, print_int, print_float, print_bool},
-    std::panic::panic,
+    std::panic::{panic, assert_true, assert_false},
     std::option::Option,
 };
 

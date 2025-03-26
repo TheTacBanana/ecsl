@@ -1,0 +1,23 @@
+fn main() {
+    let opt = Option::<Option<int>>::Some {
+		val: Option::<int>::Some {
+			val: 8,
+		}
+	};
+
+    match (opt) {
+        Some { val } -> {
+            match (val) {
+                Some { val} -> {
+					assert_true(val == 8)
+                },
+                None -> {
+					panic!();
+                }
+            }
+        },
+        None -> {
+			panic!();
+        }
+    }
+}
