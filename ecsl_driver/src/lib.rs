@@ -33,7 +33,9 @@ impl Driver {
         let path = Driver::inner(std_path, diag.clone());
         diag.finish_stage(|_| ())?;
 
-        info!("Compilation took {:?}", start_time.elapsed());
+        if path.is_ok() {
+            info!("Compilation took {:?}", start_time.elapsed());
+        }
 
         Ok(path?)
     }
