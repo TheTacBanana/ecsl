@@ -9,6 +9,7 @@ use ecsl_diagnostics::DiagConn;
 use ecsl_error::{ext::EcslErrorExt, EcslError, ErrorLevel};
 use ecsl_index::{GlobalID, SourceFileID, SymbolID, TyID};
 use ecsl_parse::table::SymbolTable;
+use log::debug;
 use std::{
     collections::BTreeMap,
     sync::{Arc, RwLock},
@@ -206,8 +207,8 @@ impl LocalTyCtxt {
             for (_, var) in &mut adt_tyir.variant_kinds {
                 for (_, field) in &mut var.field_tys {
                     let field_tyir = self.global.get_tyir(field.ty);
-                    field.ty = match field_tyir {
-                        TyIr::GenericParam(i) => params.get(i).copied().unwrap(),
+                    field.ty = match &field_tyir {
+                        TyIr::GenericParam(i) => params.get(*i).copied().unwrap(),
                         TyIr::ADT(adtdef) => {
                             let mut field_params = Vec::new();
                             for i in &field.params {
@@ -216,6 +217,8 @@ impl LocalTyCtxt {
                                     _ => *i,
                                 })
                             }
+
+                            debug!("{:?}", adtdef);
 
                             if adtdef.generics != Some(field_params.len()) {
                                 self.diag.push_error(EcslError::new(
@@ -231,6 +234,7 @@ impl LocalTyCtxt {
                     }
                 }
             }
+            adt_tyir.generics = None;
 
             let mut monos = self.global.monos.write().unwrap();
             let new_tyid = self.global.tyid_from_tyir(TyIr::ADT(adt_tyir));

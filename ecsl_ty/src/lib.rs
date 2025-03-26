@@ -142,7 +142,7 @@ pub struct FieldDef {
 pub struct FnDef {
     pub tyid: TyID,
     pub kind: FnKind,
-    pub params: Vec<TyID>,
+    pub params: BTreeMap<FieldID, FieldDef>,
     pub ret: TyID,
     pub generics: Option<usize>,
 }

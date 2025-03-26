@@ -15,7 +15,7 @@ use ecsl_gir::expr::{BinOp, Operand, OperandKind, UnOp};
 use ecsl_gir::term::{SwitchCase, Terminator, TerminatorKind};
 use ecsl_gir::{Local, LocalKind, Place, Projection, GIR};
 use ecsl_gir_pass::linker::FunctionLinker;
-use ecsl_index::{BlockID, ConstID, LocalID, SymbolID, TyID};
+use ecsl_index::{BlockID, ConstID, FieldID, LocalID, SymbolID, TyID};
 use ecsl_ty::ctxt::TyCtxt;
 use ecsl_ty::local::LocalTyCtxt;
 use ecsl_ty::{GenericsScope, MonoFnDef, TyIr};
@@ -247,7 +247,7 @@ impl Visitor for TyCheck {
                     let local_id = self.new_local(Local::new(
                         param.span,
                         *mutable,
-                        fn_tyir.params[i],
+                        fn_tyir.params[&FieldID::new(i)].ty,
                         LocalKind::Arg,
                     ));
 
@@ -752,11 +752,11 @@ impl Visitor for TyCheck {
                     expr.span
                 );
 
-                let local_id = match op {
+                let place = match op {
                     Operand::Copy(place) | Operand::Move(place) => {
                         let local = self.get_local_mut(place.local);
                         local.kind = LocalKind::Internal;
-                        place.local
+                        place
                     }
                     Operand::Constant(_) => {
                         // Create local ID
@@ -780,7 +780,7 @@ impl Visitor for TyCheck {
                         });
 
                         // Return local
-                        local_id
+                        Place::from_local(local_id)
                     }
                 };
 
@@ -835,14 +835,12 @@ impl Visitor for TyCheck {
                                     .unwrap()
                                     .insert(
                                         field.ident,
-                                        Place::from_local(local_id).with_projection(
-                                            Projection::Field {
-                                                ty,
-                                                vid: *var_id,
-                                                fid: *field_id,
-                                                new_ty: field_def.ty
-                                            }
-                                        )
+                                        place.clone().with_projection(Projection::Field {
+                                            ty,
+                                            vid: *var_id,
+                                            fid: *field_id,
+                                            new_ty: field_def.ty
+                                        })
                                     )
                                     .is_some(),
                                 TyCheckError::DuplicateMember,
@@ -890,10 +888,7 @@ impl Visitor for TyCheck {
 
                 self.block_mut(current_block).terminate(Terminator {
                     kind: TerminatorKind::Switch(
-                        Operand::Copy(
-                            Place::from_local(local_id)
-                                .with_projection(Projection::Discriminant { tyid: ty }),
-                        ),
+                        Operand::Copy(place.with_projection(Projection::Discriminant { tyid: ty })),
                         cases,
                     ),
                 });
@@ -1076,7 +1071,7 @@ impl Visitor for TyCheck {
 
                 let mut operands = Vec::new();
                 for ((l, op, span), r) in exprs_tys.iter().zip(&fn_tyir.params) {
-                    let r = concrete_generics.get(r).cloned().unwrap_or(*r);
+                    let r = concrete_generics.get(&r.1.ty).cloned().unwrap_or(r.1.ty);
 
                     unify!(*l, r, TyCheckError::IncorrectFunctionArguments, *span);
 
@@ -1401,26 +1396,26 @@ impl Visitor for TyCheck {
                 Some((field_def.ty, e_op))
             }
             ExprKind::Enum(ty, variant, fields) => {
-                let mut enum_tyid = self.get_tyid((ty.as_ref(), &self.generic_scope));
-                let TyIr::ADT(mut enum_tyir) = self.get_tyir(enum_tyid) else {
+                let enum_tyid = self.get_tyid((ty.as_ref(), &self.generic_scope));
+                let TyIr::ADT(enum_tyir) = self.get_tyir(enum_tyid) else {
                     err!(TyCheckError::TypeIsNotAnEnum, e.span);
                 };
                 err_if!(!enum_tyir.is_enum(), TyCheckError::TypeIsNotAnEnum, e.span);
 
-                let generics = ty.generics.as_ref();
-                if generics.map(|ty| ty.params.len()) != enum_tyir.generics {
-                    err!(TyCheckError::InvalidGenericTypes, e.span);
-                }
+                // let generics = ty.generics.as_ref();
+                // if generics.map(|ty| ty.params.len()) != enum_tyir.generics {
+                //     err!(TyCheckError::InvalidGenericTypes, e.span);
+                // }
 
-                if let Some(generics) = generics {
-                    let mut tyids = Vec::new();
-                    for p in &generics.params {
-                        tyids.push(self.get_tyid((p, &self.generic_scope)));
-                    }
+                // if let Some(generics) = generics {
+                //     let mut tyids = Vec::new();
+                //     for p in &generics.params {
+                //         tyids.push(self.get_tyid((p, &self.generic_scope)));
+                //     }
 
-                    enum_tyid = self.ty_ctxt.get_mono_variant(enum_tyid, &tyids);
-                    enum_tyir = self.get_tyir(enum_tyid).into_adt().unwrap()
-                }
+                //     enum_tyid = self.ty_ctxt.get_mono_variant(enum_tyid, &tyids);
+                //     enum_tyir = self.get_tyir(enum_tyid).into_adt().unwrap()
+                // }
 
                 let local_id = self.new_local(Local::new(
                     e.span,
