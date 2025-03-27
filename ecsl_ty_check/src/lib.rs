@@ -1261,8 +1261,8 @@ impl Visitor for TyCheck {
                 panic!()
             }
             ExprKind::Struct(ty, fields) => {
-                let mut struct_tyid = self.get_tyid((ty.as_ref(), &self.generic_scope));
-                let TyIr::ADT(mut struct_tyir) = self.get_tyir(struct_tyid) else {
+                let struct_tyid = self.get_tyid((ty.as_ref(), &self.generic_scope));
+                let TyIr::ADT(struct_tyir) = self.get_tyir(struct_tyid) else {
                     err!(TyCheckError::TypeIsNotAStruct, e.span);
                 };
                 err_if!(
@@ -1270,21 +1270,6 @@ impl Visitor for TyCheck {
                     TyCheckError::TypeIsNotAStruct,
                     e.span
                 );
-
-                let generics = ty.generics.as_ref();
-                if generics.map(|ty| ty.params.len()) != struct_tyir.generics {
-                    err!(TyCheckError::InvalidGenericTypes, e.span);
-                }
-
-                if let Some(generics) = generics {
-                    let mut tyids = Vec::new();
-                    for p in &generics.params {
-                        tyids.push(self.get_tyid((p, &self.generic_scope)));
-                    }
-
-                    struct_tyid = self.ty_ctxt.get_mono_variant(struct_tyid, &tyids);
-                    struct_tyir = self.get_tyir(struct_tyid).into_adt().unwrap()
-                }
 
                 let local_id = self.new_local(Local::new(
                     e.span,

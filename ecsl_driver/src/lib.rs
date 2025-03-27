@@ -12,7 +12,6 @@ use ecsl_gir_pass::{
     function_graph::{FunctionDependencies, FunctionGraph},
     linker::FunctionLinker,
     mono::{monomorphize, Mono},
-    mutability::Mutability,
     return_path::ReturnPath,
     GIRPass,
 };
