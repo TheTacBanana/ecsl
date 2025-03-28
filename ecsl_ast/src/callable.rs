@@ -1,4 +1,5 @@
 use crate::{
+    parse::Attributes,
     stmt::Block,
     ty::{Generics, Mutable, Ty},
     P,
@@ -12,6 +13,7 @@ pub struct FnDef {
     pub span: Span,
     pub kind: FnKind,
     pub ident: SymbolID,
+    pub attributes: Attributes,
     pub generics: Option<Generics>,
     pub params: Vec<Param>,
     pub ret: RetTy,

@@ -1,5 +1,6 @@
 use bool::bool;
 
+[terminator]
 fn panic() {
     byt {
         PANIC;

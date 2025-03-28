@@ -2,7 +2,7 @@ use cfgrammar::Span;
 use ecsl_ast_derive::AST;
 use std::str::FromStr;
 
-#[derive(Debug, Clone, AST)]
+#[derive(Debug, Clone, AST, Eq, Hash)]
 pub struct Attributes {
     pub attributes: Vec<Attribute>,
 }
@@ -47,7 +47,7 @@ impl Attributes {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, Hash)]
 pub struct Attribute {
     pub span: Span,
     pub kind: AttributeKind,
@@ -86,7 +86,7 @@ impl PartialEq for Attribute {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, Hash)]
 pub enum AttributeKind {
     Marker(AttributeMarker),
     Value(AttributeValue, usize),
@@ -108,6 +108,7 @@ pub enum AttributeMarker {
     Prelude,
     Copy,
     AllowCasing,
+    Terminator,
 
     #[default]
     #[strum(disabled)]
@@ -125,6 +126,7 @@ impl AttributeMarker {
             AttributeMarker::Copy => true,
             AttributeMarker::AllowCasing => false,
             AttributeMarker::Unknown => false,
+            AttributeMarker::Terminator => true,
         }
     }
 }

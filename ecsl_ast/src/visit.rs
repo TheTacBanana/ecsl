@@ -157,6 +157,7 @@ pub fn walk_use<V: Visitor>(v: &mut V, u: &UseDef) -> VisitorCF {
 }
 
 pub fn walk_fn<V: Visitor>(v: &mut V, f: &FnDef) -> VisitorCF {
+    visit!(v.visit_attributes(&f.attributes));
     if let Some(g) = &f.generics {
         visit!(v.visit_generics(g));
     }

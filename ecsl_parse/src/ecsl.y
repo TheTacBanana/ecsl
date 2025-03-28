@@ -177,15 +177,16 @@ FnDefList -> Result<Vec<FnDef>, ()>:
     ;
 
 FnDef -> Result<FnDef, ()>:
-    FnKind 'IDENT' Generics 'LBRACKET' FnArgs 'RBRACKET' ReturnTy Block {
+    Attributes FnKind 'IDENT' Generics 'LBRACKET' FnArgs 'RBRACKET' ReturnTy Block {
         Ok(FnDef {
-            span: $2.map_err(|_| ())?.span(),
-            kind: $1?,
-            ident: table.definition($2.map_err(|_| ())?.span(), SymbolKind::Function($1?)),
-            generics: $3?,
-            params: $5?,
-            ret: $7?,
-            block: $8?,
+            span: $3.map_err(|_| ())?.span(),
+            kind: $2?,
+            ident: table.definition($3.map_err(|_| ())?.span(), SymbolKind::Function($2?)),
+            attributes: $1?,
+            generics: $4?,
+            params: $6?,
+            ret: $8?,
+            block: $9?,
        })
     }
     ;
