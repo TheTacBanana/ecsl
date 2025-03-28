@@ -9,7 +9,6 @@ use ecsl_diagnostics::DiagConn;
 use ecsl_error::{ext::EcslErrorExt, EcslError, ErrorLevel};
 use ecsl_index::{GlobalID, SourceFileID, SymbolID, TyID};
 use ecsl_parse::table::SymbolTable;
-use log::debug;
 use std::{
     collections::BTreeMap,
     sync::{Arc, RwLock},

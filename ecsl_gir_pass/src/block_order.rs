@@ -44,7 +44,7 @@ impl GIRPass for BlockOrder {
                 // Extend frontier
                 let block = gir.get_block_mut(*to_id).unwrap();
 
-                let out = block.remove_stmts_after(|stmt| match &stmt.kind {
+                let out = block.remove_after(|stmt| match &stmt.kind {
                     StmtKind::Assign(_, expr) => match &expr.kind {
                         ExprKind::Call(ty_id, _) => {
                             let tyir = ty_ctxt.global.get_tyir(*ty_id).into_fn().unwrap();

@@ -17,4 +17,4 @@ fn exit() {
     }
 }
 
-//fn drop<T>(val: T) { }
+fn drop<T>(val: T) { }

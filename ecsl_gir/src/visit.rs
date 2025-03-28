@@ -1,4 +1,10 @@
-use crate::{cons::Constant, stmt::Stmt, term::Terminator, Block, Local, GIR};
+use crate::{
+    cons::Constant,
+    expr::{Expr, ExprKind, Operand},
+    stmt::{Stmt, StmtKind},
+    term::Terminator,
+    Block, Local, Place, GIR,
+};
 pub use ecsl_ast::visit::VisitorCF;
 use ecsl_index::{BlockID, ConstID, LocalID};
 
@@ -21,6 +27,18 @@ pub trait Visitor: Sized {
     }
     #[must_use]
     fn visit_stmt(&mut self, s: &Stmt) -> VisitorCF {
+        VisitorCF::Continue
+    }
+
+    #[must_use]
+    fn visit_expr(&mut self, e: &Expr) -> VisitorCF {
+        walk_expr(self, e)
+    }
+    fn visit_operand(&mut self, o: &Operand) -> VisitorCF {
+        walk_operand(self, o)
+    }
+    #[must_use]
+    fn visit_place(&mut self, s: &Place) -> VisitorCF {
         VisitorCF::Continue
     }
     #[must_use]
@@ -52,6 +70,49 @@ pub fn walk_block<V: Visitor>(v: &mut V, b: &Block) -> VisitorCF {
     VisitorCF::Continue
 }
 
+pub fn walk_stmt<V: Visitor>(v: &mut V, s: &Stmt) -> VisitorCF {
+    match &s.kind {
+        StmtKind::Assign(place, expr) => {
+            v.visit_place(place)?;
+            v.visit_expr(expr)?;
+            VisitorCF::Continue
+        }
+        _ => VisitorCF::Continue,
+    }
+}
+
+pub fn walk_expr<V: Visitor>(v: &mut V, e: &Expr) -> VisitorCF {
+    match &e.kind {
+        ExprKind::Value(operand) => v.visit_operand(operand),
+        ExprKind::BinOp(_, lhs, rhs) => {
+            v.visit_operand(lhs)?;
+            v.visit_operand(rhs)?;
+            VisitorCF::Continue
+        }
+        ExprKind::UnOp(_, operand) => v.visit_operand(operand),
+        ExprKind::Cast(operand, _, _) => v.visit_operand(operand),
+        ExprKind::Call(_, operands) => {
+            for op in operands {
+                v.visit_operand(op)?;
+            }
+            VisitorCF::Continue
+        }
+        ExprKind::Reference(_, _) => VisitorCF::Continue,
+    }
+}
+
+pub fn walk_operand<V: Visitor>(v: &mut V, o: &Operand) -> VisitorCF {
+    match o {
+        Operand::Copy(place) => v.visit_place(place),
+        Operand::Move(place) => v.visit_place(place),
+        Operand::Constant(_) => VisitorCF::Continue,
+    }
+}
+
+pub fn walk_place<V: Visitor>(v: &mut V, p: &Place) -> VisitorCF {
+    v.visit_place(p)
+}
+
 #[allow(unused)]
 pub trait VisitorMut: Sized {
     fn visit_gir_mut(&mut self, gir: &mut GIR) -> VisitorCF {
@@ -71,6 +132,17 @@ pub trait VisitorMut: Sized {
     }
     #[must_use]
     fn visit_stmt_mut(&mut self, s: &mut Stmt) -> VisitorCF {
+        walk_stmt_mut(self, s)
+    }
+    #[must_use]
+    fn visit_expr_mut(&mut self, e: &mut Expr) -> VisitorCF {
+        walk_expr_mut(self, e)
+    }
+    fn visit_operand_mut(&mut self, o: &mut Operand) -> VisitorCF {
+        walk_operand_mut(self, o)
+    }
+    #[must_use]
+    fn visit_place_mut(&mut self, p: &mut Place) -> VisitorCF {
         VisitorCF::Continue
     }
     #[must_use]
@@ -100,4 +172,47 @@ pub fn walk_block_mut<V: VisitorMut>(v: &mut V, b: &mut Block) -> VisitorCF {
         v.visit_term_mut(term)?;
     }
     VisitorCF::Continue
+}
+
+pub fn walk_stmt_mut<V: VisitorMut>(v: &mut V, s: &mut Stmt) -> VisitorCF {
+    match &mut s.kind {
+        StmtKind::Assign(place, expr) => {
+            v.visit_place_mut(place)?;
+            v.visit_expr_mut(expr)?;
+            VisitorCF::Continue
+        }
+        _ => VisitorCF::Continue,
+    }
+}
+
+pub fn walk_expr_mut<V: VisitorMut>(v: &mut V, e: &mut Expr) -> VisitorCF {
+    match &mut e.kind {
+        ExprKind::Value(operand) => v.visit_operand_mut(operand),
+        ExprKind::BinOp(_, lhs, rhs) => {
+            v.visit_operand_mut(lhs)?;
+            v.visit_operand_mut(rhs)?;
+            VisitorCF::Continue
+        }
+        ExprKind::UnOp(_, operand) => v.visit_operand_mut(operand),
+        ExprKind::Cast(operand, _, _) => v.visit_operand_mut(operand),
+        ExprKind::Call(_, operands) => {
+            for op in operands {
+                v.visit_operand_mut(op)?;
+            }
+            VisitorCF::Continue
+        }
+        ExprKind::Reference(_, _) => VisitorCF::Continue,
+    }
+}
+
+pub fn walk_operand_mut<V: VisitorMut>(v: &mut V, o: &mut Operand) -> VisitorCF {
+    match o {
+        Operand::Copy(place) => v.visit_place_mut(place),
+        Operand::Move(place) => v.visit_place_mut(place),
+        Operand::Constant(_) => VisitorCF::Continue,
+    }
+}
+
+pub fn walk_place_mut<V: VisitorMut>(v: &mut V, p: &mut Place) -> VisitorCF {
+    v.visit_place_mut(p)
 }

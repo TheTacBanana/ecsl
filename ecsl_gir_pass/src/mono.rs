@@ -1,9 +1,9 @@
 use crate::{linker::FunctionLinker, GIRPass};
 use ecsl_gir::{
-    expr::ExprKind,
+    expr::{Expr, ExprKind},
     stmt::{Stmt, StmtKind},
-    visit::{VisitorCF, VisitorMut},
-    Local, GIR,
+    visit::{walk_expr_mut, walk_stmt_mut, VisitorCF, VisitorMut},
+    Local, Place, GIR,
 };
 use ecsl_index::{LocalID, TyID};
 use ecsl_ty::{local::LocalTyCtxt, TyIr};
@@ -22,41 +22,61 @@ pub fn monomorphize(linker: &mut FunctionLinker, ctxt: &Arc<LocalTyCtxt>) {
                 .iter()
                 .enumerate()
                 .map(|(i, tyid)| (ctxt.global.tyid_from_tyir(TyIr::GenericParam(i)), *tyid))
-                .collect();
+                .collect::<BTreeMap<_, _>>();
 
-            MonomorphizeFn::apply_pass(&mut new_gir, mapping);
+            debug!("{:?}", mapping);
+
+            MonomorphizeFn::apply_pass(&mut new_gir, (ctxt, mapping.clone()));
             new_gir.fn_id = v;
 
+            debug!("Monomorphized {:?} {}", mapping, new_gir);
+
             generated.insert(v, new_gir);
-        }
-        for g in &generated {
-            debug!("{}", g.1);
         }
     }
     linker.fn_gir.extend(generated);
 }
 
-pub struct MonomorphizeFn {
+pub struct MonomorphizeFn<'a> {
+    ctxt: &'a Arc<LocalTyCtxt>,
     mapping: BTreeMap<TyID, TyID>,
 }
 
-impl MonomorphizeFn {
-    pub fn replace_tyid(&mut self, tyid: &mut TyID) {
-        *tyid = self.mapping.get(&tyid).cloned().unwrap_or(*tyid);
+impl<'a> MonomorphizeFn<'a> {
+    pub fn replace_tyid(&self, tyid: &mut TyID) {
+        let mono = self.ctxt.global.monos.mono_map.read().unwrap();
+        if let Some((_, params)) = mono.get_by_right(tyid) {
+            let params = params
+                .clone()
+                .drain(..)
+                .map(|ty| {
+                    let mut ty = ty;
+                    self.replace_tyid(&mut ty);
+                    ty
+                })
+                .collect();
+
+            *tyid = self.ctxt.get_mono_variant(*tyid, &params).unwrap();
+        } else {
+            *tyid = self.mapping.get(&tyid).cloned().unwrap_or(*tyid);
+        }
     }
 }
 
-impl GIRPass for MonomorphizeFn {
-    type PassInput<'a> = BTreeMap<TyID, TyID>;
+impl<'a> GIRPass for MonomorphizeFn<'a> {
+    type PassInput<'t> = (&'t Arc<LocalTyCtxt>, BTreeMap<TyID, TyID>);
     type PassResult = ();
 
-    fn apply_pass<'a>(gir: &mut GIR, t: BTreeMap<TyID, TyID>) -> Self::PassResult {
-        let mut m = MonomorphizeFn { mapping: t };
+    fn apply_pass<'t>(gir: &mut GIR, t: Self::PassInput<'t>) -> Self::PassResult {
+        let mut m = MonomorphizeFn {
+            ctxt: t.0,
+            mapping: t.1,
+        };
         m.visit_gir_mut(gir);
     }
 }
 
-impl VisitorMut for MonomorphizeFn {
+impl<'a> VisitorMut for MonomorphizeFn<'a> {
     fn visit_local_mut(&mut self, _: LocalID, l: &mut Local) -> VisitorCF {
         self.replace_tyid(&mut l.tyid);
         VisitorCF::Continue
@@ -64,17 +84,18 @@ impl VisitorMut for MonomorphizeFn {
 
     fn visit_stmt_mut(&mut self, s: &mut Stmt) -> VisitorCF {
         match &mut s.kind {
-            StmtKind::Assign(_, expr) => match &mut expr.kind {
-                ExprKind::Call(ty_id, _) => self.replace_tyid(ty_id),
-                ExprKind::Cast(_, _, _)
-                | ExprKind::Value(_)
-                | ExprKind::BinOp(_, _, _)
-                | ExprKind::UnOp(_, _)
-                | ExprKind::Reference(_, _) => (),
-            },
             StmtKind::AllocReturn(ty_id) => self.replace_tyid(ty_id),
-            StmtKind::BYT(_) => (),
+            _ => (),
         }
+        walk_stmt_mut(self, s)
+    }
+
+    fn visit_expr_mut(&mut self, e: &mut Expr) -> VisitorCF {
+        walk_expr_mut(self, e)
+    }
+
+    fn visit_place_mut(&mut self, p: &mut Place) -> VisitorCF {
+        p.rewrite_tyid(|f| self.replace_tyid(f));
         VisitorCF::Continue
     }
 }
