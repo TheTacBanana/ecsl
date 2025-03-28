@@ -96,6 +96,8 @@ impl<'a> CodeGen<'a> {
             post_offset += size as i64;
         }
 
+        debug!("Offsets: {:?}", self.offsets);
+
         let mut bfs = Bfs::new(gir.ordering(), BlockID::ZERO);
         while let Some(block_id) = bfs.next(gir.ordering()) {
             let mut instrs = Vec::new();
@@ -205,48 +207,50 @@ impl<'a> CodeGen<'a> {
                 }
             }
 
-            match &block.term().unwrap().kind {
-                TerminatorKind::Jump(block_id) => instrs.push(BytecodeInstruction::new(
-                    Opcode::JMP,
-                    [Immediate::LabelOf(*block_id)],
-                )),
-                TerminatorKind::Return => {
-                    if gir.fn_id == self.ty_ctxt.global.entry_point() {
-                        instrs.push(ins!(HALT));
-                    } else {
-                        instrs.push(ins!(RET));
+            if let Some(term) = block.term() {
+                match &term.kind {
+                    TerminatorKind::Jump(block_id) => instrs.push(BytecodeInstruction::new(
+                        Opcode::JMP,
+                        [Immediate::LabelOf(*block_id)],
+                    )),
+                    TerminatorKind::Return => {
+                        if gir.fn_id == self.ty_ctxt.global.entry_point() {
+                            instrs.push(ins!(HALT));
+                        } else {
+                            instrs.push(ins!(RET));
+                        }
                     }
-                }
-                TerminatorKind::Switch(operand, switch_cases) => {
-                    for case in switch_cases {
-                        match case {
-                            SwitchCase::Value(value, block_id) => {
-                                self.load_operand(operand, &mut instrs);
+                    TerminatorKind::Switch(operand, switch_cases) => {
+                        for case in switch_cases {
+                            match case {
+                                SwitchCase::Value(value, block_id) => {
+                                    self.load_operand(operand, &mut instrs);
 
-                                instrs.extend(match value {
-                                    Immediate::Bool(_) => {
-                                        vec![ins!(JMPT, Immediate::LabelOf(*block_id))]
-                                    }
-                                    Immediate::Int(_) => vec![
-                                        ins!(PSHI, *value),
-                                        ins!(EQ_I),
-                                        ins!(JMPT, Immediate::LabelOf(*block_id)),
-                                    ],
-                                    Immediate::Float(_) => vec![
-                                        ins!(PSHI, *value),
-                                        ins!(EQ_F),
-                                        ins!(JMPT, Immediate::LabelOf(*block_id)),
-                                    ],
-                                    Immediate::UByte(_) => vec![
-                                        ins!(PSHI_B, *value),
-                                        ins!(EQ_B),
-                                        ins!(JMPT, Immediate::LabelOf(*block_id)),
-                                    ],
-                                    e => panic!("{:?}", e),
-                                })
-                            }
-                            SwitchCase::Default(block_id) => {
-                                instrs.push(ins!(JMP, Immediate::LabelOf(*block_id)))
+                                    instrs.extend(match value {
+                                        Immediate::Bool(_) => {
+                                            vec![ins!(JMPT, Immediate::LabelOf(*block_id))]
+                                        }
+                                        Immediate::Int(_) => vec![
+                                            ins!(PSHI, *value),
+                                            ins!(EQ_I),
+                                            ins!(JMPT, Immediate::LabelOf(*block_id)),
+                                        ],
+                                        Immediate::Float(_) => vec![
+                                            ins!(PSHI, *value),
+                                            ins!(EQ_F),
+                                            ins!(JMPT, Immediate::LabelOf(*block_id)),
+                                        ],
+                                        Immediate::UByte(_) => vec![
+                                            ins!(PSHI_B, *value),
+                                            ins!(EQ_B),
+                                            ins!(JMPT, Immediate::LabelOf(*block_id)),
+                                        ],
+                                        e => panic!("{:?}", e),
+                                    })
+                                }
+                                SwitchCase::Default(block_id) => {
+                                    instrs.push(ins!(JMP, Immediate::LabelOf(*block_id)))
+                                }
                             }
                         }
                     }

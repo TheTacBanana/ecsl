@@ -54,7 +54,7 @@ impl Visitor for EntryPoint {
                     );
                 }
 
-                if !(ret == TyID::BOTTOM || ret == int_tyid) {
+                if !(ret.ty == TyID::BOTTOM || ret.ty == int_tyid) {
                     self.ty_ctxt.diag.push_error(
                         EcslError::new(ErrorLevel::Error, EntryPointError::WrongReturnType)
                             .with_span(|_| f.span),

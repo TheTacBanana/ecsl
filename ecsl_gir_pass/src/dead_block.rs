@@ -1,6 +1,5 @@
 use crate::GIRPass;
 use ecsl_gir::GIR;
-use ecsl_index::BlockID;
 
 pub struct DeadBlocks;
 
@@ -10,8 +9,8 @@ impl GIRPass for DeadBlocks {
 
     fn apply_pass(gir: &mut GIR, _: Self::PassInput<'_>) -> () {
         let mut removals = Vec::new();
-        for (i, b) in gir.blocks() {
-            if b.empty() && *i != BlockID::ZERO {
+        for (i, _) in gir.blocks() {
+            if !gir.ordering().contains_node(*i) {
                 removals.push(*i);
             }
         }

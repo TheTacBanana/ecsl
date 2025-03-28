@@ -23,6 +23,7 @@ use ecsl_ty::{
 use entry_point::{EntryPoint, EntryPointError, EntryPointKind};
 use fn_validator::FnValidator;
 use import_collector::ImportCollector;
+use log::debug;
 use prelude::{rewrite_use_path, Prelude};
 use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
 
@@ -235,7 +236,9 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                             )]
                             .into_iter()
                             .collect(),
-                            generics,
+                            resolved_generics: 0,
+                            total_generics: generics,
+                            attributes: attributes.clone(),
                         }),
                         *span,
                     )
@@ -249,6 +252,7 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                 generics,
                 variants,
                 span,
+                attributes,
                 ..
             }) => {
                 let generics = scope.add_opt(generics.clone());
@@ -323,7 +327,9 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                             kind: *kind,
                             variant_hash,
                             variant_kinds,
-                            generics,
+                            resolved_generics: 0,
+                            total_generics: generics,
+                            attributes: attributes.clone(),
                         }),
                         *span,
                     )
@@ -338,6 +344,7 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                 generics,
                 params,
                 ret,
+                attributes,
                 ..
             }) => {
                 let generics = scope.add_opt(generics.clone());
@@ -376,8 +383,30 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                 }
 
                 let ret = match ret {
-                    ast::RetTy::None(_) => TyID::BOTTOM,
-                    ast::RetTy::Ty(ty) => ty_ctxt.get_tyid(&ty, &scope),
+                    ast::RetTy::None(_) => FieldDef {
+                        id: FieldID::ZERO,
+                        ty: TyID::BOTTOM,
+                        params: Vec::new(),
+                    },
+                    ast::RetTy::Ty(ty) => {
+                        let tyid = ty_ctxt.get_tyid(&ty, &scope);
+                        let params = ty
+                            .generics
+                            .as_ref()
+                            .map(|g| {
+                                g.params
+                                    .iter()
+                                    .map(|ty| ty_ctxt.get_tyid(ty, &scope))
+                                    .collect()
+                            })
+                            .unwrap_or_default();
+
+                        FieldDef {
+                            id: FieldID::ZERO,
+                            ty: tyid,
+                            params,
+                        }
+                    }
                 };
 
                 unsafe {
@@ -388,7 +417,9 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                             kind: *kind,
                             params: fn_params,
                             ret,
-                            generics,
+                            resolved_generics: 0,
+                            total_generics: generics,
+                            attributes: attributes.clone(),
                         }),
                         *span,
                     )
@@ -417,10 +448,14 @@ pub fn validate_field_generics(ty_ctxt: Arc<LocalTyCtxt>) {
                     continue;
                 };
 
+                debug!("{:?}", adt);
+
                 let struct_fields = adt.get_struct_fields();
                 for (i, f) in struct_fields.field_tys.iter() {
-                    if let Some(adt) = ty_ctxt.global.get_tyir(f.ty).into_adt() {
-                        if f.params.len() != adt.generics.unwrap_or_default() {
+                    if let Some(field_adt) = ty_ctxt.global.get_tyir(f.ty).into_adt() {
+                        debug!("inner {:?}", field_adt);
+
+                        if f.params.len() != field_adt.total_generics {
                             ty_ctxt.diag.push_error(
                                 EcslError::new(ErrorLevel::Error, "Mismatched generics")
                                     .with_span(|_| fields.get(i.inner()).unwrap().span),
@@ -443,7 +478,7 @@ pub fn validate_field_generics(ty_ctxt: Arc<LocalTyCtxt>) {
                 for (vid, var) in adt.variant_kinds.iter() {
                     for (fid, f) in var.field_tys.iter() {
                         if let Some(field_adt) = ty_ctxt.global.get_tyir(f.ty).into_adt() {
-                            if f.params.len() != field_adt.generics.unwrap_or_default() {
+                            if f.params.len() != field_adt.total_generics {
                                 ty_ctxt.diag.push_error(
                                     EcslError::new(ErrorLevel::Error, "Mismatched generics")
                                         .with_span(|_| {
@@ -463,8 +498,8 @@ pub fn validate_field_generics(ty_ctxt: Arc<LocalTyCtxt>) {
                 let fndef = ty_ctxt.global.get_tyir(tyid).into_fn().unwrap();
 
                 for (fid, p) in fndef.params.iter() {
-                    if let Some(adt) = ty_ctxt.global.get_tyir(p.ty).into_adt() {
-                        if p.params.len() != adt.generics.unwrap_or_default() {
+                    if let Some(param_adt) = ty_ctxt.global.get_tyir(p.ty).into_adt() {
+                        if p.params.len() != param_adt.total_generics {
                             ty_ctxt.diag.push_error(
                                 EcslError::new(ErrorLevel::Error, "Mismatched generics")
                                     .with_span(|_| params[fid.inner()].span),
