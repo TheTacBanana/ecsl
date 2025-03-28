@@ -205,7 +205,7 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                             .map(|g| {
                                 g.params
                                     .iter()
-                                    .map(|ty| ty_ctxt.get_tyid(ty, &scope))
+                                    .map(|ty| ty_ctxt.get_tyid(ty, &scope).unwrap())
                                     .collect()
                             })
                             .unwrap_or_default();
@@ -213,7 +213,7 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                         id,
                         FieldDef {
                             id,
-                            ty: ty_ctxt.get_tyid(&f.ty, &scope),
+                            ty: ty_ctxt.get_tyid(&f.ty, &scope).unwrap(),
                             params,
                         },
                     );
@@ -294,7 +294,7 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                                 .map(|g| {
                                     g.params
                                         .iter()
-                                        .map(|ty| ty_ctxt.get_tyid(ty, &scope))
+                                        .map(|ty| ty_ctxt.get_tyid(ty, &scope).unwrap())
                                         .collect()
                                 })
                                 .unwrap_or_default();
@@ -303,7 +303,7 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                             id,
                             FieldDef {
                                 id,
-                                ty: ty_ctxt.get_tyid(&f.ty, &scope),
+                                ty: ty_ctxt.get_tyid(&f.ty, &scope).unwrap(),
                                 params,
                             },
                         );
@@ -358,7 +358,6 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                     let ast::ParamKind::Normal(_, _, ty) = &p.kind else {
                         panic!()
                     };
-                    let tyid = ty_ctxt.get_tyid(&ty, &scope);
 
                     let params = ty
                         .generics
@@ -366,7 +365,7 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                         .map(|g| {
                             g.params
                                 .iter()
-                                .map(|ty| ty_ctxt.get_tyid(ty, &scope))
+                                .map(|ty| ty_ctxt.get_tyid(ty, &scope).unwrap())
                                 .collect()
                         })
                         .unwrap_or_default();
@@ -376,7 +375,7 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                         id,
                         FieldDef {
                             id,
-                            ty: tyid,
+                            ty: ty_ctxt.get_tyid(&ty, &scope).unwrap(),
                             params,
                         },
                     );
@@ -389,21 +388,20 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                         params: Vec::new(),
                     },
                     ast::RetTy::Ty(ty) => {
-                        let tyid = ty_ctxt.get_tyid(&ty, &scope);
                         let params = ty
                             .generics
                             .as_ref()
                             .map(|g| {
                                 g.params
                                     .iter()
-                                    .map(|ty| ty_ctxt.get_tyid(ty, &scope))
+                                    .map(|ty| ty_ctxt.get_tyid(ty, &scope).unwrap())
                                     .collect()
                             })
                             .unwrap_or_default();
 
                         FieldDef {
                             id: FieldID::ZERO,
-                            ty: tyid,
+                            ty: ty_ctxt.get_tyid(&ty, &scope).unwrap(),
                             params,
                         }
                     }

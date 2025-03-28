@@ -50,6 +50,7 @@ impl<'b> GIRPass for CodeGen<'b> {
 impl<'a> CodeGen<'a> {
     pub fn generate_code(&mut self, gir: &GIR) -> FunctionBytecode {
         debug!("Codegen {:?}", gir.fn_id);
+        // debug!("{}", gir);
         let mut locals = gir.locals().collect::<Vec<_>>();
         let first_non_arg = locals
             .iter()
@@ -65,7 +66,7 @@ impl<'a> CodeGen<'a> {
         // Assign offsets for ret and args
         let mut pre_offset = -8;
         for (i, l) in pre.iter().rev() {
-            let size = self.ty_ctxt.global.get_size(l.tyid);
+            let size = self.ty_ctxt.global.get_size(l.tyid).unwrap();
             if size == 0 {
                 continue;
             }
@@ -82,7 +83,7 @@ impl<'a> CodeGen<'a> {
         // Assign offset for let values
         let mut post_offset = 0;
         for (i, l) in post.iter() {
-            let size = self.ty_ctxt.global.get_size(l.tyid);
+            let size = self.ty_ctxt.global.get_size(l.tyid).unwrap();
             if size == 0 || l.kind == LocalKind::Temp {
                 continue;
             }
@@ -189,7 +190,7 @@ impl<'a> CodeGen<'a> {
                         }
                     }
                     StmtKind::AllocReturn(ty_id) => {
-                        let size = self.ty_ctxt.global.get_size(*ty_id);
+                        let size = self.ty_ctxt.global.get_size(*ty_id).unwrap();
                         if size > 0 {
                             instrs.push(ins!(SETSPR, Immediate::Long(size as i64)));
                         }
@@ -333,7 +334,7 @@ impl<'a> CodeGen<'a> {
                 } else {
                     assert!(place.projections.len() == 0);
                     let tyid = self.gir.get_local(place.local).tyid;
-                    self.ty_ctxt.global.get_size(tyid)
+                    self.ty_ctxt.global.get_size(tyid).unwrap()
                 }
             }
             Operand::Constant(const_id) => self.const_map.get(const_id).unwrap().size_of(),
@@ -360,7 +361,7 @@ impl<'a> CodeGen<'a> {
             return None;
         };
         let mut stack_offset = *stack_offset;
-        stack_offset.size = self.ty_ctxt.global.get_size(local.tyid);
+        stack_offset.size = self.ty_ctxt.global.get_size(local.tyid).unwrap();
 
         let mut iter = place.projections.iter();
         while let Some(proj) = iter.next() {
@@ -371,8 +372,12 @@ impl<'a> CodeGen<'a> {
                     fid,
                     new_ty,
                 } => {
-                    let offset = self.ty_ctxt.global.get_field_offset(*ty, *vid, *fid);
-                    let size = self.ty_ctxt.global.get_size(*new_ty);
+                    let offset = self
+                        .ty_ctxt
+                        .global
+                        .get_field_offset(*ty, *vid, *fid)
+                        .unwrap();
+                    let size = self.ty_ctxt.global.get_size(*new_ty).unwrap();
                     stack_offset.offset += offset as i64;
                     stack_offset.size = size;
                 }

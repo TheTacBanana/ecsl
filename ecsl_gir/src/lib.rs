@@ -191,7 +191,7 @@ impl Block {
         self.stmts.iter()
     }
 
-    pub fn remove_stmts_after(&mut self, f: impl Fn(&Stmt) -> bool) -> bool {
+    pub fn remove_after(&mut self, f: impl Fn(&Stmt) -> bool) -> bool {
         let old_stmts = std::mem::take(&mut self.stmts);
         let mut new_stmts = Vec::new();
 
@@ -297,6 +297,18 @@ impl Place {
             }
         }
         return tyid;
+    }
+
+    pub fn rewrite_tyid(&mut self, f: impl Fn(&mut TyID)) {
+        for proj in self.projections.iter_mut() {
+            match proj {
+                Projection::Field { ty, new_ty, .. } => {
+                    f(ty);
+                    f(new_ty);
+                }
+                Projection::Discriminant { tyid } => f(tyid),
+            }
+        }
     }
 }
 

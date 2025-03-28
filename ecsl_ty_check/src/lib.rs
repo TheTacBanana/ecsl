@@ -79,11 +79,13 @@ impl TyCheck {
     }
 
     pub fn get_tyir(&self, t: impl IntoTyID) -> TyIr {
-        self.ty_ctxt.global.get_tyir(t.into_tyid(&self.ty_ctxt))
+        self.ty_ctxt
+            .global
+            .get_tyir(t.into_tyid(&self.ty_ctxt).unwrap())
     }
 
     pub fn get_tyid(&self, t: impl IntoTyID) -> TyID {
-        t.into_tyid(&self.ty_ctxt)
+        t.into_tyid(&self.ty_ctxt).unwrap()
     }
 
     pub fn cur_gir(&self) -> &GIR {
@@ -906,7 +908,6 @@ impl Visitor for TyCheck {
     fn visit_expr(&mut self, e: &Expr) -> VisitorCF {
         macro_rules! unify {
             ($l:expr, $r:expr, $err:expr) => {
-                debug!("Expr Unify {} {}", $l, $r);
                 if $l == TyID::UNKNOWN || $r == TyID::UNKNOWN || $l != $r {
                     self.ty_ctxt
                         .diag
@@ -915,7 +916,6 @@ impl Visitor for TyCheck {
                 }
             };
             ($l:expr, $r:expr, $err:expr, $span:expr) => {
-                debug!("Expr Unify {} {}", $l, $r);
                 if $l == TyID::UNKNOWN || $r == TyID::UNKNOWN || $l != $r {
                     self.ty_ctxt
                         .diag
@@ -1036,7 +1036,7 @@ impl Visitor for TyCheck {
                         })
                         .unwrap_or_default();
 
-                    tyid = self.ty_ctxt.get_mono_variant(tyid, &params);
+                    tyid = self.ty_ctxt.get_mono_variant(tyid, &params).unwrap();
                     self.get_tyir(tyid).into_fn().unwrap()
                 } else {
                     fn_tyir
@@ -1238,7 +1238,7 @@ impl Visitor for TyCheck {
                 Some((to_tyid, Operand::Move(Place::from_local(local_id))))
             }
             ExprKind::Range(_, _, _) => {
-                panic!()
+                panic!("Internal Compiler Error: Range Expr Ty Check")
             }
             ExprKind::Struct(ty, fields) => {
                 let struct_tyid = self.get_tyid((ty.as_ref(), &self.generic_scope));

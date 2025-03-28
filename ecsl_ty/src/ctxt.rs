@@ -3,7 +3,7 @@ use bimap::BiHashMap;
 use cfgrammar::Span;
 use ecsl_diagnostics::DiagConn;
 use ecsl_index::{FieldID, GlobalID, SourceFileID, TyID, VariantID};
-use log::debug;
+use log::{debug, error};
 use std::{
     collections::{btree_map::Entry, BTreeMap},
     sync::{Arc, RwLock, RwLockWriteGuard},
@@ -114,7 +114,7 @@ impl TyCtxt {
         spans.get(&id).cloned()
     }
 
-    pub fn get_size(&self, id: TyID) -> usize {
+    pub fn get_size(&self, id: TyID) -> Option<usize> {
         let mut sizes = self.sizes.write().unwrap();
         self.internal_get_size(id, &mut sizes)
     }
@@ -123,21 +123,21 @@ impl TyCtxt {
         &self,
         id: TyID,
         sizes: &mut RwLockWriteGuard<BTreeMap<TyID, usize>>,
-    ) -> usize {
+    ) -> Option<usize> {
         if let Some(size) = sizes.get(&id) {
-            return *size;
+            return Some(*size);
         }
 
         let tyir = self.get_tyir(id);
 
         let size = match tyir {
             TyIr::Ref(_, _) => 8,
-            TyIr::Range(tyid, _) => self.internal_get_size(tyid, sizes),
+            TyIr::Range(tyid, _) => self.internal_get_size(tyid, sizes)?,
             TyIr::ADT(def) => {
                 if def.is_struct() {
                     let mut total_size = 0;
                     for (_, field) in &def.get_struct_fields().field_tys {
-                        total_size += self.internal_get_size(field.ty, sizes);
+                        total_size += self.internal_get_size(field.ty, sizes)?;
                     }
                     total_size
                 } else {
@@ -145,28 +145,30 @@ impl TyCtxt {
                     for (_, var) in &def.variant_kinds {
                         let mut total_size = 0;
                         for (_, field) in &var.field_tys {
-                            total_size += self.internal_get_size(field.ty, sizes);
+                            total_size += self.internal_get_size(field.ty, sizes)?;
                         }
                         max_size = usize::max(max_size, total_size);
                     }
                     def.discriminant_size().unwrap() + max_size
                 }
             }
-            e => panic!("{id:?} {e:?}"),
-            // TyIr::String => todo!(),
-            // TyIr::Fn(fn_def) => todo!(),
-            // TyIr::Array(ty_id, _) => todo!(),
-            // TyIr::ArrayRef(mutable, ty_id) => todo!(),
-            // TyIr::GenericParam(_) => todo!(),
+            e => {
+                error!("{id:?} {e:?}");
+                return None;
+            } // TyIr::String => todo!(),
+              // TyIr::Fn(fn_def) => todo!(),
+              // TyIr::Array(ty_id, _) => todo!(),
+              // TyIr::ArrayRef(mutable, ty_id) => todo!(),
+              // TyIr::GenericParam(_) => todo!(),
         };
         sizes.insert(id, size);
-        size
+        Some(size)
     }
 
-    pub fn get_field_offset(&self, id: TyID, vid: VariantID, fid: FieldID) -> usize {
+    pub fn get_field_offset(&self, id: TyID, vid: VariantID, fid: FieldID) -> Option<usize> {
         let mut offsets = self.field_offsets.write().unwrap();
         if let Some(offset) = offsets.get(&(id, vid, fid)) {
-            return *offset;
+            return Some(*offset);
         }
         let mut sizes = self.sizes.write().unwrap();
 
@@ -180,14 +182,14 @@ impl TyCtxt {
                 }
                 for (_, field) in fields {
                     offsets.insert((id, vid, field.id), offset);
-                    offset += self.internal_get_size(field.ty, &mut sizes);
+                    offset += self.internal_get_size(field.ty, &mut sizes)?;
                 }
                 *offsets.get(&(id, vid, fid)).unwrap()
             }
             e => panic!("{id:?} {e:?}"),
         };
 
-        return offset;
+        return Some(offset);
     }
 
     pub fn is_primitive(&self, id: TyID) -> bool {
