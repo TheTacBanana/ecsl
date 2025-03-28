@@ -1,6 +1,6 @@
-use crate::mono::Mono;
 use ecsl_gir::GIR;
 use ecsl_index::TyID;
+use ecsl_ty::mono::Mono;
 use std::{collections::BTreeMap, sync::Arc};
 
 pub struct FunctionLinker {

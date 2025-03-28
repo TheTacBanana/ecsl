@@ -11,7 +11,7 @@ use ecsl_gir_pass::{
     dead_block::DeadBlocks,
     function_graph::{FunctionDependencies, FunctionGraph},
     linker::FunctionLinker,
-    mono::{monomorphize, Mono},
+    mono::monomorphize,
     return_path::ReturnPath,
     GIRPass,
 };
@@ -165,13 +165,16 @@ impl Driver {
         )?;
 
         // Perform type checking
-        let mono = Arc::new(Mono::new());
         info!("Type Checking");
         let assoc = (&context, assoc).par_map_assoc(
             |_, _, (diag, ast, table, local_ctxt)| {
                 debug!("Type Checking source file {}", ast.file);
 
-                let linker = ty_check(&ast, local_ctxt.clone(), FunctionLinker::new(mono.clone()));
+                let linker = ty_check(
+                    &ast,
+                    local_ctxt.clone(),
+                    FunctionLinker::new(ty_ctxt.monos.clone()),
+                );
 
                 Some((diag, ast, table, local_ctxt, linker))
             },
@@ -196,7 +199,7 @@ impl Driver {
         info!("Monomorphization");
         let assoc = (&context, assoc).par_map_assoc(
             |_, _, (diag, ast, table, local_ctxt, mut linker)| {
-                monomorphize(&mut linker, &mono, &local_ctxt);
+                monomorphize(&mut linker, &local_ctxt);
 
                 Some((diag, ast, table, local_ctxt, linker))
             },
@@ -207,9 +210,9 @@ impl Driver {
         let assoc = (&context, assoc).par_map_assoc(
             |_, _, (diag, ast, table, local_ctxt, mut linker)| {
                 for (_, gir) in linker.fn_gir.iter_mut() {
+                    BlockOrder::apply_pass(gir, &local_ctxt);
                     DeadBlocks::apply_pass(gir, ());
-                    BlockOrder::apply_pass(gir, ());
-                    ReturnPath::apply_pass(gir, diag.clone());
+                    ReturnPath::apply_pass(gir, &local_ctxt);
                     // Mutability::apply_pass(gir, diag.clone());
                 }
                 Some((diag, ast, table, local_ctxt, linker))
@@ -269,6 +272,7 @@ impl Driver {
                 for (id, gir) in linker.fn_gir.iter_mut() {
                     let consts = gir_consts.get(id).unwrap();
                     let bytecode = CodeGen::apply_pass(gir, (local_ctxt.clone(), consts));
+                    debug!("{}", gir);
 
                     assembler.include_function(bytecode);
                 }

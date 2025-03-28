@@ -2,14 +2,13 @@ use crate::{
     ctxt::{ImportError, TyCtxt},
     def::Definition,
     import::{Import, ImportPath},
-    GenericsScope, TyIr, TypeError,
+    FieldDef, GenericsScope, TyIr, TypeError,
 };
 use ecsl_ast::ty::{Ty, TyKind};
 use ecsl_diagnostics::DiagConn;
 use ecsl_error::{ext::EcslErrorExt, EcslError, ErrorLevel};
 use ecsl_index::{GlobalID, SourceFileID, SymbolID, TyID};
 use ecsl_parse::table::SymbolTable;
-use log::debug;
 use std::{
     collections::BTreeMap,
     sync::{Arc, RwLock},
@@ -176,6 +175,10 @@ impl LocalTyCtxt {
                     } else if known_tys == params.len() {
                         self.get_mono_variant(adt_base_id, &params)
                     } else {
+                        self.diag.push_error(
+                            EcslError::new(ErrorLevel::Error, TypeError::UnknownType)
+                                .with_span(|_| ty.span),
+                        );
                         TyID::UNKNOWN
                     }
                 } else {
@@ -194,52 +197,68 @@ impl LocalTyCtxt {
     }
 
     pub fn get_mono_variant(&self, id: TyID, params: &Vec<TyID>) -> TyID {
-        let monos = self.global.monos.read().unwrap();
+        let map_tyid = |field: &mut FieldDef| {
+            let tyir = self.global.get_tyir(field.ty);
+            field.ty = match &tyir {
+                TyIr::GenericParam(i) => params.get(*i).copied().unwrap(),
+                TyIr::ADT(adtdef) => {
+                    let mut field_params = Vec::new();
+                    for i in &field.params {
+                        field_params.push(match self.global.get_tyir(*i) {
+                            TyIr::GenericParam(index) => *params.get(index).unwrap(),
+                            _ => *i,
+                        })
+                    }
 
+                    if adtdef.total_generics != field_params.len() {
+                        self.diag
+                            .push_error(EcslError::new(ErrorLevel::Error, "Mismatched generics"));
+                        TyID::UNKNOWN
+                    } else {
+                        self.get_mono_variant(field.ty, &field_params)
+                    }
+                }
+                _ => field.ty,
+            };
+        };
+
+        let monos = self.global.monos.mono_map.read().unwrap();
         let key = (id, params.clone());
-        if let Some(mono) = monos.get(&key) {
+        if let Some(mono) = monos.get_by_left(&key) {
             *mono
         } else {
             drop(monos);
 
-            let mut adt_tyir = self.global.get_tyir(id).into_adt().unwrap().clone();
+            let mut tyir = self.global.get_tyir(id).clone();
+            let generic_count = tyir.get_generics();
 
-            for (_, var) in &mut adt_tyir.variant_kinds {
-                for (_, field) in &mut var.field_tys {
-                    let field_tyir = self.global.get_tyir(field.ty);
-                    field.ty = match &field_tyir {
-                        TyIr::GenericParam(i) => params.get(*i).copied().unwrap(),
-                        TyIr::ADT(adtdef) => {
-                            let mut field_params = Vec::new();
-                            for i in &field.params {
-                                field_params.push(match self.global.get_tyir(*i) {
-                                    TyIr::GenericParam(index) => *params.get(index).unwrap(),
-                                    _ => *i,
-                                })
-                            }
-
-                            debug!("{:?}", adtdef);
-
-                            if adtdef.generics != Some(field_params.len()) {
-                                self.diag.push_error(EcslError::new(
-                                    ErrorLevel::Error,
-                                    "Mismatched generics",
-                                ));
-                                return TyID::UNKNOWN;
-                            }
-
-                            self.get_mono_variant(field.ty, &field_params)
-                        }
-                        _ => field.ty,
-                    }
-                }
+            if params.len() != generic_count {
+                self.diag
+                    .push_error(EcslError::new(ErrorLevel::Error, "Mismatched generics"));
+                return TyID::UNKNOWN;
             }
-            adt_tyir.generics = None;
 
-            let mut monos = self.global.monos.write().unwrap();
-            let new_tyid = self.global.tyid_from_tyir(TyIr::ADT(adt_tyir));
-            monos.insert(key, new_tyid);
-            new_tyid
+            match &mut tyir {
+                TyIr::ADT(adt_tyir) => {
+                    adt_tyir.map(map_tyid);
+                    adt_tyir.resolved_generics = adt_tyir.total_generics;
+
+                    let new_tyid = self.global.tyid_from_tyir(tyir);
+                    self.global.monos.insert(key, new_tyid);
+
+                    new_tyid
+                }
+                TyIr::Fn(fn_tyir) => {
+                    fn_tyir.map(map_tyid);
+                    fn_tyir.resolved_generics = fn_tyir.total_generics;
+
+                    let new_tyid = self.global.tyid_from_tyir(tyir);
+                    self.global.monos.insert_mapping(key, new_tyid);
+
+                    new_tyid
+                }
+                t => panic!("{:?} {:?} {:?}", id, t, params),
+            }
         }
     }
     pub fn get_global_id(&self, id: SymbolID) -> Option<GlobalID> {

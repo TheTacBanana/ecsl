@@ -18,7 +18,7 @@ use ecsl_gir_pass::linker::FunctionLinker;
 use ecsl_index::{BlockID, ConstID, FieldID, LocalID, SymbolID, TyID};
 use ecsl_ty::ctxt::TyCtxt;
 use ecsl_ty::local::LocalTyCtxt;
-use ecsl_ty::{GenericsScope, MonoFnDef, TyIr};
+use ecsl_ty::{GenericsScope, TyIr};
 use ext::IntoTyID;
 use log::debug;
 use std::collections::{BTreeMap, BTreeSet};
@@ -220,7 +220,7 @@ impl Visitor for TyCheck {
 
         // Create GIR for Fn
         let tyid = self.get_tyid(f.ident);
-        self.cur_gir = Some(GIR::new(tyid));
+        self.cur_gir = Some(GIR::new(tyid, f.span));
 
         // Get tyir
         let TyIr::Fn(fn_tyir) = self.get_tyir(f.ident) else {
@@ -231,7 +231,7 @@ impl Visitor for TyCheck {
         self.new_local(Local::new(
             f.ret_span(),
             Mutable::Mut,
-            fn_tyir.ret,
+            fn_tyir.ret.ty,
             LocalKind::Ret,
         ));
 
@@ -272,7 +272,7 @@ impl Visitor for TyCheck {
         walk_block(self, &f.block)?;
 
         let block = self.block_mut(self.cur_block());
-        if !block.terminated() && fn_tyir.ret == TyID::BOTTOM {
+        if !block.terminated() && fn_tyir.ret.ty == TyID::BOTTOM {
             block.terminate(Terminator {
                 kind: TerminatorKind::Return,
             });
@@ -360,8 +360,7 @@ impl Visitor for TyCheck {
                     Operand::Copy(place) | Operand::Move(place) => {
                         let local = self.get_local_mut(place.local);
 
-                        if local.kind == LocalKind::Temp {
-                            local.kind = LocalKind::Let;
+                        if local.kind.promote_from_temp(LocalKind::Let) {
                             local.mutable = *mutable;
                             local.span = *span;
 
@@ -755,7 +754,7 @@ impl Visitor for TyCheck {
                 let place = match op {
                     Operand::Copy(place) | Operand::Move(place) => {
                         let local = self.get_local_mut(place.local);
-                        local.kind = LocalKind::Internal;
+                        local.kind.promote_from_temp(LocalKind::Internal);
                         place
                     }
                     Operand::Constant(_) => {
@@ -1021,34 +1020,29 @@ impl Visitor for TyCheck {
                 Some((tyid, Operand::Constant(const_id)))
             }
             ExprKind::Function(None, generics, symbol_id, exprs) => {
-                // Get TyIr
-                let TyIr::Fn(fn_tyir) = self.get_tyir(*symbol_id) else {
+                let mut tyid = self.get_tyid(*symbol_id);
+                let Some(fn_tyir) = self.get_tyir(tyid).into_fn() else {
                     err!(TyCheckError::FunctionDoesntExist, e.span);
                 };
 
-                let mut concrete_generics = BTreeMap::new();
-                if fn_tyir.generics.is_some() && generics.is_some() {
-                    let generic_count = fn_tyir.generics.unwrap();
-                    let generics = generics.as_ref().unwrap();
-                    err_if!(
-                        generic_count != generics.params.len(),
-                        TyCheckError::InvalidGenericTypes,
-                        generics.span
-                    );
+                let fn_tyir = if fn_tyir.total_generics > 0 {
+                    let params = generics
+                        .as_ref()
+                        .map(|g| {
+                            g.params
+                                .iter()
+                                .map(|ty| self.get_tyid((ty, &self.generic_scope)))
+                                .collect()
+                        })
+                        .unwrap_or_default();
 
-                    for (i, p) in generics.params.iter().enumerate() {
-                        concrete_generics.insert(
-                            self.get_tyid(TyIr::GenericParam(i)),
-                            self.get_tyid((p, &self.generic_scope)),
-                        );
-                    }
-                }
+                    tyid = self.ty_ctxt.get_mono_variant(tyid, &params);
+                    self.get_tyir(tyid).into_fn().unwrap()
+                } else {
+                    fn_tyir
+                };
 
-                let ret_ty = concrete_generics
-                    .get(&fn_tyir.ret)
-                    .cloned()
-                    .unwrap_or(fn_tyir.ret);
-
+                let ret_ty = fn_tyir.ret.ty;
                 // Preallocate the size of the return value on the stack
                 self.push_stmt_to_cur_block(gir::Stmt {
                     span: e.span,
@@ -1070,23 +1064,9 @@ impl Visitor for TyCheck {
                 );
 
                 let mut operands = Vec::new();
-                for ((l, op, span), r) in exprs_tys.iter().zip(&fn_tyir.params) {
-                    let r = concrete_generics.get(&r.1.ty).cloned().unwrap_or(r.1.ty);
-
-                    unify!(*l, r, TyCheckError::IncorrectFunctionArguments, *span);
-
+                for ((l, op, span), (_, r)) in exprs_tys.iter().zip(&fn_tyir.params) {
+                    unify!(*l, r.ty, TyCheckError::IncorrectFunctionArguments, *span);
                     operands.push(op.clone());
-                }
-
-                let mut tyid = fn_tyir.tyid;
-
-                if concrete_generics.len() > 0 {
-                    tyid = self.ty_ctxt.global.tyid_from_tyir(TyIr::MonoFn(MonoFnDef {
-                        tyid: fn_tyir.tyid,
-                        mono: concrete_generics,
-                    }));
-
-                    self.linker.mono.insert(fn_tyir.tyid, tyid);
                 }
 
                 let local_id = self.new_local(Local::new(

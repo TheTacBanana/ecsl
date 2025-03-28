@@ -19,6 +19,7 @@ pub type P<T> = Box<T>;
 /// (Control Flow) Graph Intermediate Representation for a given function
 #[derive(Debug, Clone)]
 pub struct GIR {
+    pub span: Span,
     pub fn_id: TyID,
     locals: BTreeMap<LocalID, Local>,
     consts: BTreeMap<ConstID, Constant>,
@@ -49,8 +50,9 @@ impl std::fmt::Display for GIR {
 }
 
 impl GIR {
-    pub fn new(fn_id: TyID) -> Self {
+    pub fn new(fn_id: TyID, span: Span) -> Self {
         Self {
+            span,
             fn_id,
             locals: Default::default(),
             consts: Default::default(),
@@ -163,10 +165,6 @@ impl Block {
         }
     }
 
-    // pub fn add_parent(&mut self, id: BlockID) {
-    //     self.parents.push(id);
-    // }
-
     pub fn push(&mut self, stmt: Stmt) {
         self.stmts.push(stmt);
     }
@@ -193,6 +191,24 @@ impl Block {
         self.stmts.iter()
     }
 
+    pub fn remove_stmts_after(&mut self, f: impl Fn(&Stmt) -> bool) -> bool {
+        let old_stmts = std::mem::take(&mut self.stmts);
+        let mut new_stmts = Vec::new();
+
+        for s in old_stmts {
+            let out = f(&s);
+            new_stmts.push(s);
+            if out {
+                self.stmts = new_stmts;
+                _ = self.term.take();
+                return true;
+            }
+        }
+        self.stmts = new_stmts;
+
+        return false;
+    }
+
     pub fn term(&self) -> Option<&Terminator> {
         self.term.as_ref()
     }
@@ -213,6 +229,18 @@ pub enum LocalKind {
     Temp,
     Let,
     Internal,
+}
+
+impl LocalKind {
+    pub fn promote_from_temp(&mut self, kind: LocalKind) -> bool {
+        match self {
+            LocalKind::Temp => {
+                *self = kind;
+                true
+            }
+            _ => false,
+        }
+    }
 }
 
 impl std::fmt::Display for Local {

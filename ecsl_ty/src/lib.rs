@@ -1,7 +1,7 @@
 use ecsl_ast::{
     data::DataKind,
     expr::{Literal, RangeType},
-    parse::FnKind,
+    parse::{Attributes, FnKind},
     ty::Mutable,
 };
 use ecsl_index::{FieldID, SymbolID, TyID, VariantID};
@@ -11,6 +11,7 @@ pub mod ctxt;
 pub mod def;
 pub mod import;
 pub mod local;
+pub mod mono;
 
 pub type P<T> = Box<T>;
 
@@ -40,8 +41,6 @@ pub enum TyIr {
     ADT(ADTDef),
     /// A function type
     Fn(FnDef),
-    /// A monomorphized function variant
-    MonoFn(MonoFnDef),
     /// A sized array type
     Array(TyID, usize),
     ArrayRef(Mutable, TyID),
@@ -61,11 +60,11 @@ impl From<Literal> for TyIr {
 }
 
 impl TyIr {
-    pub fn get_generics(&self) -> Option<usize> {
+    pub fn get_generics(&self) -> usize {
         match self {
-            TyIr::ADT(adtdef) => adtdef.generics,
-            TyIr::Fn(fn_def) => fn_def.generics,
-            _ => None,
+            TyIr::ADT(adtdef) => adtdef.total_generics,
+            TyIr::Fn(fn_def) => fn_def.total_generics,
+            _ => 0,
         }
     }
 
@@ -89,7 +88,11 @@ pub struct ADTDef {
     pub kind: DataKind,
     pub variant_hash: BTreeMap<String, VariantID>, // TODO: Temporary solution to getting the variants of an enum, pls fix
     pub variant_kinds: BTreeMap<VariantID, VariantDef>,
-    pub generics: Option<usize>,
+
+    pub resolved_generics: usize,
+    pub total_generics: usize,
+
+    pub attributes: Attributes,
 }
 
 impl ADTDef {
@@ -117,6 +120,14 @@ impl ADTDef {
         }
         self.variant_kinds.get(&VariantID::ZERO).as_ref().unwrap()
     }
+
+    pub fn map(&mut self, mut f: impl FnMut(&mut FieldDef)) {
+        for (_, var) in &mut self.variant_kinds {
+            for (_, field) in &mut var.field_tys {
+                f(field);
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -143,16 +154,21 @@ pub struct FnDef {
     pub tyid: TyID,
     pub kind: FnKind,
     pub params: BTreeMap<FieldID, FieldDef>,
-    pub ret: TyID,
-    pub generics: Option<usize>,
+    pub ret: FieldDef,
+
+    pub resolved_generics: usize,
+    pub total_generics: usize,
+
+    pub attributes: Attributes,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct MonoFnDef {
-    /// Original Fn
-    pub tyid: TyID,
-    // Generic Tys
-    pub mono: BTreeMap<TyID, TyID>,
+impl FnDef {
+    pub fn map(&mut self, mut f: impl FnMut(&mut FieldDef)) {
+        for (_, field) in &mut self.params {
+            f(field);
+        }
+        f(&mut self.ret);
+    }
 }
 
 #[derive(Debug)]
@@ -169,13 +185,13 @@ impl GenericsScope {
         self.scopes.push(g);
     }
 
-    pub fn add_opt(&mut self, g: Option<ecsl_ast::ty::Generics>) -> Option<usize> {
+    pub fn add_opt(&mut self, g: Option<ecsl_ast::ty::Generics>) -> usize {
         if let Some(g) = g {
             let len = g.params.len();
             self.scopes.push(g);
-            return Some(len);
+            return len;
         }
-        return None;
+        return 0;
     }
 
     pub fn scope_index(&self, id: SymbolID) -> Option<usize> {

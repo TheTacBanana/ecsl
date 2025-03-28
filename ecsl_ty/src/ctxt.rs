@@ -1,4 +1,4 @@
-use crate::{local::LocalTyCtxt, TyIr};
+use crate::{local::LocalTyCtxt, mono::Mono, TyIr};
 use bimap::BiHashMap;
 use cfgrammar::Span;
 use ecsl_diagnostics::DiagConn;
@@ -11,15 +11,26 @@ use std::{
 
 pub struct TyCtxt {
     pub diag: DiagConn,
+    pub monos: Arc<Mono>,
+
+    /// Links to LocalTyCtxt's from source file ID
     pub sources: RwLock<BTreeMap<SourceFileID, Arc<LocalTyCtxt>>>,
+    /// Map Global ID's to TyID
     pub mappings: RwLock<BTreeMap<GlobalID, TyID>>,
+    /// BiMap between TyID and TyIr
     pub tyirs: RwLock<BiHashMap<TyID, TyIr>>,
-    /// Mapping of tyid and concrete generics to monomorphized tyid
-    pub monos: RwLock<BTreeMap<(TyID, Vec<TyID>), TyID>>,
+
+    /// Next TyID
     pub cur_id: RwLock<usize>,
+    /// Size Map for each TyID
     pub sizes: RwLock<BTreeMap<TyID, usize>>,
+    /// Field offsets based on TyID, VariantID and FieldID
     pub field_offsets: RwLock<BTreeMap<(TyID, VariantID, FieldID), usize>>,
+
+    /// Unused map of spans
     pub spans: RwLock<BTreeMap<TyID, Span>>,
+
+    /// Singular entry point for program
     pub entry_point: RwLock<Option<TyID>>,
 }
 
@@ -43,20 +54,11 @@ impl TyCtxt {
         ty_ctxt
     }
 
-    fn next_id(&self) -> TyID {
+    pub unsafe fn next_id(&self) -> TyID {
         let mut cur_id = self.cur_id.write().unwrap();
         let val = cur_id.clone();
         *cur_id += 1;
         return TyID::new(val);
-    }
-
-    pub fn get_or_create_tyid(&self, id: GlobalID) -> TyID {
-        let mut lock = self.mappings.write().unwrap();
-        let tyid = match lock.entry(id) {
-            Entry::Vacant(vacant) => *vacant.insert(self.next_id()),
-            Entry::Occupied(occupied) => *occupied.get(),
-        };
-        tyid
     }
 
     pub unsafe fn insert_tyir(&self, id: TyID, tyir: TyIr, span: Span) {
@@ -66,10 +68,19 @@ impl TyCtxt {
         spans.insert(id, span);
     }
 
+    pub fn get_or_create_tyid(&self, id: GlobalID) -> TyID {
+        let mut lock = self.mappings.write().unwrap();
+        let tyid = match lock.entry(id) {
+            Entry::Vacant(vacant) => *vacant.insert(unsafe { self.next_id() }),
+            Entry::Occupied(occupied) => *occupied.get(),
+        };
+        tyid
+    }
+
     pub fn tyid_from_tyir(&self, tyir: TyIr) -> TyID {
         let mut tyirs = self.tyirs.write().unwrap();
         if !tyirs.contains_right(&tyir) {
-            let next_id = self.next_id();
+            let next_id = unsafe { self.next_id() };
             tyirs.insert(next_id, tyir);
             next_id
         } else {
@@ -173,8 +184,6 @@ impl TyCtxt {
                 }
                 *offsets.get(&(id, vid, fid)).unwrap()
             }
-            // TyIr::Struct(def) => {
-            // }
             e => panic!("{id:?} {e:?}"),
         };
 
