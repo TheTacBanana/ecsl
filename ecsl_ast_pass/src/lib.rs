@@ -4,6 +4,7 @@ use byt::BytecodeValidator;
 use casing::CasingWarnings;
 use definitions::TypeDefCollector;
 use ecsl_ast::{
+    data::{EnumDef, StructDef},
     item::{Item, ItemKind},
     parse::AttributeValue,
     visit::Visitor,
@@ -144,20 +145,23 @@ pub fn validate_imports(source: &SourceFile, ctxt: &Context, ty_ctxt: Arc<LocalT
     }
 }
 
-pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
-    mod ast {
-        pub use ecsl_ast::callable::*;
-        pub use ecsl_ast::data::*;
-    }
+pub fn generate_pre_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
     let mut scope = GenericsScope::new();
     for (_, def) in ty_ctxt.defined.read().unwrap().iter() {
         match def {
-            Definition::Struct(ast::StructDef {
+            Definition::Struct(StructDef {
                 span,
                 kind,
                 ident,
                 generics,
-                fields,
+                attributes,
+                ..
+            })
+            | Definition::Enum(EnumDef {
+                span,
+                kind,
+                ident,
+                generics,
                 attributes,
                 ..
             }) => {
@@ -186,39 +190,6 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                     }
                 }
 
-                let mut field_hash = BTreeMap::new();
-                let mut field_tys = BTreeMap::new();
-
-                for (i, f) in fields.iter().enumerate() {
-                    let id = FieldID::new(i);
-                    let symbol = ty_ctxt.table.get_symbol(f.ident).unwrap();
-                    if field_hash.insert(symbol.name, id).is_some() {
-                        ty_ctxt.diag.push_error(
-                            EcslError::new(ErrorLevel::Error, "Duplicate field name")
-                                .with_span(|_| f.span),
-                        );
-                    }
-
-                    let params =
-                        f.ty.generics
-                            .as_ref()
-                            .map(|g| {
-                                g.params
-                                    .iter()
-                                    .map(|ty| ty_ctxt.get_tyid(ty, &scope).unwrap())
-                                    .collect()
-                            })
-                            .unwrap_or_default();
-                    field_tys.insert(
-                        id,
-                        FieldDef {
-                            id,
-                            ty: ty_ctxt.get_tyid(&f.ty, &scope).unwrap(),
-                            params,
-                        },
-                    );
-                }
-
                 unsafe {
                     ty_ctxt.global.insert_tyir(
                         tyid,
@@ -226,16 +197,7 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                             id: tyid,
                             kind: *kind,
                             variant_hash: BTreeMap::new(),
-                            variant_kinds: vec![(
-                                VariantID::ZERO,
-                                ecsl_ty::VariantDef {
-                                    id: VariantID::ZERO,
-                                    field_hash,
-                                    field_tys,
-                                },
-                            )]
-                            .into_iter()
-                            .collect(),
+                            variant_kinds: BTreeMap::new(),
                             resolved_generics: 0,
                             total_generics: generics,
                             attributes: attributes.clone(),
@@ -246,94 +208,117 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
 
                 scope.pop();
             }
+            _ => (),
+        };
+    }
+}
+
+pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
+    mod ast {
+        pub use ecsl_ast::callable::*;
+        pub use ecsl_ast::data::*;
+    }
+
+    let parse_fields = |var: &mut ecsl_ty::VariantDef,
+                        fields: &Vec<ast::FieldDef>,
+                        scope: &GenericsScope| {
+        for (i, f) in fields.iter().enumerate() {
+            let id = FieldID::new(i);
+            let symbol = ty_ctxt.table.get_symbol(f.ident).unwrap();
+            if var.field_hash.insert(symbol.name, id).is_some() {
+                ty_ctxt.diag.push_error(
+                    EcslError::new(ErrorLevel::Error, "Duplicate field name").with_span(|_| f.span),
+                );
+            }
+
+            let params =
+                f.ty.generics
+                    .params
+                    .iter()
+                    .map(|ty| ty_ctxt.get_tyid(ty, &scope).unwrap())
+                    .collect();
+
+            var.field_tys.insert(
+                id,
+                FieldDef {
+                    id,
+                    ty: ty_ctxt.get_tyid(&f.ty, &scope).unwrap(),
+                    params,
+                },
+            );
+        }
+    };
+
+    let mut scope = GenericsScope::new();
+    for (_, def) in ty_ctxt.defined.read().unwrap().iter() {
+        match def {
+            Definition::Struct(ast::StructDef {
+                span,
+                ident,
+                fields,
+                generics,
+                ..
+            }) => {
+                scope.add_opt(generics.clone());
+
+                // Get TyID and TyIr
+                let tyid = ty_ctxt
+                    .global
+                    .get_or_create_tyid(GlobalID::new(*ident, ty_ctxt.file));
+                let Some(mut tyir) = ty_ctxt.global.get_tyir(tyid).into_adt() else {
+                    continue;
+                };
+
+                // Create a singular variant
+                let mut variant = ecsl_ty::VariantDef {
+                    id: VariantID::ZERO,
+                    field_hash: BTreeMap::new(),
+                    field_tys: BTreeMap::new(),
+                };
+
+                parse_fields(&mut variant, fields, &scope);
+
+                // Insert the variant to the tyir and insert the tyir back into the ctxt
+                tyir.variant_kinds.insert(VariantID::ZERO, variant);
+                unsafe { ty_ctxt.global.insert_tyir(tyid, TyIr::ADT(tyir), *span) };
+
+                scope.pop();
+            }
             Definition::Enum(ast::EnumDef {
-                kind,
                 ident,
                 generics,
                 variants,
                 span,
-                attributes,
                 ..
             }) => {
-                let generics = scope.add_opt(generics.clone());
+                scope.add_opt(generics.clone());
 
+                // Get TyID and TyIr
                 let tyid = ty_ctxt
                     .global
                     .get_or_create_tyid(GlobalID::new(*ident, ty_ctxt.file));
-
-                let mut variant_hash = BTreeMap::new();
-                let mut variant_kinds = BTreeMap::new();
+                let Some(mut tyir) = ty_ctxt.global.get_tyir(tyid).into_adt() else {
+                    continue;
+                };
 
                 for (i, v) in variants.iter().enumerate() {
                     let var_id = VariantID::new(i);
                     let var_name = ty_ctxt.table.get_symbol(v.ident).unwrap();
 
-                    if variant_hash.insert(var_name.name, var_id).is_some() {
+                    if tyir.variant_hash.insert(var_name.name, var_id).is_some() {
                         ty_ctxt.diag.push_error(
                             EcslError::new(ErrorLevel::Error, "Duplicate variant name")
                                 .with_span(|_| v.span),
                         );
                     }
 
-                    let mut field_hash = BTreeMap::new();
-                    let mut field_tys = BTreeMap::new();
+                    let mut variant = ecsl_ty::VariantDef::new(var_id);
 
-                    for (i, f) in v.fields.iter().enumerate() {
-                        let id = FieldID::new(i);
-                        let symbol = ty_ctxt.table.get_symbol(f.ident).unwrap();
-                        if field_hash.insert(symbol.name, id).is_some() {
-                            ty_ctxt.diag.push_error(
-                                EcslError::new(ErrorLevel::Error, "Duplicate field name")
-                                    .with_span(|_| f.span),
-                            );
-                        }
-
-                        let params =
-                            f.ty.generics
-                                .as_ref()
-                                .map(|g| {
-                                    g.params
-                                        .iter()
-                                        .map(|ty| ty_ctxt.get_tyid(ty, &scope).unwrap())
-                                        .collect()
-                                })
-                                .unwrap_or_default();
-
-                        field_tys.insert(
-                            id,
-                            FieldDef {
-                                id,
-                                ty: ty_ctxt.get_tyid(&f.ty, &scope).unwrap(),
-                                params,
-                            },
-                        );
-                    }
-
-                    variant_kinds.insert(
-                        var_id,
-                        ecsl_ty::VariantDef {
-                            id: var_id,
-                            field_hash,
-                            field_tys,
-                        },
-                    );
+                    parse_fields(&mut variant, &v.fields, &scope);
+                    tyir.variant_kinds.insert(var_id, variant);
                 }
 
-                unsafe {
-                    ty_ctxt.global.insert_tyir(
-                        tyid,
-                        TyIr::ADT(ecsl_ty::ADTDef {
-                            id: tyid,
-                            kind: *kind,
-                            variant_hash,
-                            variant_kinds,
-                            resolved_generics: 0,
-                            total_generics: generics,
-                            attributes: attributes.clone(),
-                        }),
-                        *span,
-                    )
-                };
+                unsafe { ty_ctxt.global.insert_tyir(tyid, TyIr::ADT(tyir), *span) };
 
                 scope.pop();
             }
@@ -361,14 +346,10 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
 
                     let params = ty
                         .generics
-                        .as_ref()
-                        .map(|g| {
-                            g.params
-                                .iter()
-                                .map(|ty| ty_ctxt.get_tyid(ty, &scope).unwrap())
-                                .collect()
-                        })
-                        .unwrap_or_default();
+                        .params
+                        .iter()
+                        .map(|ty| ty_ctxt.get_tyid(ty, &scope).unwrap())
+                        .collect();
 
                     let id = FieldID::new(i);
                     fn_params.insert(
@@ -390,14 +371,10 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                     ast::RetTy::Ty(ty) => {
                         let params = ty
                             .generics
-                            .as_ref()
-                            .map(|g| {
-                                g.params
-                                    .iter()
-                                    .map(|ty| ty_ctxt.get_tyid(ty, &scope).unwrap())
-                                    .collect()
-                            })
-                            .unwrap_or_default();
+                            .params
+                            .iter()
+                            .map(|ty| ty_ctxt.get_tyid(ty, &scope).unwrap())
+                            .collect();
 
                         FieldDef {
                             id: FieldID::ZERO,

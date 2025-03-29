@@ -151,6 +151,13 @@ impl Driver {
         info!("Generating TyIr");
         let assoc = (&context, assoc).par_map_assoc(
             |_, _, (diag, ast, table, local_ctxt)| {
+                generate_pre_tyir(local_ctxt.clone());
+                Some((diag, ast, table, local_ctxt))
+            },
+            || diag.finish_stage(lexer_func),
+        )?;
+        let assoc = (&context, assoc).par_map_assoc(
+            |_, _, (diag, ast, table, local_ctxt)| {
                 generate_definition_tyir(local_ctxt.clone());
                 Some((diag, ast, table, local_ctxt))
             },
