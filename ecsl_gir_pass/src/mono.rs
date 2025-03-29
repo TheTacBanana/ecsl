@@ -1,13 +1,13 @@
 use crate::{linker::FunctionLinker, GIRPass};
+use cfgrammar::Span;
 use ecsl_gir::{
-    expr::{Expr, ExprKind},
+    expr::Expr,
     stmt::{Stmt, StmtKind},
     visit::{walk_expr_mut, walk_stmt_mut, VisitorCF, VisitorMut},
     Local, Place, GIR,
 };
 use ecsl_index::{LocalID, TyID};
 use ecsl_ty::{local::LocalTyCtxt, TyIr};
-use log::debug;
 use std::{collections::BTreeMap, sync::Arc};
 
 pub fn monomorphize(linker: &mut FunctionLinker, ctxt: &Arc<LocalTyCtxt>) {
@@ -24,12 +24,8 @@ pub fn monomorphize(linker: &mut FunctionLinker, ctxt: &Arc<LocalTyCtxt>) {
                 .map(|(i, tyid)| (ctxt.global.tyid_from_tyir(TyIr::GenericParam(i)), *tyid))
                 .collect::<BTreeMap<_, _>>();
 
-            debug!("{:?}", mapping);
-
             MonomorphizeFn::apply_pass(&mut new_gir, (ctxt, mapping.clone()));
             new_gir.fn_id = v;
-
-            debug!("Monomorphized {:?} {}", mapping, new_gir);
 
             generated.insert(v, new_gir);
         }
@@ -43,7 +39,7 @@ pub struct MonomorphizeFn<'a> {
 }
 
 impl<'a> MonomorphizeFn<'a> {
-    pub fn replace_tyid(&self, tyid: &mut TyID) {
+    pub fn replace_tyid(&self, tyid: &mut TyID, span: Span) {
         let mono = self.ctxt.global.monos.mono_map.read().unwrap();
         if let Some((_, params)) = mono.get_by_right(tyid) {
             let params = params
@@ -51,12 +47,12 @@ impl<'a> MonomorphizeFn<'a> {
                 .drain(..)
                 .map(|ty| {
                     let mut ty = ty;
-                    self.replace_tyid(&mut ty);
+                    self.replace_tyid(&mut ty, span);
                     ty
                 })
                 .collect();
 
-            *tyid = self.ctxt.get_mono_variant(*tyid, &params).unwrap();
+            *tyid = self.ctxt.get_mono_variant(*tyid, &params, span).unwrap();
         } else {
             *tyid = self.mapping.get(&tyid).cloned().unwrap_or(*tyid);
         }
@@ -78,13 +74,13 @@ impl<'a> GIRPass for MonomorphizeFn<'a> {
 
 impl<'a> VisitorMut for MonomorphizeFn<'a> {
     fn visit_local_mut(&mut self, _: LocalID, l: &mut Local) -> VisitorCF {
-        self.replace_tyid(&mut l.tyid);
+        self.replace_tyid(&mut l.tyid, l.span);
         VisitorCF::Continue
     }
 
     fn visit_stmt_mut(&mut self, s: &mut Stmt) -> VisitorCF {
         match &mut s.kind {
-            StmtKind::AllocReturn(ty_id) => self.replace_tyid(ty_id),
+            StmtKind::AllocReturn(ty_id) => self.replace_tyid(ty_id, s.span),
             _ => (),
         }
         walk_stmt_mut(self, s)
@@ -95,7 +91,8 @@ impl<'a> VisitorMut for MonomorphizeFn<'a> {
     }
 
     fn visit_place_mut(&mut self, p: &mut Place) -> VisitorCF {
-        p.rewrite_tyid(|f| self.replace_tyid(f));
+        let span = p.span;
+        p.rewrite_tyid(|f| self.replace_tyid(f, span));
         VisitorCF::Continue
     }
 }

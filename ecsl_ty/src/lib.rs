@@ -142,6 +142,16 @@ pub struct VariantDef {
     pub field_tys: BTreeMap<FieldID, FieldDef>,
 }
 
+impl VariantDef {
+    pub fn new(id: VariantID) -> Self {
+        Self {
+            id,
+            field_hash: Default::default(),
+            field_tys: Default::default(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct FieldDef {
     pub id: FieldID,

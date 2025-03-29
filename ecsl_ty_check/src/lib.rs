@@ -257,7 +257,7 @@ impl Visitor for TyCheck {
                         .symbols
                         .last_mut()
                         .unwrap()
-                        .insert(*symbol_id, Place::from_local(local_id))
+                        .insert(*symbol_id, Place::from_local(local_id, param.span))
                     {
                         self.ty_ctxt.diag.push_error(
                             EcslError::new(ErrorLevel::Error, TyCheckError::SymbolRedefined)
@@ -345,7 +345,7 @@ impl Visitor for TyCheck {
             );
             return VisitorCF::Break;
         }
-
+        let span = s.span;
         match &s.kind {
             StmtKind::Let(mutable, symbol_id, span, ty, expr) => {
                 // Visit expression
@@ -375,7 +375,7 @@ impl Visitor for TyCheck {
                             self.push_stmt_to_cur_block(gir::Stmt {
                                 span: *span,
                                 kind: gir::StmtKind::Assign(
-                                    Place::from_local(local_id),
+                                    Place::from_local(local_id, *span),
                                     gir::Expr {
                                         span: *span,
                                         kind: gir::ExprKind::Value(rhs_op),
@@ -395,7 +395,7 @@ impl Visitor for TyCheck {
                         self.push_stmt_to_cur_block(gir::Stmt {
                             span: *span,
                             kind: gir::StmtKind::Assign(
-                                Place::from_local(local_id),
+                                Place::from_local(local_id, *span),
                                 gir::Expr {
                                     span: *span,
                                     kind: gir::ExprKind::Value(rhs_op),
@@ -413,7 +413,7 @@ impl Visitor for TyCheck {
                     .symbols
                     .last_mut()
                     .unwrap()
-                    .insert(*symbol_id, Place::from_local(local_id))
+                    .insert(*symbol_id, Place::from_local(local_id, *span))
                 {
                     self.ty_ctxt.diag.push_error(
                         EcslError::new(ErrorLevel::Error, TyCheckError::SymbolRedefined)
@@ -529,7 +529,7 @@ impl Visitor for TyCheck {
                     self.push_stmt_to_cur_block(gir::Stmt {
                         span: s.span,
                         kind: gir::StmtKind::Assign(
-                            Place::return_location(),
+                            Place::return_location(span),
                             gir::Expr {
                                 span: expr.span,
                                 kind: gir::ExprKind::Value(op),
@@ -608,7 +608,7 @@ impl Visitor for TyCheck {
                 self.push_stmt_to_cur_block(gir::Stmt {
                     span: s.span,
                     kind: gir::StmtKind::Assign(
-                        Place::from_local(iterator_local_id),
+                        Place::from_local(iterator_local_id, span),
                         gir::Expr {
                             span: expr.span, //TODO: Replace Span
                             kind: gir::ExprKind::Value(lhs_op),
@@ -627,7 +627,7 @@ impl Visitor for TyCheck {
                 self.push_stmt_to_cur_block(gir::Stmt {
                     span: s.span,
                     kind: gir::StmtKind::Assign(
-                        Place::from_local(internal_max),
+                        Place::from_local(internal_max, span),
                         gir::Expr {
                             span: expr.span, //TODO: Replace Span
                             kind: gir::ExprKind::Value(rhs_op),
@@ -648,7 +648,7 @@ impl Visitor for TyCheck {
                     .symbols
                     .last_mut()
                     .unwrap()
-                    .insert(*symbol_id, Place::from_local(iterator_local_id))
+                    .insert(*symbol_id, Place::from_local(iterator_local_id, span))
                 {
                     self.ty_ctxt.diag.push_error(
                         EcslError::new(ErrorLevel::Error, TyCheckError::SymbolRedefined)
@@ -663,7 +663,7 @@ impl Visitor for TyCheck {
                 self.push_stmt_to_cur_block(gir::Stmt {
                     span: s.span,
                     kind: gir::StmtKind::Assign(
-                        Place::from_local(comparison),
+                        Place::from_local(comparison, span),
                         gir::Expr {
                             span: expr.span,
                             kind: gir::ExprKind::BinOp(
@@ -674,8 +674,8 @@ impl Visitor for TyCheck {
                                         RangeType::Inclusive => BinOpKind::Leq,
                                     },
                                 ),
-                                Operand::Copy(Place::from_local(iterator_local_id)),
-                                Operand::Copy(Place::from_local(internal_max)),
+                                Operand::Copy(Place::from_local(iterator_local_id, span)),
+                                Operand::Copy(Place::from_local(internal_max, span)),
                             ),
                         },
                     ),
@@ -687,7 +687,7 @@ impl Visitor for TyCheck {
                     self.terminate_with_new_block(TerminationKind::Higher, |block, next| {
                         block.terminate(Terminator {
                             kind: TerminatorKind::Switch(
-                                Operand::Move(Place::from_local(comparison)),
+                                Operand::Move(Place::from_local(comparison, span)),
                                 vec![
                                     SwitchCase::Value(Immediate::Bool(true), next),
                                     SwitchCase::Default(leave_block),
@@ -711,12 +711,12 @@ impl Visitor for TyCheck {
                 self.push_stmt_to_cur_block(gir::Stmt {
                     span: s.span,
                     kind: gir::StmtKind::Assign(
-                        Place::from_local(iterator_local_id),
+                        Place::from_local(iterator_local_id, span),
                         gir::Expr {
                             span: expr.span,
                             kind: gir::ExprKind::BinOp(
                                 BinOp(OperandKind::Int, BinOpKind::Add),
-                                Operand::Copy(Place::from_local(iterator_local_id)),
+                                Operand::Copy(Place::from_local(iterator_local_id, span)),
                                 Operand::Constant(one_const),
                             ),
                         },
@@ -772,7 +772,7 @@ impl Visitor for TyCheck {
                         self.push_stmt_to_cur_block(gir::Stmt {
                             span: expr.span,
                             kind: gir::StmtKind::Assign(
-                                Place::from_local(local_id),
+                                Place::from_local(local_id, span),
                                 gir::Expr {
                                     span: expr.span,
                                     kind: gir::ExprKind::Value(op),
@@ -781,7 +781,7 @@ impl Visitor for TyCheck {
                         });
 
                         // Return local
-                        Place::from_local(local_id)
+                        Place::from_local(local_id, span)
                     }
                 };
 
@@ -945,6 +945,7 @@ impl Visitor for TyCheck {
             };
         }
 
+        let span = e.span;
         let ret_ty = match &e.kind {
             ExprKind::Assign(lhs, span, rhs) => {
                 // Visit lhs
@@ -1027,16 +1028,15 @@ impl Visitor for TyCheck {
 
                 let fn_tyir = if fn_tyir.total_generics > 0 {
                     let params = generics
-                        .as_ref()
-                        .map(|g| {
-                            g.params
-                                .iter()
-                                .map(|ty| self.get_tyid((ty, &self.generic_scope)))
-                                .collect()
-                        })
-                        .unwrap_or_default();
+                        .params
+                        .iter()
+                        .map(|ty| self.get_tyid((ty, &self.generic_scope)))
+                        .collect();
 
-                    tyid = self.ty_ctxt.get_mono_variant(tyid, &params).unwrap();
+                    tyid = self
+                        .ty_ctxt
+                        .get_mono_variant(tyid, &params, generics.span)
+                        .unwrap();
                     self.get_tyir(tyid).into_fn().unwrap()
                 } else {
                     fn_tyir
@@ -1080,7 +1080,7 @@ impl Visitor for TyCheck {
                 self.push_stmt_to_cur_block(gir::Stmt {
                     span: e.span,
                     kind: gir::StmtKind::Assign(
-                        Place::from_local(local_id),
+                        Place::from_local(local_id, span),
                         gir::Expr {
                             span: e.span, //TODO: Replace Span
                             kind: gir::ExprKind::Call(tyid, operands),
@@ -1088,7 +1088,7 @@ impl Visitor for TyCheck {
                     ),
                 });
 
-                Some((ret_ty, Operand::Move(Place::from_local(local_id))))
+                Some((ret_ty, Operand::Move(Place::from_local(local_id, span))))
             }
             ExprKind::BinOp(op, lhs, rhs) => {
                 // Visit LHS
@@ -1133,7 +1133,7 @@ impl Visitor for TyCheck {
                 self.push_stmt_to_cur_block(gir::Stmt {
                     span: e.span,
                     kind: gir::StmtKind::Assign(
-                        Place::from_local(local_id),
+                        Place::from_local(local_id, span),
                         gir::Expr {
                             span: e.span, //TODO: Replace Span
                             kind: gir::ExprKind::BinOp(BinOp(op_kind, *op), lhs_op, rhs_op),
@@ -1141,7 +1141,7 @@ impl Visitor for TyCheck {
                     ),
                 });
 
-                Some((tyid, Operand::Move(Place::from_local(local_id))))
+                Some((tyid, Operand::Move(Place::from_local(local_id, span))))
             }
             ExprKind::UnOp(op, expr) => {
                 // Visit expr
@@ -1177,7 +1177,7 @@ impl Visitor for TyCheck {
                 self.push_stmt_to_cur_block(gir::Stmt {
                     span: e.span,
                     kind: gir::StmtKind::Assign(
-                        Place::from_local(local_id),
+                        Place::from_local(local_id, span),
                         gir::Expr {
                             span: e.span, //TODO: Replace Span
                             kind: gir::ExprKind::UnOp(UnOp(op_kind, *op), e_op),
@@ -1185,7 +1185,7 @@ impl Visitor for TyCheck {
                     ),
                 });
 
-                Some((mapped_ty, Operand::Move(Place::from_local(local_id))))
+                Some((mapped_ty, Operand::Move(Place::from_local(local_id, span))))
             }
             ExprKind::Cast(expr, ty) => {
                 // Visit expr
@@ -1227,7 +1227,7 @@ impl Visitor for TyCheck {
                 self.push_stmt_to_cur_block(gir::Stmt {
                     span: e.span,
                     kind: gir::StmtKind::Assign(
-                        Place::from_local(local_id),
+                        Place::from_local(local_id, span),
                         Expr {
                             span: e.span,
                             kind: expr,
@@ -1235,7 +1235,7 @@ impl Visitor for TyCheck {
                     ),
                 });
 
-                Some((to_tyid, Operand::Move(Place::from_local(local_id))))
+                Some((to_tyid, Operand::Move(Place::from_local(local_id, span))))
             }
             ExprKind::Range(_, _, _) => {
                 panic!("Internal Compiler Error: Range Expr Ty Check")
@@ -1289,12 +1289,14 @@ impl Visitor for TyCheck {
                     self.push_stmt_to_cur_block(gir::Stmt {
                         span: field.span,
                         kind: gir::StmtKind::Assign(
-                            Place::from_local(local_id).with_projection(gir::Projection::Field {
-                                ty: struct_tyid,
-                                vid: variant.id,
-                                fid: *field_id,
-                                new_ty: field_def.ty,
-                            }),
+                            Place::from_local(local_id, span).with_projection(
+                                gir::Projection::Field {
+                                    ty: struct_tyid,
+                                    vid: variant.id,
+                                    fid: *field_id,
+                                    new_ty: field_def.ty,
+                                },
+                            ),
                             gir::Expr {
                                 span: e.span,
                                 kind: gir::ExprKind::Value(expr_op),
@@ -1310,7 +1312,10 @@ impl Visitor for TyCheck {
                     e.span
                 );
 
-                Some((struct_tyid, Operand::Move(Place::from_local(local_id))))
+                Some((
+                    struct_tyid,
+                    Operand::Move(Place::from_local(local_id, span)),
+                ))
             }
             ExprKind::Field(expr, symbol_id) => {
                 // Visit expr
@@ -1367,21 +1372,6 @@ impl Visitor for TyCheck {
                 };
                 err_if!(!enum_tyir.is_enum(), TyCheckError::TypeIsNotAnEnum, e.span);
 
-                // let generics = ty.generics.as_ref();
-                // if generics.map(|ty| ty.params.len()) != enum_tyir.generics {
-                //     err!(TyCheckError::InvalidGenericTypes, e.span);
-                // }
-
-                // if let Some(generics) = generics {
-                //     let mut tyids = Vec::new();
-                //     for p in &generics.params {
-                //         tyids.push(self.get_tyid((p, &self.generic_scope)));
-                //     }
-
-                //     enum_tyid = self.ty_ctxt.get_mono_variant(enum_tyid, &tyids);
-                //     enum_tyir = self.get_tyir(enum_tyid).into_adt().unwrap()
-                // }
-
                 let local_id = self.new_local(Local::new(
                     e.span,
                     Mutable::Imm,
@@ -1409,7 +1399,7 @@ impl Visitor for TyCheck {
                 self.push_stmt_to_cur_block(gir::Stmt {
                     span: e.span,
                     kind: gir::StmtKind::Assign(
-                        Place::from_local(local_id)
+                        Place::from_local(local_id, span)
                             .with_projection(Projection::Discriminant { tyid: enum_tyid }),
                         gir::Expr {
                             span: e.span,
@@ -1446,12 +1436,14 @@ impl Visitor for TyCheck {
                     self.push_stmt_to_cur_block(gir::Stmt {
                         span: field.span,
                         kind: gir::StmtKind::Assign(
-                            Place::from_local(local_id).with_projection(gir::Projection::Field {
-                                ty: enum_tyid,
-                                vid: *var_id,
-                                fid: *field_id,
-                                new_ty: field_def.ty,
-                            }),
+                            Place::from_local(local_id, span).with_projection(
+                                gir::Projection::Field {
+                                    ty: enum_tyid,
+                                    vid: *var_id,
+                                    fid: *field_id,
+                                    new_ty: field_def.ty,
+                                },
+                            ),
                             gir::Expr {
                                 span: e.span,
                                 kind: gir::ExprKind::Value(expr_op),
@@ -1467,7 +1459,7 @@ impl Visitor for TyCheck {
                     e.span
                 );
 
-                Some((enum_tyid, Operand::Move(Place::from_local(local_id))))
+                Some((enum_tyid, Operand::Move(Place::from_local(local_id, span))))
             }
             e => panic!("{:?}", e),
             // ExprKind::Ref(mutable, expr) => todo!(),

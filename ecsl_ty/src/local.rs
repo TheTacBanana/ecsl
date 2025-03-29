@@ -4,11 +4,13 @@ use crate::{
     import::{Import, ImportPath},
     FieldDef, GenericsScope, TyIr, TypeError,
 };
+use cfgrammar::Span;
 use ecsl_ast::ty::{Ty, TyKind};
 use ecsl_diagnostics::DiagConn;
 use ecsl_error::{ext::EcslErrorExt, EcslError, ErrorLevel};
 use ecsl_index::{GlobalID, SourceFileID, SymbolID, TyID};
 use ecsl_parse::table::SymbolTable;
+use log::error;
 use std::{
     collections::BTreeMap,
     sync::{Arc, RwLock},
@@ -156,34 +158,51 @@ impl LocalTyCtxt {
         match &ty.kind {
             TyKind::Ident(symbol_id) => {
                 let adt_base_id = resolve_tyid!(symbol_id);
-                if let Some(generics) = &ty.generics {
-                    let mut params = Vec::new();
-                    let mut known_tys = 0;
-                    for g in &generics.params {
-                        let param_tyid = self.get_tyid(g, scope)?;
-                        params.push(param_tyid);
 
-                        match self.global.get_tyir(param_tyid) {
-                            TyIr::GenericParam(_) => (),
-                            _ => known_tys += 1, //TODO: Generic
-                        }
-                    }
+                let total_generics = self
+                    .global
+                    .get_tyir(adt_base_id)
+                    .into_adt()
+                    .map(|adt| adt.total_generics)
+                    .unwrap_or_default();
 
-                    if known_tys == 0 {
-                        self.global
-                            .monos
-                            .insert_mapping((adt_base_id, params), adt_base_id);
-                        Some(adt_base_id)
-                    } else if known_tys == params.len() {
-                        self.get_mono_variant(adt_base_id, &params)
-                    } else {
-                        self.diag.push_error(
-                            EcslError::new(ErrorLevel::Error, TypeError::UnknownType)
-                                .with_span(|_| ty.span),
-                        );
-                        Some(TyID::UNKNOWN)
+                let s;
+                let error = match (total_generics, ty.generics.params.len()) {
+                    (l, r) if l == r => None,
+                    (0, n) if n > 0 => Some("Generics not needed"),
+                    (n, 0) if n > 0 => Some("Type requires generics"),
+                    (l @ 0.., r @ 0..) => {
+                        s = format!("Mismatched generics required {} vs actual {}", l, r);
+                        Some(s.as_str())
                     }
+                };
+                if let Some(error) = error {
+                    self.diag.push_error(
+                        EcslError::new(ErrorLevel::Error, error).with_span(|_| ty.generics.span),
+                    );
+                    return Some(TyID::UNKNOWN);
+                };
+
+                let mut params = Vec::new();
+                let mut known_tys = 0;
+                for g in &ty.generics.params {
+                    let param_tyid = self.get_tyid(g, scope)?;
+                    params.push(param_tyid);
+
+                    match self.global.get_tyir(param_tyid) {
+                        TyIr::GenericParam(_) => (),
+                        _ => known_tys += 1, //TODO: Generic
+                    }
+                }
+
+                if total_generics == 0 {
+                    Some(adt_base_id)
+                } else if known_tys == total_generics {
+                    self.get_mono_variant(adt_base_id, &params, ty.span)
                 } else {
+                    self.global
+                        .monos
+                        .insert_mapping((adt_base_id, params), adt_base_id);
                     Some(adt_base_id)
                 }
             }
@@ -198,7 +217,7 @@ impl LocalTyCtxt {
         }
     }
 
-    pub fn get_mono_variant(&self, id: TyID, params: &Vec<TyID>) -> Option<TyID> {
+    pub fn get_mono_variant(&self, id: TyID, params: &Vec<TyID>, span: Span) -> Option<TyID> {
         let map_tyid = |field: &mut FieldDef| {
             let tyir = self.global.get_tyir(field.ty);
             field.ty = match &tyir {
@@ -216,11 +235,14 @@ impl LocalTyCtxt {
                     }
 
                     if adtdef.total_generics != field_params.len() {
-                        self.diag
-                            .push_error(EcslError::new(ErrorLevel::Error, "Mismatched generics"));
+                        self.diag.push_error(
+                            EcslError::new(ErrorLevel::Error, "Mismatched generics")
+                                .with_span(|_| span),
+                        );
                         TyID::UNKNOWN
                     } else {
-                        self.get_mono_variant(field.ty, &field_params).unwrap()
+                        self.get_mono_variant(field.ty, &field_params, span)
+                            .unwrap()
                     }
                 }
                 _ => field.ty,
@@ -238,8 +260,9 @@ impl LocalTyCtxt {
             let generic_count = tyir.get_generics();
 
             if params.len() != generic_count {
-                self.diag
-                    .push_error(EcslError::new(ErrorLevel::Error, "Mismatched generics"));
+                self.diag.push_error(
+                    EcslError::new(ErrorLevel::Error, "Mismatched generics").with_span(|_| span),
+                );
                 return Some(TyID::UNKNOWN);
             }
 
@@ -262,7 +285,10 @@ impl LocalTyCtxt {
 
                     Some(new_tyid)
                 }
-                t => panic!("{:?} {:?} {:?}", id, t, params),
+                t => {
+                    error!("{:?} {:?} {:?}", id, t, params);
+                    None
+                }
             }
         }
     }

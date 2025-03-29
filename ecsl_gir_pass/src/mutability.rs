@@ -1,26 +1,26 @@
-use ecsl_diagnostics::DiagConn;
-use ecsl_gir::GIR;
-use ecsl_index::BlockID;
-use petgraph::visit::Bfs;
+// use ecsl_diagnostics::DiagConn;
+// use ecsl_gir::GIR;
+// use ecsl_index::BlockID;
+// use petgraph::visit::Bfs;
 
-use crate::GIRPass;
+// use crate::GIRPass;
 
-pub struct Mutability<'a> {
-    diag: DiagConn,
-    gir: &'a GIR,
-}
+// pub struct Mutability<'a> {
+//     diag: DiagConn,
+//     gir: &'a GIR,
+// }
 
-impl<'a> GIRPass for Mutability<'a> {
-    type PassInput<'t> = DiagConn;
-    type PassResult = ();
+// impl<'a> GIRPass for Mutability<'a> {
+//     type PassInput<'t> = DiagConn;
+//     type PassResult = ();
 
-    fn apply_pass<'t>(gir: &mut GIR, t: Self::PassInput<'a>) -> Self::PassResult {
-        let mut m = Mutability { diag: t, gir };
+//     fn apply_pass<'t>(gir: &mut GIR, t: Self::PassInput<'a>) -> Self::PassResult {
+//         let mut m = Mutability { diag: t, gir };
 
-        let mut bfs = Bfs::new(gir.ordering(), BlockID::ZERO);
-        while let Some(node) = bfs.next(gir.ordering()) {}
-    }
-}
+//         let mut bfs = Bfs::new(gir.ordering(), BlockID::ZERO);
+//         while let Some(node) = bfs.next(gir.ordering()) {}
+//     }
+// }
 
 // impl<'a> Visitor for Mutability<'a> {
 //     fn visit_stmt(&mut self, s: &Stmt) -> VisitorCF {

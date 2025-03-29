@@ -159,7 +159,6 @@ impl Block {
     pub fn new(id: BlockID) -> Self {
         Block {
             id,
-            // parents: Vec::new(),
             stmts: Vec::new(),
             term: None,
         }
@@ -263,17 +262,19 @@ impl Local {
 #[derive(Debug, Clone)]
 pub struct Place {
     pub local: LocalID,
+    pub span: Span,
     pub projections: Vec<Projection>,
 }
 
 impl Place {
-    pub const fn return_location() -> Self {
-        Self::from_local(LocalID::ZERO)
+    pub const fn return_location(span: Span) -> Self {
+        Self::from_local(LocalID::ZERO, span)
     }
 
-    pub const fn from_local(local: LocalID) -> Self {
+    pub const fn from_local(local: LocalID, span: Span) -> Self {
         Place {
             local,
+            span,
             projections: Vec::new(),
         }
     }

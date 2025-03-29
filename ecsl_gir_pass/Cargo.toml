@@ -14,5 +14,6 @@ ecsl_parse = { path = "../ecsl_parse" }
 ecsl_bytecode = { path = "../ecsl_bytecode" }
 ecsl_assembler = { path = "../ecsl_assembler"}
 petgraph = "0.6.5"
-log.workspace = true
 unescape = "0.1.0"
+log.workspace = true
+cfgrammar.workspace = true
