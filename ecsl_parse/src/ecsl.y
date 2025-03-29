@@ -665,6 +665,14 @@ MatchArm -> Result<MatchArm, ()>:
             block: P::new($6?)
         })
     }
+    | 'IDENT' 'LCURLY' 'RCURLY' 'ARROW' Block {
+        Ok(MatchArm {
+            span: $span,
+            ident: Some(table.usage($1.map_err(|_| ())?.span(), SymbolKind::VariantUsage)),
+            fields: Vec::new(),
+            block: P::new($5?)
+        })
+    }
     | 'IDENT' 'ARROW' Block {
         Ok(MatchArm {
             span: $span,
@@ -947,6 +955,17 @@ Expr -> Result<Expr, ()>:
             $6?,
         )))
     }
+    | 'IDENT' 'PATH' ConcreteGenerics 'PATH' 'IDENT' {
+        Ok(Expr::new($span, ExprKind::Enum(
+            P::new(Ty::new(
+                $span, 
+                TyKind::Ident(table.usage($1.map_err(|_| ())?.span(), SymbolKind::Ty)), 
+                $3?
+            )),
+            table.usage($5.map_err(|_| ())?.span(), SymbolKind::VariantUsage),
+            Vec::new(),
+        )))
+    }
     | 'IDENT' 'PATH' 'IDENT' FieldAssignments {
         Ok(Expr::new($span, ExprKind::Enum(
             P::new(Ty::new(
@@ -1010,7 +1029,6 @@ Expr -> Result<Expr, ()>:
 FieldAssignments -> Result<Vec<FieldExpr>, ()>:
     'LCURLY' FieldExprList TrailingComma 'RCURLY' { $2 }
     | 'LCURLY' 'RCURLY' { Ok(Vec::new()) }
-    //| { Ok(Vec::new()) }
     ;
 
 FieldExprList -> Result<Vec<FieldExpr>, ()>:
