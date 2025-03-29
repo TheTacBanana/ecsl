@@ -106,7 +106,6 @@ pub enum VisitorCF {
 
 impl Try for VisitorCF {
     type Output = ();
-
     type Residual = ();
 
     fn from_output(_: Self::Output) -> Self {
@@ -313,9 +312,7 @@ pub fn walk_expr<V: Visitor>(v: &mut V, expr: &Expr) -> VisitorCF {
             if let Some(e) = e {
                 visit!(v.visit_expr(e));
             }
-            if let Some(cg) = cg {
-                visit!(v.visit_concrete_generics(cg));
-            }
+            visit!(v.visit_concrete_generics(cg));
             for e in args {
                 visit!(v.visit_expr(e))
             }
@@ -333,9 +330,7 @@ pub fn walk_expr<V: Visitor>(v: &mut V, expr: &Expr) -> VisitorCF {
 }
 
 pub fn walk_ty<V: Visitor>(v: &mut V, typ: &Ty) -> VisitorCF {
-    if let Some(c) = &typ.generics {
-        visit!(v.visit_concrete_generics(&c))
-    }
+    visit!(v.visit_concrete_generics(&typ.generics));
     match &typ.kind {
         TyKind::Ident(_) => {}
         TyKind::Array(ty, _) => visit!(v.visit_ty(ty)),

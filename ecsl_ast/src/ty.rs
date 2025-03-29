@@ -8,11 +8,11 @@ use ecsl_index::SymbolID;
 pub struct Ty {
     pub span: Span,
     pub kind: TyKind,
-    pub generics: Option<ConcreteGenerics>,
+    pub generics: ConcreteGenerics,
 }
 
 impl Ty {
-    pub fn new(span: Span, kind: TyKind, generics: Option<ConcreteGenerics>) -> Self {
+    pub fn new(span: Span, kind: TyKind, generics: ConcreteGenerics) -> Self {
         Self {
             span,
             kind,
@@ -86,4 +86,13 @@ pub struct GenericParam {
 pub struct ConcreteGenerics {
     pub span: Span,
     pub params: Vec<Ty>,
+}
+
+impl ConcreteGenerics {
+    pub fn empty(span: Span) -> Self {
+        ConcreteGenerics {
+            span,
+            params: Vec::new(),
+        }
+    }
 }

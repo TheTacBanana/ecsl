@@ -276,15 +276,67 @@ Attribute -> Result<Attribute, ()>:
     }
     ;
 
-ConcreteGenerics -> Result<Option<ConcreteGenerics>, ()>:
+SinglePathConcreteGenerics -> Result<ConcreteGenerics, ()>:
+    'PATH' 'LT' TyList TrailingComma 'GT' {
+        Ok(ConcreteGenerics {
+            span: $span,
+            params: $3?,
+        })
+    }
+    | 'PATH' 'LT' 'GT' {
+        Ok(ConcreteGenerics {
+            span: $span,
+            params: Vec::new(),
+        })
+    }
+    | {
+        Ok(ConcreteGenerics {
+            span: $span,
+            params: Vec::new(),
+        })
+    }
+    ;
+
+DoublePathConcreteGenerics -> Result<ConcreteGenerics, ()>:
+    'PATH' 'LT' TyList TrailingComma 'GT' 'PATH' {
+        Ok(ConcreteGenerics {
+            span: $span,
+            params: $3?,
+        })
+    }
+    | 'PATH' 'LT' 'GT' 'PATH' {
+        Ok(ConcreteGenerics {
+            span: $span,
+            params: Vec::new(),
+        })
+    }
+    | {
+        Ok(ConcreteGenerics {
+            span: $span,
+            params: Vec::new(),
+        })
+    }
+    ;
+
+ConcreteGenerics -> Result<ConcreteGenerics, ()>:
     'LT' TyList TrailingComma 'GT' {
-        Ok(Some(ConcreteGenerics {
+        Ok(ConcreteGenerics {
             span: $span,
             params: $2?,
-        }))
+        })
     }
-    | 'LT' 'GT' { Ok(None) }
-    | { Ok(None) }
+    | 'LT' 'GT' {
+        Ok(ConcreteGenerics {
+            span: $span,
+            params: Vec::new(),
+        })
+    }
+    | {
+        Ok(ConcreteGenerics {
+            span: $span,
+            params: Vec::new(),
+        })
+    }
     ;
 
 Generics -> Result<Option<Generics>, ()>:
@@ -427,28 +479,28 @@ Ty -> Result<Ty, ()>:
     | 'LSQUARE' Ty 'COLON' 'INT' 'RSQUARE' {
         Ok(Ty::new($span, TyKind::Array(
             P::new($2?), table.string($4.map_err(|_| ())?.span()).parse().map_err(|_| ())?
-        ), None))
+        ), ConcreteGenerics::empty($span)))
     }
     | 'AMPERSAND' RefMutability 'LSQUARE' Ty 'RSQUARE' {
         Ok(Ty::new($span, TyKind::ArrayRef(
             $2?, P::new($4?)
-        ), None))
+        ), ConcreteGenerics::empty($span)))
     }
     | 'AMPERSAND' RefMutability Ty {
         Ok(Ty::new($span, TyKind::Ref(
             $2?, P::new($3?)
-        ), None))
+        ), ConcreteGenerics::empty($span)))
     }
     | 'STAR' PtrMutability Ty {
         Ok(Ty::new($span, TyKind::Ptr(
             $2?, P::new($3?)
-        ), None))
+        ), ConcreteGenerics::empty($span)))
     }
     | EntityTy {
-        Ok(Ty::new($span, TyKind::Entity($1?), None))
+        Ok(Ty::new($span, TyKind::Entity($1?), ConcreteGenerics::empty($span)))
     }
     | 'SCHEDULE' {
-        Ok(Ty::new($span, TyKind::Schedule, None))
+        Ok(Ty::new($span, TyKind::Schedule, ConcreteGenerics::empty($span)))
     }
     ;
 
@@ -869,36 +921,20 @@ Expr -> Result<Expr, ()>:
         )))
     }
 
-    | 'IDENT' 'PATH' ConcreteGenerics 'PATH' FnArgExpr {
+    | 'IDENT' DoublePathConcreteGenerics FnArgExpr {
         Ok(Expr::new($span, ExprKind::Function(
             None,
-            $3?,
-            table.usage($1.map_err(|_| ())?.span(), SymbolKind::FunctionUsage),
-            $5?,
-        )))
-    }
-    | 'IDENT' FnArgExpr {
-        Ok(Expr::new($span, ExprKind::Function(
-            None,
-            None,
-            table.usage($1.map_err(|_| ())?.span(), SymbolKind::FunctionUsage),
             $2?,
+            table.usage($1.map_err(|_| ())?.span(), SymbolKind::FunctionUsage),
+            $3?,
         )))
     }
-    | Expr 'DOT' 'IDENT' 'PATH' ConcreteGenerics 'PATH' FnArgExpr {
+    | Expr 'DOT' 'IDENT' DoublePathConcreteGenerics FnArgExpr {
         Ok(Expr::new($span, ExprKind::Function(
             Some(P::new($1?)),
-            $5?,
-            table.usage($3.map_err(|_| ())?.span(), SymbolKind::FunctionUsage),
-            $7?,
-        )))
-    }
-    | Expr 'DOT' 'IDENT' FnArgExpr {
-        Ok(Expr::new($span, ExprKind::Function(
-            Some(P::new($1?)),
-            None,
-            table.usage($3.map_err(|_| ())?.span(), SymbolKind::FunctionUsage),
             $4?,
+            table.usage($3.map_err(|_| ())?.span(), SymbolKind::FunctionUsage),
+            $5?,
         )))
     }
     | Expr 'DOT' 'IDENT' {
@@ -914,7 +950,7 @@ Expr -> Result<Expr, ()>:
                 Ty::new(
                     $3.map_err(|_| ())?.span(),
                     TyKind::Ident(table.usage($3.map_err(|_| ())?.span(), SymbolKind::Ty)),
-                    None,
+                    ConcreteGenerics::empty($span),
                 )
             ),
         )))
@@ -943,72 +979,38 @@ Expr -> Result<Expr, ()>:
             }
         ))))
     }
-
-    | 'IDENT' 'PATH' ConcreteGenerics 'PATH' 'IDENT' FieldAssignments {
+    | 'IDENT' DoublePathConcreteGenerics 'IDENT' FieldAssignments {
         Ok(Expr::new($span, ExprKind::Enum(
             P::new(Ty::new(
                 $span, 
                 TyKind::Ident(table.usage($1.map_err(|_| ())?.span(), SymbolKind::Ty)), 
-                $3?
-            )),
-            table.usage($5.map_err(|_| ())?.span(), SymbolKind::VariantUsage),
-            $6?,
-        )))
-    }
-    | 'IDENT' 'PATH' ConcreteGenerics 'PATH' 'IDENT' {
-        Ok(Expr::new($span, ExprKind::Enum(
-            P::new(Ty::new(
-                $span, 
-                TyKind::Ident(table.usage($1.map_err(|_| ())?.span(), SymbolKind::Ty)), 
-                $3?
-            )),
-            table.usage($5.map_err(|_| ())?.span(), SymbolKind::VariantUsage),
-            Vec::new(),
-        )))
-    }
-    | 'IDENT' 'PATH' 'IDENT' FieldAssignments {
-        Ok(Expr::new($span, ExprKind::Enum(
-            P::new(Ty::new(
-                $span, 
-                TyKind::Ident(table.usage($1.map_err(|_| ())?.span(), SymbolKind::Ty)),
-                None,
+                $2?
             )),
             table.usage($3.map_err(|_| ())?.span(), SymbolKind::VariantUsage),
             $4?,
         )))
     }
-    | 'IDENT' 'PATH' 'IDENT' {
+    | 'IDENT' DoublePathConcreteGenerics 'IDENT' {
         Ok(Expr::new($span, ExprKind::Enum(
             P::new(Ty::new(
                 $span, 
-                TyKind::Ident(table.usage($1.map_err(|_| ())?.span(), SymbolKind::Ty)),
-                None,
+                TyKind::Ident(table.usage($1.map_err(|_| ())?.span(), SymbolKind::Ty)), 
+                $2?
             )),
             table.usage($3.map_err(|_| ())?.span(), SymbolKind::VariantUsage),
             Vec::new(),
         )))
-    }    
-    | 'IDENT' 'PATH' ConcreteGenerics FieldAssignments {
+    }
+    | 'IDENT' SinglePathConcreteGenerics FieldAssignments {
         Ok(Expr::new($span, ExprKind::Struct(
             P::new(Ty::new(
                 $span, 
                 TyKind::Ident(table.usage($1.map_err(|_| ())?.span(), SymbolKind::Ty)),
-                $3?,
+                $2?,
             )),
-            $4?,
+            $3?,
         )))
     }
-    | 'IDENT' FieldAssignments {
-        Ok(Expr::new($span, ExprKind::Struct(
-            P::new(Ty::new(
-                $span, 
-                TyKind::Ident(table.usage($1.map_err(|_| ())?.span(), SymbolKind::Ty)),
-                None,
-            )),
-            $2?,
-        )))
-    }
-
     | 'IDENT' {
         Ok(Expr::new(
             $span,

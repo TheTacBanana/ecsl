@@ -64,12 +64,7 @@ pub enum ExprKind {
     /// Function call
     /// Called On, Function Ident, Args
     /// `x.foo(1, 2)`
-    Function(
-        Option<P<Expr>>,
-        Option<ConcreteGenerics>,
-        SymbolID,
-        Vec<Expr>,
-    ),
+    Function(Option<P<Expr>>, ConcreteGenerics, SymbolID, Vec<Expr>),
 
     // ECS Features
     /// Use of the Entity Keyword to create new Entities
