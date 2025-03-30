@@ -3,7 +3,9 @@ use bimap::BiHashMap;
 use cfgrammar::Span;
 use ecsl_diagnostics::DiagConn;
 use ecsl_index::{FieldID, GlobalID, SourceFileID, TyID, VariantID};
+use ecsl_parse::LexerTy;
 use log::{debug, error};
+use lrpar::NonStreamingLexer;
 use std::{
     collections::{btree_map::Entry, BTreeMap},
     sync::{Arc, RwLock, RwLockWriteGuard},
@@ -28,7 +30,7 @@ pub struct TyCtxt {
     pub field_offsets: RwLock<BTreeMap<(TyID, VariantID, FieldID), usize>>,
 
     /// Unused map of spans
-    pub spans: RwLock<BTreeMap<TyID, Span>>,
+    pub spans: RwLock<BTreeMap<TyID, (Span, SourceFileID)>>,
 
     /// Singular entry point for program
     pub entry_point: RwLock<Option<TyID>>,
@@ -61,11 +63,11 @@ impl TyCtxt {
         return TyID::new(val);
     }
 
-    pub unsafe fn insert_tyir(&self, id: TyID, tyir: TyIr, span: Span) {
+    pub unsafe fn insert_tyir(&self, id: TyID, tyir: TyIr, span: Span, fid: SourceFileID) {
         let mut defs = self.tyirs.write().unwrap();
         let mut spans = self.spans.write().unwrap();
         defs.insert(id, tyir);
-        spans.insert(id, span);
+        spans.insert(id, (span, fid));
     }
 
     pub fn get_or_create_tyid(&self, id: GlobalID) -> TyID {
@@ -109,7 +111,7 @@ impl TyCtxt {
         entry.unwrap()
     }
 
-    pub fn get_span(&self, id: TyID) -> Option<Span> {
+    pub fn get_span(&self, id: TyID) -> Option<(Span, SourceFileID)> {
         let spans = self.spans.read().unwrap();
         spans.get(&id).cloned()
     }
@@ -203,6 +205,35 @@ impl TyCtxt {
         match self.get_tyir(id) {
             TyIr::Int | TyIr::Float => true,
             _ => false,
+        }
+    }
+
+    pub fn format_str(&self, s: &str, lexers: &BTreeMap<SourceFileID, LexerTy>) -> Option<String> {
+        let mut out = String::new();
+        let mut start = 0;
+        while let Some(offset) = s[start..].find("{ty:") {
+            out.push_str(&s[start..(start + offset)]);
+            start += offset;
+
+            let end_offset = s[start..].find("}").unwrap();
+            let tyid = TyID::new(s[(start + 4)..(start + end_offset)].parse().unwrap());
+            start += end_offset + 1;
+
+            if tyid == TyID::UNKNOWN {
+                out.push_str("?");
+            } else if let Some((span, fid)) = self.get_span(tyid) {
+                let ty_str = lexers.get(&fid).unwrap().span_str(span);
+                out.push_str(ty_str);
+            } else {
+                out.push_str("?");
+            }
+        }
+
+        if out.is_empty() {
+            return None;
+        } else {
+            out.push_str(&s[start..]);
+            return Some(out);
         }
     }
 }

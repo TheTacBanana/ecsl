@@ -184,7 +184,7 @@ pub fn generate_pre_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                     };
 
                     if let Some(tyir) = tyir {
-                        unsafe { ty_ctxt.global.insert_tyir(tyid, tyir, *span) };
+                        unsafe { ty_ctxt.global.insert_tyir(tyid, tyir, *span, ty_ctxt.file) };
                         ty_ctxt.global.insert_size(tyid, builtin_size);
                         continue;
                     }
@@ -203,6 +203,7 @@ pub fn generate_pre_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                             attributes: attributes.clone(),
                         }),
                         *span,
+                        ty_ctxt.file,
                     )
                 };
 
@@ -280,7 +281,11 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
 
                 // Insert the variant to the tyir and insert the tyir back into the ctxt
                 tyir.variant_kinds.insert(VariantID::ZERO, variant);
-                unsafe { ty_ctxt.global.insert_tyir(tyid, TyIr::ADT(tyir), *span) };
+                unsafe {
+                    ty_ctxt
+                        .global
+                        .insert_tyir(tyid, TyIr::ADT(tyir), *span, ty_ctxt.file)
+                };
 
                 scope.pop();
             }
@@ -318,7 +323,11 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                     tyir.variant_kinds.insert(var_id, variant);
                 }
 
-                unsafe { ty_ctxt.global.insert_tyir(tyid, TyIr::ADT(tyir), *span) };
+                unsafe {
+                    ty_ctxt
+                        .global
+                        .insert_tyir(tyid, TyIr::ADT(tyir), *span, ty_ctxt.file)
+                };
 
                 scope.pop();
             }
@@ -397,6 +406,7 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                             attributes: attributes.clone(),
                         }),
                         *span,
+                        ty_ctxt.file,
                     )
                 };
 

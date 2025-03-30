@@ -1122,7 +1122,7 @@ impl Visitor for TyCheck {
                 let (rhs_ty, rhs_op) = self.pop();
 
                 // Unify Types
-                unify!(lhs_ty, rhs_ty, TyCheckError::LHSMatchRHS);
+                unify!(lhs_ty, rhs_ty, TyCheckError::LHSMatchRHS(lhs_ty, rhs_ty));
 
                 let numeric = self.global().is_numeric(lhs_ty);
                 let boolean = self.get_tyid(TyIr::Bool) == lhs_ty;
@@ -1304,7 +1304,7 @@ impl Visitor for TyCheck {
                     unify!(
                         expr_tyid,
                         field_def.ty,
-                        TyCheckError::LHSMatchRHS,
+                        TyCheckError::LHSMatchRHS(expr_tyid, field_def.ty),
                         field.span
                     );
 
@@ -1451,7 +1451,7 @@ impl Visitor for TyCheck {
                     unify!(
                         expr_tyid,
                         field_def.ty,
-                        TyCheckError::LHSMatchRHS,
+                        TyCheckError::LHSMatchRHS(expr_tyid, field_def.ty),
                         field.span
                     );
 
@@ -1523,7 +1523,7 @@ pub enum TyCheckError {
     FunctionReturnType,
     ForLoopIterator,
     RangeMustEqual,
-    LHSMatchRHS,
+    LHSMatchRHS(TyID, TyID),
     NoMemberWithName,
     DuplicateMember,
     MissingFields,
@@ -1547,7 +1547,9 @@ impl std::fmt::Display for TyCheckError {
             TyCheckError::SymbolRedefined => "Symbol is already defined",
             TyCheckError::ExpectedBoolean => "Expected boolean expression",
             TyCheckError::InvalidOperation => "Operation cannot be performed",
-            TyCheckError::LHSMatchRHS => "LHS type must match RHS type of expresion",
+            TyCheckError::LHSMatchRHS(lhs, rhs) => {
+                &format!("Type '{}' must match Type '{}'", lhs, rhs)
+            }
             TyCheckError::AssignWrongType => "Cannot assign incorrect type",
             TyCheckError::FunctionReturnType => "Return type for function does not match",
             TyCheckError::ForLoopIterator => "Iterator has mismatched type",

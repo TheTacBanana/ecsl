@@ -6,6 +6,7 @@ use std::path::PathBuf;
 /// Trait Extension of `Result<T, EcslError>` and `EcslError` to add info
 pub trait EcslErrorExt<T> {
     fn with_span(self, span: impl Fn(&EcslError) -> Span) -> T;
+    fn with_message(self, message: impl Fn(&EcslError) -> String) -> T;
     fn with_file(self, file: impl Fn(&EcslError) -> SourceFileID) -> T;
     fn with_path(self, path: impl Fn(&EcslError) -> PathBuf) -> T;
     fn with_snippet(self, snippet: impl Fn(&EcslError) -> Snippet) -> T;
@@ -17,6 +18,13 @@ impl<T> EcslErrorExt<Result<T, EcslError>> for Result<T, EcslError> {
         match self {
             Ok(e) => Ok(e),
             Err(e) => Err(e.with_span(span)),
+        }
+    }
+
+    fn with_message(self, span: impl Fn(&EcslError) -> String) -> Result<T, EcslError> {
+        match self {
+            Ok(e) => Ok(e),
+            Err(e) => Err(e.with_message(span)),
         }
     }
 
@@ -55,6 +63,11 @@ impl EcslErrorExt<EcslError> for EcslError {
         self
     }
 
+    fn with_message(mut self, message: impl Fn(&EcslError) -> String) -> EcslError {
+        self.message = message(&self);
+        self
+    }
+
     fn with_file(mut self, file: impl Fn(&EcslError) -> SourceFileID) -> EcslError {
         self.file = Some(file(&self));
         self
@@ -79,6 +92,11 @@ impl EcslErrorExt<EcslError> for EcslError {
 impl<'a> EcslErrorExt<Self> for &'a mut EcslError {
     fn with_span(self, span: impl Fn(&EcslError) -> Span) -> &'a mut EcslError {
         self.span = Some(span(&self));
+        self
+    }
+
+    fn with_message(self, message: impl Fn(&EcslError) -> String) -> &'a mut EcslError {
+        self.message = message(&self);
         self
     }
 

@@ -113,7 +113,7 @@ impl EcslConfig {
         let mut package = EcslPackage::new(package_id, bundle_toml.package.clone());
 
         debug!(
-            "Including package '{}' with id {}",
+            "Including package '{}' with {}",
             bundle_toml.package.name, package_id
         );
 

@@ -17,12 +17,6 @@ macro_rules! generate_index_type {
             }
         }
 
-        impl std::fmt::Display for $struct_name {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                write!(f, "{}", self.0)
-            }
-        }
-
         impl std::ops::Add<$struct_name> for $struct_name {
             type Output = $struct_name;
 
@@ -43,7 +37,18 @@ macro_rules! generate_index_type {
 
 // General Indexes
 generate_index_type!(SourceFileID);
+impl std::fmt::Display for SourceFileID {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Source File {}", self.0)
+    }
+}
+
 generate_index_type!(PackageID);
+impl std::fmt::Display for PackageID {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Package {}", self.0)
+    }
+}
 
 // AST Indexes
 generate_index_type!(SymbolID);
@@ -54,15 +59,35 @@ impl TyID {
     pub const UNKNOWN: TyID = TyID(0);
     pub const BOTTOM: TyID = TyID(1);
 }
+impl std::fmt::Display for TyID {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{{ty:{}}}", self.0)
+    }
+}
 
 generate_index_type!(VariantID);
 generate_index_type!(FieldID);
 
 // GIR indexes
 generate_index_type!(BlockID);
-generate_index_type!(LocalID);
-generate_index_type!(ConstID);
+impl std::fmt::Display for BlockID {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Block {}", self.0)
+    }
+}
 
+generate_index_type!(LocalID);
+impl std::fmt::Display for LocalID {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Local {}", self.0)
+    }
+}
+generate_index_type!(ConstID);
+impl std::fmt::Display for ConstID {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Const {}", self.0)
+    }
+}
 // Assembly indexs
 generate_index_type!(AssemblerConstID);
 

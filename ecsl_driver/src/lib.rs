@@ -61,11 +61,11 @@ impl Driver {
         for (id, src) in context.sources() {
             debug!("Lexing source file {}", src.id);
             let lexer = src.lexer();
-            lexers.insert(id, lexer);
+            lexers.insert(*id, lexer);
         }
 
         // Closure to map errors with spans to a path and snippet
-        let lexer_func = |err: &mut EcslError| {
+        let finish_stage = |err: &mut EcslError| {
             if let (Some(span), Some(file)) = (err.get_span(), err.get_file()) {
                 let source = context.get_source_file(file).unwrap();
                 let lexer = lexers.get(&file).unwrap();
@@ -91,7 +91,7 @@ impl Driver {
 
                 Some((diag, result.ast.unwrap(), Arc::new(result.table)))
             },
-            || diag.finish_stage(lexer_func),
+            || diag.finish_stage(finish_stage),
         )?;
 
         // Process the std prelude
@@ -144,9 +144,17 @@ impl Driver {
 
                 Some((diag, ast, table, local_ctxt))
             },
-            || diag.finish_stage(lexer_func),
+            || diag.finish_stage(finish_stage),
         )?;
 
+        // Closure to map errors with spans to a path and snippet
+        let finish_stage = |err: &mut EcslError| {
+            finish_stage(err);
+
+            if let Some(new_message) = ty_ctxt.format_str(err.message(), &lexers) {
+                err.with_message(|_| new_message.clone());
+            }
+        };
         // Generate TyIr for all Definitions
         info!("Generating TyIr");
         let assoc = (&context, assoc).par_map_assoc(
@@ -154,21 +162,21 @@ impl Driver {
                 generate_pre_tyir(local_ctxt.clone());
                 Some((diag, ast, table, local_ctxt))
             },
-            || diag.finish_stage(lexer_func),
+            || diag.finish_stage(finish_stage),
         )?;
         let assoc = (&context, assoc).par_map_assoc(
             |_, _, (diag, ast, table, local_ctxt)| {
                 generate_definition_tyir(local_ctxt.clone());
                 Some((diag, ast, table, local_ctxt))
             },
-            || diag.finish_stage(lexer_func),
+            || diag.finish_stage(finish_stage),
         )?;
         let assoc = (&context, assoc).par_map_assoc(
             |_, _, (diag, ast, table, local_ctxt)| {
                 validate_field_generics(local_ctxt.clone());
                 Some((diag, ast, table, local_ctxt))
             },
-            || diag.finish_stage(lexer_func),
+            || diag.finish_stage(finish_stage),
         )?;
 
         // Perform type checking
@@ -185,7 +193,7 @@ impl Driver {
 
                 Some((diag, ast, table, local_ctxt, linker))
             },
-            || diag.finish_stage(lexer_func),
+            || diag.finish_stage(finish_stage),
         )?;
 
         // Get the entry point
@@ -198,7 +206,7 @@ impl Driver {
             get_entry_point(&assoc.1, assoc.3.clone())
         };
         let Some(entry_point) = entry_point else {
-            diag.finish_stage(lexer_func)?;
+            diag.finish_stage(finish_stage)?;
             return Err(());
         };
         ty_ctxt.insert_entry_point(entry_point.0);
@@ -210,7 +218,7 @@ impl Driver {
 
                 Some((diag, ast, table, local_ctxt, linker))
             },
-            || diag.finish_stage(lexer_func),
+            || diag.finish_stage(finish_stage),
         )?;
 
         info!("GIR Passes");
@@ -224,7 +232,7 @@ impl Driver {
                 }
                 Some((diag, ast, table, local_ctxt, linker))
             },
-            || diag.finish_stage(lexer_func),
+            || diag.finish_stage(finish_stage),
         )?;
 
         debug!("Building Function Graph");
@@ -237,7 +245,7 @@ impl Driver {
                 }
                 Some((diag, ast, table, local_ctxt, linker, function_graph))
             },
-            || diag.finish_stage(lexer_func),
+            || diag.finish_stage(finish_stage),
         )?;
         function_graph.prune_unused(entry_point.0);
 
@@ -249,7 +257,7 @@ impl Driver {
 
                 Some((diag, ast, table, local_ctxt, linker))
             },
-            || diag.finish_stage(lexer_func),
+            || diag.finish_stage(finish_stage),
         )?;
 
         let root_config = context.config().root_config();
@@ -270,7 +278,7 @@ impl Driver {
                 }
                 Some((local_ctxt, linker, gir_consts))
             },
-            || diag.finish_stage(lexer_func),
+            || diag.finish_stage(finish_stage),
         )?;
         let assembler = assembler.write_const_data().unwrap();
 
@@ -285,7 +293,7 @@ impl Driver {
                 }
                 Some(())
             },
-            || diag.finish_stage(lexer_func),
+            || diag.finish_stage(finish_stage),
         )?;
         let assember = assembler.write_bytecode(entry_point.0).unwrap();
 
