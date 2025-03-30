@@ -40,7 +40,7 @@ pub enum StmtKind {
     Else(P<Block>),
 
     /// `for (*symbol* : *ty* in *expr*) { .. }`
-    For(SymbolID, P<Ty>, P<Expr>, P<Block>),
+    For(SymbolID, Option<P<Ty>>, P<Expr>, P<Block>),
     /// `while (*expr*) { .. }`
     While(P<Expr>, P<Block>),
 

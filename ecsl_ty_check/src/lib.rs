@@ -226,7 +226,10 @@ impl Visitor for TyCheck {
 
         // Get tyir
         let TyIr::Fn(fn_tyir) = self.get_tyir(f.ident) else {
-            panic!("Fn {:?} has not been defined", tyid);
+            panic!(
+                "Internal Compiler Error: Fn {:?} has not been defined",
+                tyid
+            );
         };
 
         // Insert Return Type as Local
@@ -363,7 +366,14 @@ impl Visitor for TyCheck {
                 // Unify Types
                 if let Some(ty) = ty {
                     let let_ty = catch_unknown!(self.get_tyid((ty.as_ref(), &self.generic_scope)));
-                    unify!(let_ty, rhs_ty, TyCheckError::AssignWrongType);
+                    unify!(
+                        let_ty,
+                        rhs_ty,
+                        TyCheckError::AssignWrongType {
+                            from: rhs_ty,
+                            to: let_ty
+                        }
+                    );
                 }
 
                 let local_id = match &rhs_op {
@@ -472,7 +482,12 @@ impl Visitor for TyCheck {
 
                             // Unify Condition
                             let (cond_ty, cond_op) = self.pop();
-                            unify!(cond_ty, bool_ty, TyCheckError::ExpectedBoolean, expr.span);
+                            unify!(
+                                cond_ty,
+                                bool_ty,
+                                TyCheckError::ExpectedBoolean(cond_ty),
+                                expr.span
+                            );
 
                             // Walk if block
                             let start_of_block = self.new_block();
@@ -532,7 +547,14 @@ impl Visitor for TyCheck {
                     self.visit_expr(expr)?;
                     let (ty, op) = self.pop();
 
-                    unify!(ty, return_ty, TyCheckError::FunctionReturnType);
+                    unify!(
+                        ty,
+                        return_ty,
+                        TyCheckError::FunctionReturnType {
+                            from: ty,
+                            to: return_ty
+                        }
+                    );
 
                     self.push_stmt_to_cur_block(gir::Stmt {
                         span: s.span,
@@ -545,7 +567,14 @@ impl Visitor for TyCheck {
                         ),
                     })
                 } else {
-                    unify!(TyID::BOTTOM, return_ty, TyCheckError::FunctionReturnType);
+                    unify!(
+                        TyID::BOTTOM,
+                        return_ty,
+                        TyCheckError::FunctionReturnType {
+                            from: TyID::BOTTOM,
+                            to: return_ty
+                        }
+                    );
                 }
 
                 let cur_block = self.cur_block();
@@ -595,23 +624,28 @@ impl Visitor for TyCheck {
                 self.visit_expr(rhs.as_ref())?;
                 let (rhs_ty, rhs_op) = self.pop();
 
-                // Get For loop iterator Ty
-                let iterator_tyid =
-                    catch_unknown!(self.get_tyid((ty.as_ref(), &self.generic_scope)));
-
                 // Unify Types
-                unify!(lhs_ty, rhs_ty, TyCheckError::RangeMustEqual);
-                unify!(iterator_tyid, lhs_ty, TyCheckError::ForLoopIterator);
+                unify!(lhs_ty, rhs_ty, TyCheckError::LHSMatchRHS(lhs_ty, rhs_ty));
+
+                // Get For loop iterator Ty
+                if let Some(ty) = ty {
+                    let iterator_tyid =
+                        catch_unknown!(self.get_tyid((ty.as_ref(), &self.generic_scope)));
+                    unify!(
+                        iterator_tyid,
+                        lhs_ty,
+                        TyCheckError::ForLoopIterator {
+                            index: iterator_tyid,
+                            range: lhs_ty
+                        }
+                    );
+                }
 
                 let symbols_len = self.symbols.len();
 
                 // Create local ID
-                let iterator_local_id = self.new_local(Local::new(
-                    s.span,
-                    Mutable::Mut,
-                    iterator_tyid,
-                    LocalKind::Let,
-                ));
+                let iterator_local_id =
+                    self.new_local(Local::new(s.span, Mutable::Mut, lhs_ty, LocalKind::Let));
 
                 // Create Assignment Stmt
                 self.push_stmt_to_cur_block(gir::Stmt {
@@ -754,11 +788,11 @@ impl Visitor for TyCheck {
                 let (ty, op) = self.pop();
 
                 let TyIr::ADT(enum_tyir) = self.get_tyir(ty) else {
-                    err!(TyCheckError::TypeCannotBeMatched, expr.span);
+                    err!(TyCheckError::TypeCannotBeMatched(ty), expr.span);
                 };
                 err_if!(
                     !enum_tyir.is_enum(),
-                    TyCheckError::TypeCannotBeMatched,
+                    TyCheckError::TypeCannotBeMatched(ty),
                     expr.span
                 );
 
@@ -814,7 +848,7 @@ impl Visitor for TyCheck {
                     if let Some(case) = arm.ident {
                         let symbol = self.ty_ctxt.table.get_symbol(case).unwrap();
                         let Some(var_id) = enum_tyir.variant_hash.get(&symbol.name) else {
-                            err!(TyCheckError::NoMemberWithName, arm.span);
+                            err!(TyCheckError::NoMemberWithName(ty), arm.span);
                         };
                         err_if!(
                             arms.insert(var_id, arm_block).is_some(),
@@ -827,7 +861,7 @@ impl Visitor for TyCheck {
                         for field in &arm.fields {
                             let symbol = self.ty_ctxt.table.get_symbol(field.ident).unwrap();
                             let Some(field_id) = var.field_hash.get(&symbol.name) else {
-                                err!(TyCheckError::NoMemberWithName, arm.span);
+                                err!(TyCheckError::NoMemberWithName(ty), arm.span);
                             };
 
                             err_if!(
@@ -881,7 +915,7 @@ impl Visitor for TyCheck {
 
                 err_if!(
                     default_arm.is_none() && arms.len() != enum_tyir.variant_kinds.len(),
-                    TyCheckError::MatchNotExhaustive,
+                    TyCheckError::MatchNotExhaustive(ty),
                     expr.span
                 );
 
@@ -996,7 +1030,15 @@ impl Visitor for TyCheck {
 
                 let local_tyid = lhs_place.projected_tyid(self.cur_gir());
 
-                unify!(rhs_ty, local_tyid, TyCheckError::AssignWrongType, *span);
+                unify!(
+                    rhs_ty,
+                    local_tyid,
+                    TyCheckError::AssignWrongType {
+                        from: rhs_ty,
+                        to: local_tyid
+                    },
+                    *span
+                );
 
                 // Create Assignment Stmt
                 self.push_stmt_to_cur_block(gir::Stmt {
@@ -1081,13 +1123,18 @@ impl Visitor for TyCheck {
 
                 err_if!(
                     exprs_tys.len() != fn_tyir.params.len(),
-                    TyCheckError::IncorrectFunctionArguments,
+                    TyCheckError::NoFunctionWithNArguments(exprs_tys.len()),
                     e.span
                 );
 
                 let mut operands = Vec::new();
                 for ((l, op, span), (_, r)) in exprs_tys.iter().zip(&fn_tyir.params) {
-                    unify!(*l, r.ty, TyCheckError::IncorrectFunctionArguments, *span);
+                    unify!(
+                        *l,
+                        r.ty,
+                        TyCheckError::IncorrectFunctionArguments { from: *l, to: r.ty },
+                        *span
+                    );
                     operands.push(op.clone());
                 }
 
@@ -1135,8 +1182,11 @@ impl Visitor for TyCheck {
                     self.get_tyid(TyIr::Bool)
                 } else {
                     self.ty_ctxt.diag.push_error(
-                        EcslError::new(ErrorLevel::Error, TyCheckError::InvalidOperation)
-                            .with_span(|_| e.span),
+                        EcslError::new(
+                            ErrorLevel::Error,
+                            TyCheckError::InvalidBinOp(*op, lhs_ty, rhs_ty),
+                        )
+                        .with_span(|_| e.span),
                     );
                     return VisitorCF::Break;
                 };
@@ -1178,7 +1228,7 @@ impl Visitor for TyCheck {
                     UnOpKind::Deref => todo!(),
                     _ => {
                         self.ty_ctxt.diag.push_error(
-                            EcslError::new(ErrorLevel::Error, TyCheckError::InvalidOperation)
+                            EcslError::new(ErrorLevel::Error, TyCheckError::InvalidUnOp(*op, e_ty))
                                 .with_span(|_| e.span),
                         );
                         return VisitorCF::Break;
@@ -1235,8 +1285,14 @@ impl Visitor for TyCheck {
                     }
                     (_, _) => {
                         self.ty_ctxt.diag.push_error(
-                            EcslError::new(ErrorLevel::Error, TyCheckError::InvalidCast)
-                                .with_span(|_| e.span),
+                            EcslError::new(
+                                ErrorLevel::Error,
+                                TyCheckError::InvalidCast {
+                                    from: e_ty,
+                                    to: to_tyid,
+                                },
+                            )
+                            .with_span(|_| e.span),
                         );
                         return VisitorCF::Break;
                     }
@@ -1287,7 +1343,7 @@ impl Visitor for TyCheck {
                     let symbol = self.ty_ctxt.table.get_symbol(field.ident).unwrap();
 
                     let Some(field_id) = variant.field_hash.get(&symbol.name) else {
-                        err!(TyCheckError::NoMemberWithName, field.span);
+                        err!(TyCheckError::NoMemberWithName(struct_tyid), field.span);
                     };
 
                     // Insert field into set
@@ -1368,7 +1424,7 @@ impl Visitor for TyCheck {
                 // Get the field name and id
                 let symbol = self.ty_ctxt.table.get_symbol(*symbol_id).unwrap();
                 let Some(field_id) = variant.field_hash.get(&symbol.name) else {
-                    err!(TyCheckError::NoMemberWithName, e.span);
+                    err!(TyCheckError::NoMemberWithName(e_ty), e.span);
                 };
 
                 // Get the field definition and create a projection to it
@@ -1404,7 +1460,7 @@ impl Visitor for TyCheck {
                 // Get variant name and id and get the definition
                 let symbol = self.ty_ctxt.table.get_symbol(*variant).unwrap();
                 let Some(var_id) = enum_tyir.variant_hash.get(&symbol.name) else {
-                    err!(TyCheckError::NoVariantWithName, e.span);
+                    err!(TyCheckError::NoVariantWithName(enum_tyid), e.span);
                 };
                 let variant_def = enum_tyir.variant_kinds.get(var_id).unwrap();
 
@@ -1413,7 +1469,7 @@ impl Visitor for TyCheck {
                 let disc_const = match discriminant {
                     1 => Immediate::UByte(var_id.inner() as u8),
                     _ => {
-                        err!(TyCheckError::TooManyVariants, e.span);
+                        err!(TyCheckError::TooManyVariants(enum_tyid), e.span);
                     }
                 };
                 let disc_const = self.new_constant(Constant::Internal { imm: disc_const });
@@ -1434,7 +1490,7 @@ impl Visitor for TyCheck {
                 for field in fields {
                     let symbol = self.ty_ctxt.table.get_symbol(field.ident).unwrap();
                     let Some(field_id) = variant_def.field_hash.get(&symbol.name) else {
-                        err!(TyCheckError::NoMemberWithName, field.span);
+                        err!(TyCheckError::NoMemberWithName(enum_tyid), field.span);
                     };
 
                     // Insert field into set
@@ -1504,82 +1560,121 @@ impl Visitor for TyCheck {
 
 #[derive(Debug, Clone, Copy)]
 pub enum TyCheckError {
+    /// Type is Unknown
+    /// Map be thrown in multiple contexts or as a side effort
     UnknownTy,
+
+    /// LHS of expression does not match RHS of expression
+    LHSMatchRHS(TyID, TyID),
+    /// Assignment of incorect type
+    AssignWrongType {
+        from: TyID,
+        to: TyID,
+    },
+    CannotAssignToLHS,
+    /// For Loop iterating over incorrect type
+    ForLoopIterator {
+        range: TyID,
+        index: TyID,
+    },
+
+    ExpectedBoolean(TyID),
+
+    InvalidUnOp(UnOpKind, TyID),
+    InvalidBinOp(BinOpKind, TyID, TyID),
+
+    InvalidCast {
+        from: TyID,
+        to: TyID,
+    },
+    RedundantCast,
 
     SymbolDoesntExistBytecode,
     SymbolDoesntExist,
     FunctionDoesntExist,
-    IncorrectFunctionArguments,
+    NoFunctionWithNArguments(usize),
+    IncorrectFunctionArguments {
+        from: TyID,
+        to: TyID,
+    },
     SymbolIsNotFunction,
     SymbolRedefined,
-    ExpectedBoolean,
-    InvalidOperation,
-    InvalidCast,
-    TypeIsNotAStruct,
-    TypeIsNotAnEnum,
-    RedundantCast,
-    AssignWrongType,
-    CannotAssignToLHS,
-    FunctionReturnType,
-    ForLoopIterator,
-    RangeMustEqual,
-    LHSMatchRHS(TyID, TyID),
-    NoMemberWithName,
+    FunctionReturnType {
+        from: TyID,
+        to: TyID,
+    },
+    NoMemberWithName(TyID),
     DuplicateMember,
     MissingFields,
+
     DotSyntaxOnConst,
-    NoVariantWithName,
-    TooManyVariants,
-    TypeCannotBeMatched,
-    MatchNotExhaustive,
+
+    // Enum related errors
+    TypeCannotBeMatched(TyID),
+    NoVariantWithName(TyID),
+    MatchNotExhaustive(TyID),
     MatchArmDuplicate,
     MatchArmUnreachable,
+    TooManyVariants(TyID),
 
-    InvalidGenericTypes,
-
+    TypeIsNotAStruct,
+    TypeIsNotAnEnum,
     DeadCode,
 }
 
 impl std::fmt::Display for TyCheckError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use TyCheckError::*;
         let s = match self {
-            TyCheckError::SymbolDoesntExist => "Symbol could not be found in the current scope",
-            TyCheckError::SymbolRedefined => "Symbol is already defined",
-            TyCheckError::ExpectedBoolean => "Expected boolean expression",
-            TyCheckError::InvalidOperation => "Operation cannot be performed",
-            TyCheckError::LHSMatchRHS(lhs, rhs) => {
-                &format!("Type '{}' must match Type '{}'", lhs, rhs)
+            UnknownTy => "Unknown Type",
+            LHSMatchRHS(lhs, rhs) => &format!("Type '{}' must match Type '{}'", lhs, rhs),
+            AssignWrongType { from, to } => {
+                &format!("Cannot assign Type '{}' to Type '{}'", from, to)
             }
-            TyCheckError::AssignWrongType => "Cannot assign incorrect type",
-            TyCheckError::FunctionReturnType => "Return type for function does not match",
-            TyCheckError::ForLoopIterator => "Iterator has mismatched type",
-            TyCheckError::RangeMustEqual => "LHS and RHS of range expression must be the same",
-            TyCheckError::FunctionDoesntExist => "Could not find defined or imported ",
-            TyCheckError::SymbolIsNotFunction => "Symbol is not a function",
-            TyCheckError::IncorrectFunctionArguments => "Arguments do not match function signature",
-            TyCheckError::SymbolDoesntExistBytecode => {
-                "Symbol specified in bytecode does not exist"
+            CannotAssignToLHS => "Cannot assign to LHS",
+            SymbolDoesntExist => "Symbol could not be found in the current scope",
+            SymbolRedefined => "Symbol is already defined",
+            ExpectedBoolean(tyid) => &format!("Expected boolean expression found Type '{}'", tyid),
+            InvalidUnOp(op, tyid) => {
+                &format!("Operation '{}' is not valid for Type '{}'", op, tyid)
             }
-            TyCheckError::InvalidCast => "Cannot perform cast between types",
-            TyCheckError::RedundantCast => "Cast is redundant",
-            TyCheckError::TypeIsNotAStruct => "Type is not a struct",
-            TyCheckError::TypeIsNotAnEnum => "Type is not an enum",
-            TyCheckError::NoMemberWithName => "Struct does not have a member with name",
-            TyCheckError::DuplicateMember => "Member has already been defined",
-            TyCheckError::MissingFields => "Not all fields have been defined",
-            TyCheckError::DotSyntaxOnConst => "Dot syntax on literal not allowed",
-            TyCheckError::NoVariantWithName => "Could not find variant with name",
-            TyCheckError::TooManyVariants => "Variant count unsupported",
-            TyCheckError::TypeCannotBeMatched => "Type cannot be matched upon",
-            TyCheckError::MatchNotExhaustive => "Match is not exhaustive",
-            TyCheckError::MatchArmUnreachable => "Default case makes arm unreachable",
-            TyCheckError::MatchArmDuplicate => "Variant already exists",
-            TyCheckError::CannotAssignToLHS => "Cannot assign to LHS",
-            TyCheckError::InvalidGenericTypes => {
-                "Generics of caller do not match generics of callee"
+            InvalidBinOp(op, lhs, rhs) => &format!(
+                "Operation '{}' is not valid for Type '{}' and Type '{}'",
+                op, lhs, rhs
+            ),
+            FunctionReturnType { from, to } => {
+                &format!("Cannot return Type '{}' from function Type '{}'", from, to)
             }
-            TyCheckError::DeadCode => "Stmts after terminator",
-            TyCheckError::UnknownTy => "Unknown Type",
+            ForLoopIterator { range, index } => {
+                &format!("Cannot iterate Type '{}' over Type '{}'", index, range)
+            }
+            FunctionDoesntExist => "Could not find defined or imported ",
+            SymbolIsNotFunction => "Symbol is not a function",
+            NoFunctionWithNArguments(n) => &format!("No function name with {} arguments", n),
+            IncorrectFunctionArguments { from, to } => &format!(
+                "Arguments Type '{}' does not match argument Type '{}'",
+                from, to
+            ),
+            SymbolDoesntExistBytecode => "Symbol specified in bytecode does not exist",
+            InvalidCast { from, to } => {
+                &format!("Cannot perform cast from Type '{}' to Type '{}'", from, to)
+            }
+            RedundantCast => "Cast is redundant",
+            NoMemberWithName(tyid) => {
+                &format!("Struct '{}' does not have a member with name", tyid)
+            }
+            DuplicateMember => "Member has already been defined",
+            MissingFields => "Not all fields have been defined",
+            DotSyntaxOnConst => "Dot syntax on literal not allowed",
+            MatchNotExhaustive(tyid) => &format!("Match on type '{}' is not exhaustive", tyid),
+            TooManyVariants(tyid) => &format!("Type '{}' has more than 128 variants", tyid),
+            NoVariantWithName(tyid) => &format!("Type '{}' has no variant with name", tyid),
+            TypeCannotBeMatched(tyid) => &format!("Type '{}' cannot be matched upon", tyid),
+            MatchArmUnreachable => "Default case makes arm unreachable",
+            MatchArmDuplicate => "Variant is already matched upon",
+            DeadCode => "Stmts after terminator",
+            TypeIsNotAStruct => "Type is not a struct",
+            TypeIsNotAnEnum => "Type is not an enum",
         };
         write!(f, "{}", s)
     }

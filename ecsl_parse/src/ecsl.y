@@ -595,9 +595,17 @@ Stmt -> Result<Stmt, ()>:
     | 'FOR' 'LBRACKET' 'IDENT' 'COLON' Ty 'IN' Expr 'RBRACKET' Block {
         Ok(Stmt::new($span, StmtKind::For(
             table.definition($3.map_err(|_| ())?.span(), SymbolKind::Local),
-            P::new($5?),
+            Some(P::new($5?)),
             P::new($7?),
             P::new($9?),
+        )))
+    }
+    | 'FOR' 'LBRACKET' 'IDENT' 'IN' Expr 'RBRACKET' Block {
+        Ok(Stmt::new($span, StmtKind::For(
+            table.definition($3.map_err(|_| ())?.span(), SymbolKind::Local),
+            None,
+            P::new($5?),
+            P::new($7?),
         )))
     }
     | 'WHILE' 'LBRACKET' Expr 'RBRACKET' Block {

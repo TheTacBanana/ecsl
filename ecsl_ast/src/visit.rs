@@ -247,7 +247,9 @@ pub fn walk_stmt<V: Visitor>(v: &mut V, s: &Stmt) -> VisitorCF {
             visit!(v.visit_block(block))
         }
         StmtKind::For(_, ty, expr, block) => {
-            visit!(v.visit_ty(ty));
+            if let Some(ty) = ty {
+                visit!(v.visit_ty(ty));
+            }
             visit!(v.visit_expr(expr));
             visit!(v.visit_block(block));
         }
