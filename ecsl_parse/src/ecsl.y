@@ -276,7 +276,7 @@ Attribute -> Result<Attribute, ()>:
     }
     ;
 
-SinglePathConcreteGenerics -> Result<ConcreteGenerics, ()>:
+StructConcreteGenerics -> Result<ConcreteGenerics, ()>:
     'PATH' 'LT' TyList TrailingComma 'GT' {
         Ok(ConcreteGenerics {
             span: $span,
@@ -297,7 +297,7 @@ SinglePathConcreteGenerics -> Result<ConcreteGenerics, ()>:
     }
     ;
 
-DoublePathConcreteGenerics -> Result<ConcreteGenerics, ()>:
+FnConcreteGenerics -> Result<ConcreteGenerics, ()>:
     'PATH' 'LT' TyList TrailingComma 'GT' 'PATH' {
         Ok(ConcreteGenerics {
             span: $span,
@@ -318,7 +318,29 @@ DoublePathConcreteGenerics -> Result<ConcreteGenerics, ()>:
     }
     ;
 
-ConcreteGenerics -> Result<ConcreteGenerics, ()>:
+
+EnumConcreteGenerics -> Result<ConcreteGenerics, ()>:
+    'PATH' 'LT' TyList TrailingComma 'GT' 'PATH' {
+        Ok(ConcreteGenerics {
+            span: $span,
+            params: $3?,
+        })
+    }
+    | 'PATH' 'LT' 'GT' 'PATH' {
+        Ok(ConcreteGenerics {
+            span: $span,
+            params: Vec::new(),
+        })
+    }
+    | 'PATH' {
+        Ok(ConcreteGenerics {
+            span: $span,
+            params: Vec::new(),
+        })
+    }
+    ;
+
+TyConcreteGenerics -> Result<ConcreteGenerics, ()>:
     'LT' TyList TrailingComma 'GT' {
         Ok(ConcreteGenerics {
             span: $span,
@@ -469,7 +491,7 @@ TyList -> Result<Vec<Ty>, ()>:
     ;
 
 Ty -> Result<Ty, ()>:
-    'IDENT' ConcreteGenerics {
+    'IDENT' TyConcreteGenerics {
         Ok(Ty::new(
             $span, 
             TyKind::Ident(table.usage($1.map_err(|_| ())?.span(), SymbolKind::Ty)),
@@ -921,7 +943,7 @@ Expr -> Result<Expr, ()>:
         )))
     }
 
-    | 'IDENT' DoublePathConcreteGenerics FnArgExpr {
+    | 'IDENT' FnConcreteGenerics FnArgExpr {
         Ok(Expr::new($span, ExprKind::Function(
             None,
             $2?,
@@ -929,7 +951,7 @@ Expr -> Result<Expr, ()>:
             $3?,
         )))
     }
-    | Expr 'DOT' 'IDENT' DoublePathConcreteGenerics FnArgExpr {
+    | Expr 'DOT' 'IDENT' FnConcreteGenerics FnArgExpr {
         Ok(Expr::new($span, ExprKind::Function(
             Some(P::new($1?)),
             $4?,
@@ -979,7 +1001,7 @@ Expr -> Result<Expr, ()>:
             }
         ))))
     }
-    | 'IDENT' DoublePathConcreteGenerics 'IDENT' FieldAssignments {
+    | 'IDENT' EnumConcreteGenerics 'IDENT' FieldAssignments {
         Ok(Expr::new($span, ExprKind::Enum(
             P::new(Ty::new(
                 $span, 
@@ -990,7 +1012,7 @@ Expr -> Result<Expr, ()>:
             $4?,
         )))
     }
-    | 'IDENT' DoublePathConcreteGenerics 'IDENT' {
+    | 'IDENT' EnumConcreteGenerics 'IDENT' {
         Ok(Expr::new($span, ExprKind::Enum(
             P::new(Ty::new(
                 $span, 
@@ -1001,7 +1023,7 @@ Expr -> Result<Expr, ()>:
             Vec::new(),
         )))
     }
-    | 'IDENT' SinglePathConcreteGenerics FieldAssignments {
+    | 'IDENT' StructConcreteGenerics FieldAssignments {
         Ok(Expr::new($span, ExprKind::Struct(
             P::new(Ty::new(
                 $span, 

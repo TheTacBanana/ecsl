@@ -298,9 +298,17 @@ impl Visitor for TyCheck {
     }
 
     fn visit_stmt(&mut self, s: &Stmt) -> VisitorCF {
+        macro_rules! catch_unknown {
+            ($i:expr) => {{
+                if $i == TyID::UNKNOWN {
+                    return VisitorCF::Break;
+                }
+                $i
+            }};
+        }
+
         macro_rules! unify {
             ($l:expr, $r:expr, $err:expr) => {
-                debug!("Stmt Unify {} {}", $l, $r);
                 if $l == TyID::UNKNOWN || $r == TyID::UNKNOWN || $l != $r {
                     self.ty_ctxt
                         .diag
@@ -309,7 +317,6 @@ impl Visitor for TyCheck {
                 }
             };
             ($l:expr, $r:expr, $err:expr, $span:expr) => {
-                debug!("Stmt Unify {} {}", $l, $r);
                 if $l == TyID::UNKNOWN || $r == TyID::UNKNOWN || $l != $r {
                     self.ty_ctxt
                         .diag
@@ -351,10 +358,11 @@ impl Visitor for TyCheck {
                 // Visit expression
                 self.visit_expr(expr)?;
                 let (rhs_ty, rhs_op) = self.pop();
+                catch_unknown!(rhs_ty);
 
                 // Unify Types
                 if let Some(ty) = ty {
-                    let let_ty = self.get_tyid((ty.as_ref(), &self.generic_scope));
+                    let let_ty = catch_unknown!(self.get_tyid((ty.as_ref(), &self.generic_scope)));
                     unify!(let_ty, rhs_ty, TyCheckError::AssignWrongType);
                 }
 
@@ -588,7 +596,8 @@ impl Visitor for TyCheck {
                 let (rhs_ty, rhs_op) = self.pop();
 
                 // Get For loop iterator Ty
-                let iterator_tyid = self.get_tyid((ty.as_ref(), &self.generic_scope));
+                let iterator_tyid =
+                    catch_unknown!(self.get_tyid((ty.as_ref(), &self.generic_scope)));
 
                 // Unify Types
                 unify!(lhs_ty, rhs_ty, TyCheckError::RangeMustEqual);
@@ -906,6 +915,15 @@ impl Visitor for TyCheck {
     }
 
     fn visit_expr(&mut self, e: &Expr) -> VisitorCF {
+        macro_rules! catch_unknown {
+            ($i:expr) => {{
+                if $i == TyID::UNKNOWN {
+                    return VisitorCF::Break;
+                }
+                $i
+            }};
+        }
+
         macro_rules! unify {
             ($l:expr, $r:expr, $err:expr) => {
                 if $l == TyID::UNKNOWN || $r == TyID::UNKNOWN || $l != $r {
@@ -1011,7 +1029,7 @@ impl Visitor for TyCheck {
                 Some((found.projected_tyid(self.cur_gir()), Operand::Copy(found)))
             }
             ExprKind::Lit(literal) => {
-                let tyid = self.get_tyid(TyIr::from(*literal));
+                let tyid = catch_unknown!(self.get_tyid(TyIr::from(*literal)));
                 let const_id = self.new_constant(Constant::External {
                     span: e.span,
                     tyid,
@@ -1021,7 +1039,7 @@ impl Visitor for TyCheck {
                 Some((tyid, Operand::Constant(const_id)))
             }
             ExprKind::Function(None, generics, symbol_id, exprs) => {
-                let mut tyid = self.get_tyid(*symbol_id);
+                let mut tyid = catch_unknown!(self.get_tyid(*symbol_id));
                 let Some(fn_tyir) = self.get_tyir(tyid).into_fn() else {
                     err!(TyCheckError::FunctionDoesntExist, e.span);
                 };
@@ -1031,7 +1049,11 @@ impl Visitor for TyCheck {
                         .params
                         .iter()
                         .map(|ty| self.get_tyid((ty, &self.generic_scope)))
-                        .collect();
+                        .collect::<Vec<_>>();
+
+                    for p in params.iter() {
+                        _ = catch_unknown!(*p);
+                    }
 
                     tyid = self
                         .ty_ctxt
@@ -1193,7 +1215,7 @@ impl Visitor for TyCheck {
                 let (e_ty, e_op) = self.pop();
 
                 let from = self.get_tyir(e_ty);
-                let to_tyid = self.get_tyid((ty.as_ref(), &self.generic_scope));
+                let to_tyid = catch_unknown!(self.get_tyid((ty.as_ref(), &self.generic_scope)));
                 let to_tyir = self.get_tyir(to_tyid);
 
                 use ecsl_gir::expr::{Expr, ExprKind};
@@ -1241,7 +1263,7 @@ impl Visitor for TyCheck {
                 panic!("Internal Compiler Error: Range Expr Ty Check")
             }
             ExprKind::Struct(ty, fields) => {
-                let struct_tyid = self.get_tyid((ty.as_ref(), &self.generic_scope));
+                let struct_tyid = catch_unknown!(self.get_tyid((ty.as_ref(), &self.generic_scope)));
                 let TyIr::ADT(struct_tyir) = self.get_tyir(struct_tyid) else {
                     err!(TyCheckError::TypeIsNotAStruct, e.span);
                 };
@@ -1366,7 +1388,7 @@ impl Visitor for TyCheck {
                 Some((field_def.ty, e_op))
             }
             ExprKind::Enum(ty, variant, fields) => {
-                let enum_tyid = self.get_tyid((ty.as_ref(), &self.generic_scope));
+                let enum_tyid = catch_unknown!(self.get_tyid((ty.as_ref(), &self.generic_scope)));
                 let TyIr::ADT(enum_tyir) = self.get_tyir(enum_tyid) else {
                     err!(TyCheckError::TypeIsNotAnEnum, e.span);
                 };
@@ -1482,6 +1504,8 @@ impl Visitor for TyCheck {
 
 #[derive(Debug, Clone, Copy)]
 pub enum TyCheckError {
+    UnknownTy,
+
     SymbolDoesntExistBytecode,
     SymbolDoesntExist,
     FunctionDoesntExist,
@@ -1553,6 +1577,7 @@ impl std::fmt::Display for TyCheckError {
                 "Generics of caller do not match generics of callee"
             }
             TyCheckError::DeadCode => "Stmts after terminator",
+            TyCheckError::UnknownTy => "Unknown Type",
         };
         write!(f, "{}", s)
     }
