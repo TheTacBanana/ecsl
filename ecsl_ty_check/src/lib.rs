@@ -1,4 +1,5 @@
-use ecsl_ast::expr::{self, BinOpKind, RangeType, UnOpKind};
+#![feature(if_let_guard)]
+use ecsl_ast::expr::{BinOpKind, RangeType, UnOpKind};
 use ecsl_ast::parse::{Immediate, ParamKind};
 use ecsl_ast::stmt::InlineBytecode;
 use ecsl_ast::ty::Mutable;
@@ -226,10 +227,7 @@ impl Visitor for TyCheck {
 
         // Get tyir
         let TyIr::Fn(fn_tyir) = self.get_tyir(f.ident) else {
-            panic!(
-                "Internal Compiler Error: Fn {:?} has not been defined",
-                tyid
-            );
+            panic!("Internal Compiler Error: Fn {} has not been defined", tyid);
         };
 
         // Insert Return Type as Local
@@ -1215,17 +1213,15 @@ impl Visitor for TyCheck {
 
                 Some((tyid, Operand::Move(Place::from_local(local_id, span))))
             }
-            ExprKind::UnOp(op, expr) => {
+            ExprKind::UnOp(op @ (UnOpKind::Neg | UnOpKind::Not), expr) => {
                 // Visit expr
                 self.visit_expr(expr)?;
                 let (e_ty, e_op) = self.pop();
 
                 let bool_ty = self.get_tyid(TyIr::Bool);
-
                 let mapped_ty = match op {
                     UnOpKind::Not if e_ty == bool_ty => e_ty,
                     UnOpKind::Neg if self.global().is_numeric(e_ty) => e_ty,
-                    UnOpKind::Deref => todo!(),
                     _ => {
                         self.ty_ctxt.diag.push_error(
                             EcslError::new(ErrorLevel::Error, TyCheckError::InvalidUnOp(*op, e_ty))
@@ -1258,6 +1254,32 @@ impl Visitor for TyCheck {
                 });
 
                 Some((mapped_ty, Operand::Move(Place::from_local(local_id, span))))
+            }
+            ExprKind::UnOp(UnOpKind::Deref, expr) => {
+                // Visit expr
+                self.visit_expr(expr)?;
+                let (e_ty, e_op) = self.pop();
+
+                let tyir = self.get_tyir(e_ty);
+                let deref_tyid = if let TyIr::Ref(_, ty_id) = tyir {
+                    ty_id
+                } else {
+                    self.ty_ctxt.diag.push_error(
+                        EcslError::new(ErrorLevel::Error, TyCheckError::CannotDeref(e_ty))
+                            .with_span(|_| e.span),
+                    );
+                    return VisitorCF::Break;
+                };
+
+                let place = match e_op {
+                    Operand::Copy(place) | Operand::Move(place) => place,
+                    Operand::Constant(_) => panic!(),
+                };
+
+                Some((
+                    deref_tyid,
+                    Operand::Copy(place.with_projection(Projection::Deref { new_ty: deref_tyid })),
+                ))
             }
             ExprKind::Cast(expr, ty) => {
                 // Visit expr
@@ -1541,18 +1563,13 @@ impl Visitor for TyCheck {
             }
             ExprKind::Ref(mutable, expr) => {
                 // Visit expr
-                let temp_block = self.new_block();
                 self.visit_expr(expr)?;
-                let (_, op) = self.pop();
-                self.pop_block();
-                let block = self.cur_gir_mut().remove_block(temp_block).unwrap();
+                let (ty, op) = self.pop();
 
-                err_if!(block.len() != 1, TyCheckError::CannotReference, expr.span);
-
-                let place = match op {
+                let mut place = match op {
                     Operand::Copy(place) | Operand::Move(place) => place,
                     Operand::Constant(_) => {
-                        err!(TyCheckError::CannotAssignToLHS, expr.span);
+                        err!(TyCheckError::CannotReference, expr.span);
                     }
                 };
 
@@ -1566,16 +1583,11 @@ impl Visitor for TyCheck {
                 };
                 err_if!(!can_ref, TyCheckError::CannotReference, expr.span);
 
-                let projected_tyid = place.projected_tyid(self.cur_gir());
+                let ref_tyid = self.ty_ctxt.global.tyid_from_tyir(TyIr::Ref(*mutable, ty));
 
-                let ref_tyid = self
-                    .ty_ctxt
-                    .global
-                    .tyid_from_tyir(TyIr::Ref(*mutable, projected_tyid));
-
-                place.with_projection(Projection::Ref {
+                place.with_projection_ref(Projection::Ref {
                     mutable: *mutable,
-                    original: projected_tyid,
+                    original: ty,
                     ref_type: ref_tyid,
                 });
 
@@ -1619,6 +1631,7 @@ pub enum TyCheckError {
         index: TyID,
     },
     CannotReference,
+    CannotDeref(TyID),
 
     ExpectedBoolean(TyID),
 
@@ -1718,6 +1731,7 @@ impl std::fmt::Display for TyCheckError {
             TypeIsNotAStruct => "Type is not a struct",
             TypeIsNotAnEnum => "Type is not an enum",
             CannotReference => "Cannot reference expr",
+            CannotDeref(tyid) => &format!("Cannot deref Type '{}'", tyid),
         };
         write!(f, "{}", s)
     }

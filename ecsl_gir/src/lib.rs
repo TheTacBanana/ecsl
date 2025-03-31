@@ -1,11 +1,9 @@
-use std::{collections::BTreeMap, sync::Arc};
-
 use cfgrammar::Span;
 use cons::Constant;
 use ecsl_ast::ty::Mutable;
 use ecsl_index::{BlockID, ConstID, FieldID, LocalID, TyID, VariantID};
-use ecsl_ty::local::LocalTyCtxt;
 use petgraph::prelude::DiGraphMap;
+use std::collections::BTreeMap;
 use stmt::Stmt;
 use term::Terminator;
 
@@ -301,6 +299,7 @@ impl Place {
                 Projection::Field { new_ty, .. } => tyid = *new_ty,
                 Projection::Discriminant { .. } => (),
                 Projection::Ref { ref_type, .. } => tyid = *ref_type,
+                Projection::Deref { new_ty } => tyid = *new_ty,
             }
         }
         return tyid;
@@ -320,6 +319,7 @@ impl Place {
                     f(original);
                     f(ref_type);
                 }
+                Projection::Deref { new_ty } => f(new_ty),
             }
         }
     }
@@ -340,6 +340,9 @@ pub enum Projection {
         mutable: Mutable,
         original: TyID,
         ref_type: TyID,
+    },
+    Deref {
+        new_ty: TyID,
     },
 }
 

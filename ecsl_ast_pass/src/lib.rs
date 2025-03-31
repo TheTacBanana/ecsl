@@ -412,6 +412,9 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
 
                 scope.pop();
             }
+            Definition::AssocFunction(generics, ty, fn_def) => {
+                todo!()
+            }
         };
     }
 }
@@ -492,6 +495,9 @@ pub fn validate_field_generics(ty_ctxt: Arc<LocalTyCtxt>) {
                         }
                     }
                 }
+            }
+            Definition::AssocFunction(generics, ty, fn_def) => {
+                todo!()
             }
         };
     }

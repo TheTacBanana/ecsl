@@ -208,6 +208,13 @@ impl TyCtxt {
         }
     }
 
+    pub fn is_reference(&self, id: TyID) -> Option<TyID> {
+        match self.get_tyir(id) {
+            TyIr::Ref(_, tyid) => Some(tyid),
+            _ => None,
+        }
+    }
+
     pub fn format_str(&self, s: &str, lexers: &BTreeMap<SourceFileID, LexerTy>) -> Option<String> {
         let mut out = String::new();
         let mut start = 0;

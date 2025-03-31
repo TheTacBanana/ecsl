@@ -388,6 +388,14 @@ impl<'a> CodeGen<'a> {
 
                     stack_offset.size = adt.discriminant_size().unwrap();
                 }
+                Projection::Ref {
+                    original, ref_type, ..
+                } => {
+                    todo!("Ref Code Gen") //TODO:
+                }
+                Projection::Deref { new_ty } => {
+                    todo!("Deref Code Gen") //TODO:
+                }
             }
         }
 
