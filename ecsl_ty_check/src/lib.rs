@@ -1,4 +1,4 @@
-use ecsl_ast::expr::{BinOpKind, RangeType, UnOpKind};
+use ecsl_ast::expr::{self, BinOpKind, RangeType, UnOpKind};
 use ecsl_ast::parse::{Immediate, ParamKind};
 use ecsl_ast::stmt::InlineBytecode;
 use ecsl_ast::ty::Mutable;
@@ -1539,8 +1539,49 @@ impl Visitor for TyCheck {
 
                 Some((enum_tyid, Operand::Move(Place::from_local(local_id, span))))
             }
+            ExprKind::Ref(mutable, expr) => {
+                // Visit expr
+                let temp_block = self.new_block();
+                self.visit_expr(expr)?;
+                let (_, op) = self.pop();
+                self.pop_block();
+                let block = self.cur_gir_mut().remove_block(temp_block).unwrap();
+
+                err_if!(block.len() != 1, TyCheckError::CannotReference, expr.span);
+
+                let place = match op {
+                    Operand::Copy(place) | Operand::Move(place) => place,
+                    Operand::Constant(_) => {
+                        err!(TyCheckError::CannotAssignToLHS, expr.span);
+                    }
+                };
+
+                let local = self.cur_gir().get_local(place.local);
+                let can_ref = match local.kind {
+                    LocalKind::Temp => false,
+                    LocalKind::Let => true,
+                    LocalKind::Arg => true,
+                    LocalKind::Internal => true,
+                    LocalKind::Ret => panic!("Internal Compiler Error"),
+                };
+                err_if!(!can_ref, TyCheckError::CannotReference, expr.span);
+
+                let projected_tyid = place.projected_tyid(self.cur_gir());
+
+                let ref_tyid = self
+                    .ty_ctxt
+                    .global
+                    .tyid_from_tyir(TyIr::Ref(*mutable, projected_tyid));
+
+                place.with_projection(Projection::Ref {
+                    mutable: *mutable,
+                    original: projected_tyid,
+                    ref_type: ref_tyid,
+                });
+
+                Some((ref_tyid, Operand::Copy(place)))
+            }
             e => panic!("{:?}", e),
-            // ExprKind::Ref(mutable, expr) => todo!(),
             // ExprKind::Array(exprs) => todo!(),
             // ExprKind::MethodSelf => todo!(),
             // ExprKind::Entity => todo!(),
@@ -1577,6 +1618,7 @@ pub enum TyCheckError {
         range: TyID,
         index: TyID,
     },
+    CannotReference,
 
     ExpectedBoolean(TyID),
 
@@ -1675,6 +1717,7 @@ impl std::fmt::Display for TyCheckError {
             DeadCode => "Stmts after terminator",
             TypeIsNotAStruct => "Type is not a struct",
             TypeIsNotAnEnum => "Type is not an enum",
+            CannotReference => "Cannot reference expr",
         };
         write!(f, "{}", s)
     }

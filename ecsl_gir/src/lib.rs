@@ -1,9 +1,10 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, sync::Arc};
 
 use cfgrammar::Span;
 use cons::Constant;
 use ecsl_ast::ty::Mutable;
 use ecsl_index::{BlockID, ConstID, FieldID, LocalID, TyID, VariantID};
+use ecsl_ty::local::LocalTyCtxt;
 use petgraph::prelude::DiGraphMap;
 use stmt::Stmt;
 use term::Terminator;
@@ -186,6 +187,10 @@ impl Block {
         self.stmts.is_empty() && self.term.is_none()
     }
 
+    pub fn len(&self) -> usize {
+        self.stmts.len()
+    }
+
     pub fn stmts(&self) -> impl Iterator<Item = &Stmt> {
         self.stmts.iter()
     }
@@ -295,6 +300,7 @@ impl Place {
             match proj {
                 Projection::Field { new_ty, .. } => tyid = *new_ty,
                 Projection::Discriminant { .. } => (),
+                Projection::Ref { ref_type, .. } => tyid = *ref_type,
             }
         }
         return tyid;
@@ -308,6 +314,12 @@ impl Place {
                     f(new_ty);
                 }
                 Projection::Discriminant { tyid } => f(tyid),
+                Projection::Ref {
+                    original, ref_type, ..
+                } => {
+                    f(original);
+                    f(ref_type);
+                }
             }
         }
     }
@@ -323,6 +335,11 @@ pub enum Projection {
     },
     Discriminant {
         tyid: TyID,
+    },
+    Ref {
+        mutable: Mutable,
+        original: TyID,
+        ref_type: TyID,
     },
 }
 
