@@ -161,6 +161,8 @@ pub struct FieldDef {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct FnDef {
+    pub parent: Option<FieldDef>,
+
     pub tyid: TyID,
     pub kind: FnKind,
     pub params: BTreeMap<FieldID, FieldDef>,
@@ -195,13 +197,10 @@ impl GenericsScope {
         self.scopes.push(g);
     }
 
-    pub fn add_opt(&mut self, g: Option<ecsl_ast::ty::Generics>) -> usize {
+    pub fn add_opt(&mut self, g: Option<ecsl_ast::ty::Generics>) {
         if let Some(g) = g {
-            let len = g.params.len();
             self.scopes.push(g);
-            return len;
         }
-        return 0;
     }
 
     pub fn scope_index(&self, id: SymbolID) -> Option<usize> {
@@ -215,6 +214,16 @@ impl GenericsScope {
             }
         }
         return None;
+    }
+
+    pub fn total(&self) -> usize {
+        let mut i = 0;
+        for s in &self.scopes {
+            for _ in &s.params {
+                i += 1;
+            }
+        }
+        i
     }
 
     pub fn pop(&mut self) {

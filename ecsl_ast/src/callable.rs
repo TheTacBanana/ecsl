@@ -64,8 +64,8 @@ impl Param {
 
 #[derive(Debug, Clone, AST)]
 pub enum ParamKind {
-    SelfValue(Mutable),
-    SelfReference(Mutable),
+    SelfValue(Mutable, SymbolID),
+    SelfReference(Mutable, SymbolID),
     Normal(Mutable, SymbolID, P<Ty>), //TODO: Find a better name
 }
 

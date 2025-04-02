@@ -78,7 +78,7 @@ impl Visitor for FnValidator {
             FnCtxt::Free => {
                 for p in &f.params {
                     match &p.kind {
-                        ParamKind::SelfValue(_) | ParamKind::SelfReference(_) => Some(
+                        ParamKind::SelfValue(_, _) | ParamKind::SelfReference(_, _) => Some(
                             self.diag.push_error(
                                 EcslError::new(
                                     ErrorLevel::Error,
@@ -97,7 +97,7 @@ impl Visitor for FnValidator {
                 let mut found = false;
                 for p in &f.params {
                     match (first, &p.kind) {
-                        (false, ParamKind::SelfValue(_) | ParamKind::SelfReference(_)) => {
+                        (false, ParamKind::SelfValue(_, _) | ParamKind::SelfReference(_, _)) => {
                             found = true;
                             Some(
                                 self.diag.push_error(
@@ -110,7 +110,7 @@ impl Visitor for FnValidator {
                                 ),
                             )
                         }
-                        (_, ParamKind::SelfValue(_) | ParamKind::SelfReference(_)) => {
+                        (_, ParamKind::SelfValue(_, _) | ParamKind::SelfReference(_, _)) => {
                             found = true;
                             None
                         }

@@ -324,7 +324,7 @@ pub fn walk_expr<V: Visitor>(v: &mut V, expr: &Expr) -> VisitorCF {
 
         ExprKind::Lit(_)
         | ExprKind::Ident(_)
-        | ExprKind::MethodSelf
+        | ExprKind::MethodSelf(_)
         | ExprKind::Entity
         | ExprKind::Resource => (),
     }

@@ -243,30 +243,34 @@ impl Visitor for TyCheck {
 
         // Insert Params as locals
         for (i, param) in f.params.iter().enumerate() {
-            match &param.kind {
-                ParamKind::SelfValue(_) => todo!(),
-                ParamKind::SelfReference(_) => todo!(),
-                ParamKind::Normal(mutable, symbol_id, _) => {
-                    let local_id = self.new_local(Local::new(
-                        param.span,
-                        *mutable,
-                        fn_tyir.params[&FieldID::new(i)].ty,
-                        LocalKind::Arg,
-                    ));
+            let (ident, mutable) = match &param.kind {
+                ParamKind::SelfValue(m, s)
+                | ParamKind::SelfReference(m, s)
+                | ParamKind::Normal(m, s, _) => (*s, *m),
+            };
 
-                    if let Some(_) = self
-                        .symbols
-                        .last_mut()
-                        .unwrap()
-                        .insert(*symbol_id, Place::from_local(local_id, param.span))
-                    {
-                        self.ty_ctxt.diag.push_error(
-                            EcslError::new(ErrorLevel::Error, TyCheckError::SymbolRedefined)
-                                .with_span(|_| param.span),
-                        );
-                        return VisitorCF::Break;
-                    }
-                }
+            let fid = FieldID::new(i);
+            let tyir_param = &fn_tyir.params[&fid];
+            let local_id = self.new_local(Local::new(
+                param.span,
+                mutable,
+                self.ty_ctxt
+                    .get_mono_variant(tyir_param.ty, &tyir_param.params, param.span)
+                    .unwrap(),
+                LocalKind::Arg,
+            ));
+
+            if let Some(_) = self
+                .symbols
+                .last_mut()
+                .unwrap()
+                .insert(ident, Place::from_local(local_id, param.span))
+            {
+                self.ty_ctxt.diag.push_error(
+                    EcslError::new(ErrorLevel::Error, TyCheckError::SymbolRedefined)
+                        .with_span(|_| param.span),
+                );
+                return VisitorCF::Break;
             }
         }
 
@@ -1052,9 +1056,9 @@ impl Visitor for TyCheck {
 
                 return VisitorCF::Continue;
             }
-            ExprKind::Ident(symbol_id) => {
+            ExprKind::Ident(ident) | ExprKind::MethodSelf(ident) => {
                 // Search all symbols
-                let found = self.find_symbol(*symbol_id);
+                let found = self.find_symbol(*ident);
 
                 // Throw error if not found
                 if found.is_none() {
@@ -1078,11 +1082,35 @@ impl Visitor for TyCheck {
 
                 Some((tyid, Operand::Constant(const_id)))
             }
-            ExprKind::Function(None, generics, symbol_id, exprs) => {
+            ExprKind::Function(parent, generics, symbol_id, exprs) => {
+                let parent = match parent {
+                    Some(expr) => {
+                        self.visit_expr(expr)?;
+                        let (ty, op) = self.pop();
+                        Some((ty, op, expr.span))
+                    }
+                    _ => None,
+                };
+
                 let mut tyid = catch_unknown!(self.get_tyid(*symbol_id));
                 let Some(fn_tyir) = self.get_tyir(tyid).into_fn() else {
                     err!(TyCheckError::FunctionDoesntExist, e.span);
                 };
+
+                let mut exprs_tys = Vec::new();
+                match (parent, &fn_tyir.parent) {
+                    (Some((ty, op, span)), Some(tyid)) => {
+                        err_if!(ty != tyid.ty, TyCheckError::NotAMemberFunction(ty), span);
+                        exprs_tys.push((ty, op, span));
+                    }
+                    (None, None) => (),
+                    (None, Some(ty)) => {
+                        err!(TyCheckError::NotAFreeFunction(ty.ty), e.span);
+                    }
+                    (Some((ty, _, _)), None) => {
+                        err!(TyCheckError::NotAMemberFunction(ty), e.span);
+                    }
+                }
 
                 let fn_tyir = if fn_tyir.total_generics > 0 {
                     let params = generics
@@ -1112,7 +1140,6 @@ impl Visitor for TyCheck {
                 });
 
                 // Iter over all expressions
-                let mut exprs_tys = Vec::new();
                 for expr in exprs {
                     self.visit_expr(expr)?;
                     let (ty, op) = self.pop();
@@ -1595,7 +1622,6 @@ impl Visitor for TyCheck {
             }
             e => panic!("{:?}", e),
             // ExprKind::Array(exprs) => todo!(),
-            // ExprKind::MethodSelf => todo!(),
             // ExprKind::Entity => todo!(),
             // ExprKind::Resource => todo!(),
             // ExprKind::Query(query_expr) => todo!(),
@@ -1675,6 +1701,9 @@ pub enum TyCheckError {
     TypeIsNotAStruct,
     TypeIsNotAnEnum,
     DeadCode,
+
+    NotAMemberFunction(TyID),
+    NotAFreeFunction(TyID),
 }
 
 impl std::fmt::Display for TyCheckError {
@@ -1732,6 +1761,10 @@ impl std::fmt::Display for TyCheckError {
             TypeIsNotAnEnum => "Type is not an enum",
             CannotReference => "Cannot reference expr",
             CannotDeref(tyid) => &format!("Cannot deref Type '{}'", tyid),
+            NotAMemberFunction(tyid) => {
+                &format!("Function cannot be called as a member of Type '{}'", tyid)
+            }
+            NotAFreeFunction(tyid) => &format!("Function is a member of Type '{}'", tyid),
         };
         write!(f, "{}", s)
     }

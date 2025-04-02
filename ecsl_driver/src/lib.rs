@@ -171,13 +171,6 @@ impl Driver {
             },
             || diag.finish_stage(finish_stage),
         )?;
-        let assoc = (&context, assoc).par_map_assoc(
-            |_, _, (diag, ast, table, local_ctxt)| {
-                validate_field_generics(local_ctxt.clone());
-                Some((diag, ast, table, local_ctxt))
-            },
-            || diag.finish_stage(finish_stage),
-        )?;
 
         // Perform type checking
         info!("Type Checking");

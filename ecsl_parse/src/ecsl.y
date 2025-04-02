@@ -7,6 +7,7 @@
 %avoid_insert 'ENTITY'
 %avoid_insert 'QUERY'
 %avoid_insert 'RESOURCE'
+%avoid_insert 'SCHEDULE'
 %avoid_insert 'SELF'
 
 %epp 'USE' 'use'
@@ -210,10 +211,10 @@ ArgList -> Result<Vec<Param>, ()>:
 
 Arg -> Result<Param, ()>:
     RefMutability 'SELF' {
-        Ok(Param::new($span,ParamKind::SelfValue($1?)))
+        Ok(Param::new($span,ParamKind::SelfValue($1?, table.usage($2.map_err(|_| ())?.span(), SymbolKind::Local))))
     }
     | 'AMPERSAND' RefMutability 'SELF' {
-        Ok(Param::new($span,ParamKind::SelfReference($2?)))
+        Ok(Param::new($span,ParamKind::SelfReference($2?, table.usage($3.map_err(|_| ())?.span(), SymbolKind::Local))))
     }
     | RefMutability 'IDENT' 'COLON' Ty {
         Ok(Param::new($span, ParamKind::Normal(
@@ -1052,7 +1053,7 @@ Expr -> Result<Expr, ()>:
     | 'SELF' {
         Ok(Expr::new(
             $span,
-            ExprKind::MethodSelf
+            ExprKind::MethodSelf(table.usage($1.map_err(|_| ())?.span(), SymbolKind::Local))
         ))
     }
     | Literal { Ok($1?) }

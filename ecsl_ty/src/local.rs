@@ -285,8 +285,14 @@ impl LocalTyCtxt {
 
                     Some(new_tyid)
                 }
-                t => {
-                    error!("{:?} {:?} {:?}", id, t, params);
+                TyIr::GenericParam(_)
+                | TyIr::Bool
+                | TyIr::Char
+                | TyIr::Int
+                | TyIr::Float
+                | TyIr::Str => Some(id),
+                e => {
+                    error!("{:?}", e);
                     None
                 }
             }

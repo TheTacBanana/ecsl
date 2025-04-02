@@ -1,3 +1,4 @@
+use crate::P;
 use cfgrammar::Span;
 use ecsl_ast::{
     data::{EnumDef, StructDef},
@@ -6,8 +7,7 @@ use ecsl_ast::{
 };
 use ecsl_index::SymbolID;
 
-use crate::P;
-
+// TODO: These should really be references to avoid cloning
 #[derive(Debug)]
 pub enum Definition {
     Struct(StructDef),

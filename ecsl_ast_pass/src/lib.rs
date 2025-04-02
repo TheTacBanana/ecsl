@@ -6,7 +6,7 @@ use definitions::TypeDefCollector;
 use ecsl_ast::{
     data::{EnumDef, StructDef},
     item::{Item, ItemKind},
-    parse::AttributeValue,
+    parse::{AttributeValue, FnDef},
     visit::Visitor,
     SourceAST,
 };
@@ -24,7 +24,6 @@ use ecsl_ty::{
 use entry_point::{EntryPoint, EntryPointError, EntryPointKind};
 use fn_validator::FnValidator;
 use import_collector::ImportCollector;
-use log::debug;
 use prelude::{rewrite_use_path, Prelude};
 use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
 
@@ -165,7 +164,7 @@ pub fn generate_pre_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                 attributes,
                 ..
             }) => {
-                let generics = scope.add_opt(generics.clone());
+                scope.add_opt(generics.clone());
 
                 let tyid = ty_ctxt
                     .global
@@ -199,7 +198,7 @@ pub fn generate_pre_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                             variant_hash: BTreeMap::new(),
                             variant_kinds: BTreeMap::new(),
                             resolved_generics: 0,
-                            total_generics: generics,
+                            total_generics: scope.total(),
                             attributes: attributes.clone(),
                         }),
                         *span,
@@ -249,6 +248,98 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
             );
         }
     };
+
+    let parse_function =
+        |tyid: TyID, parent: Option<FieldDef>, fn_def: &ast::FnDef, scope: &mut GenericsScope| {
+            let FnDef {
+                span,
+                kind,
+                attributes,
+                generics,
+                params,
+                ret,
+                ..
+            } = fn_def;
+
+            scope.add_opt(generics.clone());
+
+            let mut fn_params = BTreeMap::new();
+            for (i, p) in params.iter().enumerate() {
+                let id = FieldID::new(i);
+                let field_def = match &p.kind {
+                    ast::ParamKind::Normal(_, _, ty) => {
+                        let params = ty
+                            .generics
+                            .params
+                            .iter()
+                            .map(|ty| ty_ctxt.get_tyid(ty, &scope).unwrap())
+                            .collect();
+
+                        FieldDef {
+                            id,
+                            ty: ty_ctxt.get_tyid(&ty, &scope).unwrap(),
+                            params,
+                        }
+                    }
+                    ast::ParamKind::SelfReference(_, _) => {
+                        let parent = parent.clone().unwrap();
+
+                        FieldDef {
+                            id,
+                            ty: ty_ctxt
+                                .get_mono_variant(parent.ty, &parent.params, *span)
+                                .unwrap(),
+                            params: Vec::new(),
+                        }
+                    }
+                    ast::ParamKind::SelfValue(_, _) => parent.clone().unwrap(),
+                };
+
+                fn_params.insert(id, field_def);
+            }
+
+            let ret = match ret {
+                ast::RetTy::None(_) => FieldDef {
+                    id: FieldID::ZERO,
+                    ty: TyID::BOTTOM,
+                    params: Vec::new(),
+                },
+                ast::RetTy::Ty(ty) => {
+                    let params = ty
+                        .generics
+                        .params
+                        .iter()
+                        .map(|ty| ty_ctxt.get_tyid(ty, &scope).unwrap())
+                        .collect();
+
+                    FieldDef {
+                        id: FieldID::ZERO,
+                        ty: ty_ctxt.get_tyid(&ty, &scope).unwrap(),
+                        params,
+                    }
+                }
+            };
+
+            unsafe {
+                ty_ctxt.global.insert_tyir(
+                    tyid,
+                    TyIr::Fn(ecsl_ty::FnDef {
+                        parent,
+                        tyid,
+                        kind: *kind,
+                        params: fn_params,
+                        ret,
+                        resolved_generics: 0,
+                        total_generics: scope.total(),
+                        attributes: attributes.clone(),
+                    }),
+                    *span,
+                    ty_ctxt.file,
+                )
+            };
+
+            scope.pop();
+        };
 
     let mut scope = GenericsScope::new();
     for (_, def) in ty_ctxt.defined.read().unwrap().iter() {
@@ -331,177 +422,171 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
 
                 scope.pop();
             }
-            Definition::Function(ast::FnDef {
-                span,
-                kind,
-                ident,
-                generics,
-                params,
-                ret,
-                attributes,
-                ..
-            }) => {
-                let generics = scope.add_opt(generics.clone());
-
+            Definition::Function(f) => {
                 let tyid = ty_ctxt
                     .global
-                    .get_or_create_tyid(GlobalID::new(*ident, ty_ctxt.file));
+                    .get_or_create_tyid(GlobalID::new(f.ident, ty_ctxt.file));
 
-                let mut fn_params = BTreeMap::new();
-                for (i, p) in params.iter().enumerate() {
-                    let ast::ParamKind::Normal(_, _, ty) = &p.kind else {
-                        panic!()
-                    };
+                parse_function(tyid, None, f, &mut scope);
+            }
+            Definition::AssocFunction(generics, ty, f) => {
+                scope.add_opt(generics.clone());
 
-                    let params = ty
+                let Some(impl_id) = ty_ctxt.get_tyid(ty, &scope) else {
+                    ty_ctxt.diag.push_error(
+                        EcslError::new(ErrorLevel::Error, "Cannot find type for impl block")
+                            .with_span(|_| ty.span),
+                    );
+                    continue;
+                };
+                let impl_tyir = ty_ctxt.global.get_tyir(impl_id);
+
+                let fnid = ty_ctxt
+                    .global
+                    .get_or_create_tyid(GlobalID::new(f.ident, ty_ctxt.file));
+
+                match impl_tyir {
+                    TyIr::Unknown => {
+                        ty_ctxt.diag.push_error(
+                            EcslError::new(ErrorLevel::Error, "Cannot find type for impl block")
+                                .with_span(|_| ty.span),
+                        );
+                        continue;
+                    }
+                    TyIr::ADT(adtdef) => {
+                        let Some((_, file)) = ty_ctxt.global.get_span(adtdef.id) else {
+                            todo!();
+                            continue;
+                        };
+
+                        if file != ty_ctxt.file {
+                            ty_ctxt.diag.push_error(
+                                EcslError::new(
+                                    ErrorLevel::Error,
+                                    &format!(
+                                        "Impl block for Type '{}' must be in same file",
+                                        adtdef.id
+                                    ),
+                                )
+                                .with_span(|_| ty.span),
+                            );
+                            continue;
+                        }
+                    }
+                    TyIr::Bottom => todo!(),
+                    TyIr::Bool => todo!(),
+                    TyIr::Char => todo!(),
+                    TyIr::Int => todo!(),
+                    TyIr::Float => todo!(),
+                    TyIr::Str => todo!(),
+                    TyIr::Range(ty_id, range_type) => todo!(),
+                    TyIr::Ref(mutable, ty_id) => todo!(),
+                    TyIr::Ptr(mutable, ty_id) => todo!(),
+                    TyIr::Fn(fn_def) => todo!(),
+                    TyIr::Array(ty_id, _) => todo!(),
+                    TyIr::ArrayRef(mutable, ty_id) => todo!(),
+                    TyIr::GenericParam(_) => todo!(),
+                }
+
+                let parent = FieldDef {
+                    id: FieldID::ZERO,
+                    ty: ty_ctxt.get_tyid(ty, &scope).unwrap(),
+                    params: ty
                         .generics
                         .params
                         .iter()
                         .map(|ty| ty_ctxt.get_tyid(ty, &scope).unwrap())
-                        .collect();
-
-                    let id = FieldID::new(i);
-                    fn_params.insert(
-                        id,
-                        FieldDef {
-                            id,
-                            ty: ty_ctxt.get_tyid(&ty, &scope).unwrap(),
-                            params,
-                        },
-                    );
-                }
-
-                let ret = match ret {
-                    ast::RetTy::None(_) => FieldDef {
-                        id: FieldID::ZERO,
-                        ty: TyID::BOTTOM,
-                        params: Vec::new(),
-                    },
-                    ast::RetTy::Ty(ty) => {
-                        let params = ty
-                            .generics
-                            .params
-                            .iter()
-                            .map(|ty| ty_ctxt.get_tyid(ty, &scope).unwrap())
-                            .collect();
-
-                        FieldDef {
-                            id: FieldID::ZERO,
-                            ty: ty_ctxt.get_tyid(&ty, &scope).unwrap(),
-                            params,
-                        }
-                    }
+                        .collect(),
                 };
 
-                unsafe {
-                    ty_ctxt.global.insert_tyir(
-                        tyid,
-                        TyIr::Fn(ecsl_ty::FnDef {
-                            tyid,
-                            kind: *kind,
-                            params: fn_params,
-                            ret,
-                            resolved_generics: 0,
-                            total_generics: generics,
-                            attributes: attributes.clone(),
-                        }),
-                        *span,
-                        ty_ctxt.file,
-                    )
-                };
+                parse_function(fnid, Some(parent), f, &mut scope);
 
                 scope.pop();
             }
-            Definition::AssocFunction(generics, ty, fn_def) => {
-                todo!()
-            }
         };
     }
 }
 
-pub fn validate_field_generics(ty_ctxt: Arc<LocalTyCtxt>) {
-    mod ast {
-        pub use ecsl_ast::callable::*;
-        pub use ecsl_ast::data::*;
-    }
-    // let mut scope = GenericsScope::new();
-    for (_, def) in ty_ctxt.defined.read().unwrap().iter() {
-        match def {
-            Definition::Struct(ast::StructDef { ident, fields, .. }) => {
-                let tyid = ty_ctxt
-                    .global
-                    .get_or_create_tyid(GlobalID::new(*ident, ty_ctxt.file));
+// pub fn validate_field_generics(ty_ctxt: Arc<LocalTyCtxt>) {
+//     mod ast {
+//         pub use ecsl_ast::callable::*;
+//         pub use ecsl_ast::data::*;
+//     }
+//     // let mut scope = GenericsScope::new();
+//     for (_, def) in ty_ctxt.defined.read().unwrap().iter() {
+//         match def {
+//             Definition::Struct(ast::StructDef { ident, fields, .. }) => {
+//                 let tyid = ty_ctxt
+//                     .global
+//                     .get_or_create_tyid(GlobalID::new(*ident, ty_ctxt.file));
 
-                let Some(adt) = ty_ctxt.global.get_tyir(tyid).into_adt() else {
-                    continue;
-                };
+//                 let Some(adt) = ty_ctxt.global.get_tyir(tyid).into_adt() else {
+//                     continue;
+//                 };
 
-                debug!("{:?}", adt);
+//                 debug!("{:?}", adt);
 
-                let struct_fields = adt.get_struct_fields();
-                for (i, f) in struct_fields.field_tys.iter() {
-                    if let Some(field_adt) = ty_ctxt.global.get_tyir(f.ty).into_adt() {
-                        debug!("inner {:?}", field_adt);
+//                 let struct_fields = adt.get_struct_fields();
+//                 for (i, f) in struct_fields.field_tys.iter() {
+//                     if let Some(field_adt) = ty_ctxt.global.get_tyir(f.ty).into_adt() {
+//                         debug!("inner {:?}", field_adt);
 
-                        if f.params.len() != field_adt.total_generics {
-                            ty_ctxt.diag.push_error(
-                                EcslError::new(ErrorLevel::Error, "Mismatched generics")
-                                    .with_span(|_| fields.get(i.inner()).unwrap().span),
-                            );
-                        }
-                    }
-                }
-            }
-            Definition::Enum(ast::EnumDef {
-                ident, variants, ..
-            }) => {
-                let tyid = ty_ctxt
-                    .global
-                    .get_or_create_tyid(GlobalID::new(*ident, ty_ctxt.file));
+//                         if f.params.len() != field_adt.total_generics {
+//                             ty_ctxt.diag.push_error(
+//                                 EcslError::new(ErrorLevel::Error, "Mismatched generics")
+//                                     .with_span(|_| fields.get(i.inner()).unwrap().span),
+//                             );
+//                         }
+//                     }
+//                 }
+//             }
+//             Definition::Enum(ast::EnumDef {
+//                 ident, variants, ..
+//             }) => {
+//                 let tyid = ty_ctxt
+//                     .global
+//                     .get_or_create_tyid(GlobalID::new(*ident, ty_ctxt.file));
 
-                let Some(adt) = ty_ctxt.global.get_tyir(tyid).into_adt() else {
-                    continue;
-                };
+//                 let Some(adt) = ty_ctxt.global.get_tyir(tyid).into_adt() else {
+//                     continue;
+//                 };
 
-                for (vid, var) in adt.variant_kinds.iter() {
-                    for (fid, f) in var.field_tys.iter() {
-                        if let Some(field_adt) = ty_ctxt.global.get_tyir(f.ty).into_adt() {
-                            if f.params.len() != field_adt.total_generics {
-                                ty_ctxt.diag.push_error(
-                                    EcslError::new(ErrorLevel::Error, "Mismatched generics")
-                                        .with_span(|_| {
-                                            variants[vid.inner()].fields[fid.inner()].span
-                                        }),
-                                );
-                            }
-                        }
-                    }
-                }
-            }
-            Definition::Function(ast::FnDef { ident, params, .. }) => {
-                let tyid = ty_ctxt
-                    .global
-                    .get_or_create_tyid(GlobalID::new(*ident, ty_ctxt.file));
+//                 for (vid, var) in adt.variant_kinds.iter() {
+//                     for (fid, f) in var.field_tys.iter() {
+//                         if let Some(field_adt) = ty_ctxt.global.get_tyir(f.ty).into_adt() {
+//                             if f.params.len() != field_adt.total_generics {
+//                                 ty_ctxt.diag.push_error(
+//                                     EcslError::new(ErrorLevel::Error, "Mismatched generics")
+//                                         .with_span(|_| {
+//                                             variants[vid.inner()].fields[fid.inner()].span
+//                                         }),
+//                                 );
+//                             }
+//                         }
+//                     }
+//                 }
+//             }
+//             Definition::Function(ast::FnDef { ident, params, .. }) => {
+//                 let tyid = ty_ctxt
+//                     .global
+//                     .get_or_create_tyid(GlobalID::new(*ident, ty_ctxt.file));
 
-                let fndef = ty_ctxt.global.get_tyir(tyid).into_fn().unwrap();
+//                 let fndef = ty_ctxt.global.get_tyir(tyid).into_fn().unwrap();
 
-                for (fid, p) in fndef.params.iter() {
-                    if let Some(param_adt) = ty_ctxt.global.get_tyir(p.ty).into_adt() {
-                        if p.params.len() != param_adt.total_generics {
-                            ty_ctxt.diag.push_error(
-                                EcslError::new(ErrorLevel::Error, "Mismatched generics")
-                                    .with_span(|_| params[fid.inner()].span),
-                            );
-                        }
-                    }
-                }
-            }
-            Definition::AssocFunction(generics, ty, fn_def) => {
-                todo!()
-            }
-        };
-    }
-}
+//                 for (fid, p) in fndef.params.iter() {
+//                     if let Some(param_adt) = ty_ctxt.global.get_tyir(p.ty).into_adt() {
+//                         if p.params.len() != param_adt.total_generics {
+//                             ty_ctxt.diag.push_error(
+//                                 EcslError::new(ErrorLevel::Error, "Mismatched generics")
+//                                     .with_span(|_| params[fid.inner()].span),
+//                             );
+//                         }
+//                     }
+//                 }
+//             }
+//         };
+//     }
+// }
 
 pub fn get_entry_point(
     ast: &SourceAST,

@@ -43,7 +43,7 @@ pub enum ExprKind {
     Ident(SymbolID),
     /// Self in method
     /// `self`
-    MethodSelf,
+    MethodSelf(SymbolID),
     /// Literal value
     /// `1`
     /// `"string"`

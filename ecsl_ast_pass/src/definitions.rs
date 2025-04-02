@@ -48,19 +48,6 @@ impl Visitor for TypeDefCollector {
     }
 
     fn visit_impl(&mut self, i: &ImplBlock) -> VisitorCF {
-        match i.ty.kind {
-            TyKind::Ident(symbol_id, concrete_generics) => todo!(),
-        }
-        //     TyKind::Array(ty, span) => todo!(),
-        //     TyKind::ArrayRef(mutable, ty) => todo!(),
-        //     TyKind::Ref(mutable, ty) => todo!(),
-        //     TyKind::Ptr(mutable, ty) => todo!(),
-        //     TyKind::Entity(entity_ty) => todo!(),
-        //     TyKind::Query => todo!(),
-        //     TyKind::System => todo!(),
-        //     TyKind::Schedule => todo!(),
-        // }
-
         for f in &i.fn_defs {
             self.ty_ctxt.define_symbol(Definition::AssocFunction(
                 i.generics.clone(),
