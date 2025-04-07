@@ -7,37 +7,37 @@ enum Option<T> {
     None,
 }
 
-// impl<T> Option<T> {
-//     fn is_some(&self) bool {
-//         match (self) {
-//             Some { val } -> {
-//                 return true;
-//             },
-//             None -> {
-//                 return false;
-//             }
-//         }
-//     }
-//
-//     fn is_none(&self) bool {
-//         match (self) {
-//             Some { val } -> {
-//                 return false;
-//             },
-//             None -> {
-//                 return true;
-//             }
-//         }
-//     }
-//
-//     fn unwrap(self) T {
-//         match (self) {
-//             Some { val } -> {
-//                 return val;
-//             },
-//             None -> {
-//                 panic("Unwrap failed");
-//             }
-//         }
-//     }
-// }
+ // impl<T> Option<T> {
+ //     fn is_some(&self) bool {
+ //         match (self) {
+ //             Some { val } -> {
+ //                 return true;
+ //             },
+ //             None -> {
+ //                 return false;
+ //             }
+ //         }
+ //     }
+
+ //     fn is_none(&self) bool {
+ //         match (self) {
+ //             Some { val } -> {
+ //                 return false;
+ //             },
+ //             None -> {
+ //                 return true;
+ //             }
+ //         }
+ //     }
+
+ //     fn unwrap(self) T {
+ //         match (self) {
+ //             Some { val } -> {
+ //                 return val;
+ //             },
+ //             None -> {
+ //                 panic("Unwrap failed");
+ //             }
+ //         }
+ //     }
+ // }

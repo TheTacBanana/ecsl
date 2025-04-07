@@ -1,5 +1,55 @@
+use bool::bool;
+
 [copy, builtin(4), allow_casing]
 struct int;
 
+impl int {
+    fn abs(self) int {
+        if (self < 0) {
+            return -self;
+        } else {
+            return self;
+        }
+    }
+
+    fn positive(self) bool {
+        if (self > 0) {
+            return true;
+        }
+        return false;
+    }
+    
+    fn negative(self) bool {
+        if (self < 0) {
+            return true;
+        }
+        return false;
+    }
+}
+
 [copy, builtin(4), allow_casing]
 struct float;
+
+impl float {    
+    fn abs(self) float {
+        if (self < 0.0) {
+            return -self;
+        } else {
+            return self;
+        }
+    }
+
+    fn positive(self) bool {
+        if (self > 0.0) {
+            return true;
+        }
+        return false;
+    }
+    
+    fn negative(self) bool {
+        if (self < 0.0) {
+            return true;
+        }
+        return false;
+    }
+}
