@@ -19,6 +19,13 @@ impl Ty {
             generics,
         }
     }
+
+    pub fn into_scope(&self) -> Option<SymbolID> {
+        match &self.kind {
+            TyKind::Ident(symbol_id) | TyKind::Entity(symbol_id, _) => Some(*symbol_id),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, AST)]
@@ -48,7 +55,7 @@ pub enum TyKind {
     /// `Entity`
     /// `Entity<foo: Foo, bar: Bar>`
     /// `Entity<foo: Foo, ..>`
-    Entity(EntityTy),
+    Entity(SymbolID, EntityTy),
 
     /// Schedule Type
     /// `-> Schedule`

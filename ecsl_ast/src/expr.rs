@@ -53,6 +53,9 @@ pub enum ExprKind {
     /// Enum `Foo::Bar { baz : 2 }`
     Enum(P<Ty>, SymbolID, Vec<FieldExpr>),
 
+    /// Range Expr
+    /// `1..11`
+    /// `1..=10`
     Range(P<Expr>, P<Expr>, RangeType),
 
     /// Casting expression into type
@@ -61,10 +64,14 @@ pub enum ExprKind {
     /// Field Access
     /// `foo.bar`
     Field(P<Expr>, SymbolID),
+
     /// Function call
     /// Called On, Function Ident, Args
     /// `x.foo(1, 2)`
     Function(Option<P<Expr>>, ConcreteGenerics, SymbolID, Vec<Expr>),
+    /// Static Function call within a types namespace
+    /// `Foo::new()`
+    StaticFunction(SymbolID, SymbolID, ConcreteGenerics, Vec<Expr>), //TODO: Kinda bad I dont like this
 
     // ECS Features
     /// Use of the Entity Keyword to create new Entities
@@ -225,4 +232,13 @@ pub struct FieldExpr {
 pub enum RangeType {
     Exclusive,
     Inclusive,
+}
+
+impl std::fmt::Display for RangeType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RangeType::Exclusive => write!(f, ".."),
+            RangeType::Inclusive => write!(f, "..="),
+        }
+    }
 }

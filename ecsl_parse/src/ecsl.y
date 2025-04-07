@@ -91,6 +91,7 @@
 
 %parse-param table: Rc<RefCell<PartialSymbolTable>>
 
+%left 'PATH'
 %right 'ASSIGN'
 %left 'DOTDOT' 'DOTDOTEQ'
 %left 'OR'
@@ -520,7 +521,7 @@ Ty -> Result<Ty, ()>:
         ), ConcreteGenerics::empty($span)))
     }
     | EntityTy {
-        Ok(Ty::new($span, TyKind::Entity($1?), ConcreteGenerics::empty($span)))
+        Ok(Ty::new($span, TyKind::Entity(table.create_entry("Entity".to_string()), $1?), ConcreteGenerics::empty($span)))
     }
     | 'SCHEDULE' {
         Ok(Ty::new($span, TyKind::Schedule, ConcreteGenerics::empty($span)))
@@ -687,6 +688,11 @@ ImmediateList -> Result<Vec<Immediate>, ()>:
 
 Immediate -> Result<Immediate, ()>:
     'HASH' 'IDENT' {
+        Ok(Immediate::SymbolOf(
+            table.usage($2.map_err(|_| ())?.span(), SymbolKind::Local)
+        ))
+    }
+    | 'HASH' 'SELF' {
         Ok(Immediate::SymbolOf(
             table.usage($2.map_err(|_| ())?.span(), SymbolKind::Local)
         ))
@@ -951,13 +957,20 @@ Expr -> Result<Expr, ()>:
             P::new($3?),
         )))
     }
-
     | 'IDENT' FnConcreteGenerics FnArgExpr {
         Ok(Expr::new($span, ExprKind::Function(
             None,
             $2?,
             table.usage($1.map_err(|_| ())?.span(), SymbolKind::FunctionUsage),
             $3?,
+        )))
+    }
+    | 'IDENT' 'ARROW' 'IDENT' FnConcreteGenerics FnArgExpr {
+        Ok(Expr::new($span, ExprKind::StaticFunction(
+            table.usage($1.map_err(|_| ())?.span(), SymbolKind::FunctionUsage),
+            table.usage($3.map_err(|_| ())?.span(), SymbolKind::FunctionUsage),
+            $4?,
+            $5?,
         )))
     }
     | Expr 'DOT' 'IDENT' FnConcreteGenerics FnArgExpr {
