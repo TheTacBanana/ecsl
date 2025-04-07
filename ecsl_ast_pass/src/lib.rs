@@ -1,5 +1,6 @@
 #![feature(let_chains)]
 use attributes::AttributeValidator;
+use bimap::BiBTreeMap;
 use byt::BytecodeValidator;
 use casing::CasingWarnings;
 use definitions::TypeDefCollector;
@@ -16,10 +17,7 @@ use ecsl_error::{ext::EcslErrorExt, EcslError, ErrorLevel};
 use ecsl_index::{FieldID, GlobalID, SourceFileID, TyID, VariantID};
 use ecsl_parse::{source::SourceFile, table::SymbolTable, LexerTy};
 use ecsl_ty::{
-    def::Definition,
-    import::{Import, MappedImport},
-    local::LocalTyCtxt,
-    FieldDef, GenericsScope, TyIr,
+    def::Definition, import::Import, local::LocalTyCtxt, FieldDef, FnParent, GenericsScope, TyIr,
 };
 use entry_point::{EntryPoint, EntryPointError, EntryPointKind};
 use fn_validator::FnValidator;
@@ -86,7 +84,12 @@ pub fn casing_warnings(ast: &SourceAST, diag: DiagConn, table: Arc<SymbolTable>)
 }
 
 pub fn validate_imports(source: &SourceFile, ctxt: &Context, ty_ctxt: Arc<LocalTyCtxt>) {
-    for (_, imported) in ty_ctxt.imported.write().unwrap().iter_mut() {
+    let mut imported = ty_ctxt.imported.write().unwrap();
+    let imports = std::mem::take(&mut (*imported));
+    drop(imported);
+
+    let mut converted_imports = BiBTreeMap::new();
+    for (_, imported) in imports {
         let package = ctxt.get_source_file_package(source.id).unwrap();
         let Import::Unresolved(import) = imported else {
             panic!("{:?}", imported)
@@ -126,22 +129,36 @@ pub fn validate_imports(source: &SourceFile, ctxt: &Context, ty_ctxt: Arc<LocalT
         let sources = ty_ctxt.global.sources.read().unwrap();
         let import_source = sources.get(&imported_from).unwrap();
 
-        let symbol_name = &ty_ctxt.table.get_symbol(import.from.symbol()).unwrap().name;
+        let symbol_name = &ty_ctxt.table.get_symbol(import.from).unwrap().name;
         let mapped_symbol = import_source.table.get_symbol_from_string(&symbol_name);
 
-        *imported = if let Some(mapped_symbol) = mapped_symbol {
-            Import::Resolved(MappedImport {
-                from: import.from,
-                to: GlobalID::new(mapped_symbol, imported_from),
-            })
+        if let Some(mapped_symbol) = mapped_symbol {
+            converted_imports.insert(
+                (None, import.from),
+                GlobalID::new(None, mapped_symbol, imported_from),
+            );
+
+            let assoc = import_source.assoc.read().unwrap();
+            if let Some(assoc) = assoc.get(&mapped_symbol) {
+                for (symbol, _) in assoc {
+                    let imported_symbol = import_source.table.get_symbol(*symbol).unwrap();
+                    let symbol_name = &ty_ctxt.table.create_entry(imported_symbol.name);
+
+                    converted_imports.insert(
+                        (Some(import.from), *symbol_name),
+                        GlobalID::new(Some(mapped_symbol), *symbol, imported_from),
+                    );
+                }
+            }
         } else {
             ty_ctxt.diag.push_error(
                 EcslError::new(ErrorLevel::Error, &format!("Cannot find '{}'", symbol_name))
                     .with_span(|_| import.span),
             );
-            Import::Unknown
         }
     }
+    let mut imported_resolved = ty_ctxt.imported_resolved.write().unwrap();
+    imported_resolved.extend(converted_imports);
 }
 
 pub fn generate_pre_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
@@ -166,9 +183,10 @@ pub fn generate_pre_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
             }) => {
                 scope.add_opt(generics.clone());
 
-                let tyid = ty_ctxt
-                    .global
-                    .get_or_create_tyid(GlobalID::new(*ident, ty_ctxt.file));
+                let tyid =
+                    ty_ctxt
+                        .global
+                        .get_or_create_tyid(GlobalID::new(None, *ident, ty_ctxt.file));
 
                 if let Some(symbol) = ty_ctxt.table.get_symbol(*ident)
                     && let Some(builtin_size) = attributes.get_value(AttributeValue::Builtin)
@@ -263,6 +281,7 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
 
             scope.add_opt(generics.clone());
 
+            let mut fn_parent = FnParent::None;
             let mut fn_params = BTreeMap::new();
             for (i, p) in params.iter().enumerate() {
                 let id = FieldID::new(i);
@@ -281,8 +300,10 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                             params,
                         }
                     }
-                    ast::ParamKind::SelfReference(_, _) => {
+                    ast::ParamKind::SelfReference(mutable, _) => {
                         let parent = parent.clone().unwrap();
+
+                        fn_parent = FnParent::Ref(*mutable, parent.clone());
 
                         FieldDef {
                             id,
@@ -292,7 +313,11 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                             params: Vec::new(),
                         }
                     }
-                    ast::ParamKind::SelfValue(_, _) => parent.clone().unwrap(),
+                    ast::ParamKind::SelfValue(mutable, _) => {
+                        fn_parent = FnParent::Value(*mutable, parent.clone().unwrap());
+
+                        parent.clone().unwrap()
+                    }
                 };
 
                 fn_params.insert(id, field_def);
@@ -324,7 +349,7 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                 ty_ctxt.global.insert_tyir(
                     tyid,
                     TyIr::Fn(ecsl_ty::FnDef {
-                        parent,
+                        parent: fn_parent,
                         tyid,
                         kind: *kind,
                         params: fn_params,
@@ -341,8 +366,7 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
             scope.pop();
         };
 
-    let mut scope = GenericsScope::new();
-    for (_, def) in ty_ctxt.defined.read().unwrap().iter() {
+    let process_def = |def: &Definition, scope: &mut GenericsScope| {
         match def {
             Definition::Struct(ast::StructDef {
                 span,
@@ -354,11 +378,12 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                 scope.add_opt(generics.clone());
 
                 // Get TyID and TyIr
-                let tyid = ty_ctxt
-                    .global
-                    .get_or_create_tyid(GlobalID::new(*ident, ty_ctxt.file));
+                let tyid =
+                    ty_ctxt
+                        .global
+                        .get_or_create_tyid(GlobalID::new(None, *ident, ty_ctxt.file));
                 let Some(mut tyir) = ty_ctxt.global.get_tyir(tyid).into_adt() else {
-                    continue;
+                    return;
                 };
 
                 // Create a singular variant
@@ -390,11 +415,12 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                 scope.add_opt(generics.clone());
 
                 // Get TyID and TyIr
-                let tyid = ty_ctxt
-                    .global
-                    .get_or_create_tyid(GlobalID::new(*ident, ty_ctxt.file));
+                let tyid =
+                    ty_ctxt
+                        .global
+                        .get_or_create_tyid(GlobalID::new(None, *ident, ty_ctxt.file));
                 let Some(mut tyir) = ty_ctxt.global.get_tyir(tyid).into_adt() else {
-                    continue;
+                    return;
                 };
 
                 for (i, v) in variants.iter().enumerate() {
@@ -423,11 +449,12 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                 scope.pop();
             }
             Definition::Function(f) => {
-                let tyid = ty_ctxt
-                    .global
-                    .get_or_create_tyid(GlobalID::new(f.ident, ty_ctxt.file));
+                let tyid =
+                    ty_ctxt
+                        .global
+                        .get_or_create_tyid(GlobalID::new(None, f.ident, ty_ctxt.file));
 
-                parse_function(tyid, None, f, &mut scope);
+                parse_function(tyid, None, f, scope);
             }
             Definition::AssocFunction(generics, ty, f) => {
                 scope.add_opt(generics.clone());
@@ -437,13 +464,22 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                         EcslError::new(ErrorLevel::Error, "Cannot find type for impl block")
                             .with_span(|_| ty.span),
                     );
-                    continue;
+                    return;
                 };
                 let impl_tyir = ty_ctxt.global.get_tyir(impl_id);
 
-                let fnid = ty_ctxt
-                    .global
-                    .get_or_create_tyid(GlobalID::new(f.ident, ty_ctxt.file));
+                let Some(fn_scope) = ty.into_scope() else {
+                    ty_ctxt.diag.push_error(
+                        EcslError::new(ErrorLevel::Error, "Unknown Type").with_span(|_| f.span),
+                    );
+                    return;
+                };
+
+                let fnid = ty_ctxt.global.get_or_create_tyid(GlobalID::new(
+                    Some(fn_scope),
+                    f.ident,
+                    ty_ctxt.file,
+                ));
 
                 match impl_tyir {
                     TyIr::Unknown => {
@@ -451,12 +487,18 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                             EcslError::new(ErrorLevel::Error, "Cannot find type for impl block")
                                 .with_span(|_| ty.span),
                         );
-                        continue;
+                        return;
                     }
-                    TyIr::ADT(adtdef) => {
-                        let Some((_, file)) = ty_ctxt.global.get_span(adtdef.id) else {
+                    TyIr::Entity => (),
+                    TyIr::Bool
+                    | TyIr::Char
+                    | TyIr::Int
+                    | TyIr::Float
+                    | TyIr::Str
+                    | TyIr::ADT(_) => {
+                        let Some((_, file)) = ty_ctxt.global.get_span(impl_id) else {
                             todo!();
-                            continue;
+                            // return;
                         };
 
                         if file != ty_ctxt.file {
@@ -465,27 +507,15 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                                     ErrorLevel::Error,
                                     &format!(
                                         "Impl block for Type '{}' must be in same file",
-                                        adtdef.id
+                                        impl_id
                                     ),
                                 )
                                 .with_span(|_| ty.span),
                             );
-                            continue;
+                            return;
                         }
                     }
-                    TyIr::Bottom => todo!(),
-                    TyIr::Bool => todo!(),
-                    TyIr::Char => todo!(),
-                    TyIr::Int => todo!(),
-                    TyIr::Float => todo!(),
-                    TyIr::Str => todo!(),
-                    TyIr::Range(ty_id, range_type) => todo!(),
-                    TyIr::Ref(mutable, ty_id) => todo!(),
-                    TyIr::Ptr(mutable, ty_id) => todo!(),
-                    TyIr::Fn(fn_def) => todo!(),
-                    TyIr::Array(ty_id, _) => todo!(),
-                    TyIr::ArrayRef(mutable, ty_id) => todo!(),
-                    TyIr::GenericParam(_) => todo!(),
+                    _ => todo!(),
                 }
 
                 let parent = FieldDef {
@@ -499,94 +529,26 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                         .collect(),
                 };
 
-                parse_function(fnid, Some(parent), f, &mut scope);
+                parse_function(fnid, Some(parent), f, scope);
 
                 scope.pop();
             }
-        };
-    }
+        }
+    };
+
+    let mut scope = GenericsScope::new();
+    let defined = ty_ctxt.defined.read().unwrap();
+    let assoc = ty_ctxt.assoc.read().unwrap();
+
+    defined
+        .iter()
+        .for_each(|(_, def)| process_def(def, &mut scope));
+
+    assoc.iter().for_each(|(_, ctxt)| {
+        ctxt.iter()
+            .for_each(|(_, def)| process_def(def, &mut scope))
+    });
 }
-
-// pub fn validate_field_generics(ty_ctxt: Arc<LocalTyCtxt>) {
-//     mod ast {
-//         pub use ecsl_ast::callable::*;
-//         pub use ecsl_ast::data::*;
-//     }
-//     // let mut scope = GenericsScope::new();
-//     for (_, def) in ty_ctxt.defined.read().unwrap().iter() {
-//         match def {
-//             Definition::Struct(ast::StructDef { ident, fields, .. }) => {
-//                 let tyid = ty_ctxt
-//                     .global
-//                     .get_or_create_tyid(GlobalID::new(*ident, ty_ctxt.file));
-
-//                 let Some(adt) = ty_ctxt.global.get_tyir(tyid).into_adt() else {
-//                     continue;
-//                 };
-
-//                 debug!("{:?}", adt);
-
-//                 let struct_fields = adt.get_struct_fields();
-//                 for (i, f) in struct_fields.field_tys.iter() {
-//                     if let Some(field_adt) = ty_ctxt.global.get_tyir(f.ty).into_adt() {
-//                         debug!("inner {:?}", field_adt);
-
-//                         if f.params.len() != field_adt.total_generics {
-//                             ty_ctxt.diag.push_error(
-//                                 EcslError::new(ErrorLevel::Error, "Mismatched generics")
-//                                     .with_span(|_| fields.get(i.inner()).unwrap().span),
-//                             );
-//                         }
-//                     }
-//                 }
-//             }
-//             Definition::Enum(ast::EnumDef {
-//                 ident, variants, ..
-//             }) => {
-//                 let tyid = ty_ctxt
-//                     .global
-//                     .get_or_create_tyid(GlobalID::new(*ident, ty_ctxt.file));
-
-//                 let Some(adt) = ty_ctxt.global.get_tyir(tyid).into_adt() else {
-//                     continue;
-//                 };
-
-//                 for (vid, var) in adt.variant_kinds.iter() {
-//                     for (fid, f) in var.field_tys.iter() {
-//                         if let Some(field_adt) = ty_ctxt.global.get_tyir(f.ty).into_adt() {
-//                             if f.params.len() != field_adt.total_generics {
-//                                 ty_ctxt.diag.push_error(
-//                                     EcslError::new(ErrorLevel::Error, "Mismatched generics")
-//                                         .with_span(|_| {
-//                                             variants[vid.inner()].fields[fid.inner()].span
-//                                         }),
-//                                 );
-//                             }
-//                         }
-//                     }
-//                 }
-//             }
-//             Definition::Function(ast::FnDef { ident, params, .. }) => {
-//                 let tyid = ty_ctxt
-//                     .global
-//                     .get_or_create_tyid(GlobalID::new(*ident, ty_ctxt.file));
-
-//                 let fndef = ty_ctxt.global.get_tyir(tyid).into_fn().unwrap();
-
-//                 for (fid, p) in fndef.params.iter() {
-//                     if let Some(param_adt) = ty_ctxt.global.get_tyir(p.ty).into_adt() {
-//                         if p.params.len() != param_adt.total_generics {
-//                             ty_ctxt.diag.push_error(
-//                                 EcslError::new(ErrorLevel::Error, "Mismatched generics")
-//                                     .with_span(|_| params[fid.inner()].span),
-//                             );
-//                         }
-//                     }
-//                 }
-//             }
-//         };
-//     }
-// }
 
 pub fn get_entry_point(
     ast: &SourceAST,

@@ -1,5 +1,5 @@
 use crate::{local::LocalTyCtxt, mono::Mono, TyIr};
-use bimap::BiHashMap;
+use bimap::{BiBTreeMap, BiHashMap};
 use cfgrammar::Span;
 use ecsl_diagnostics::DiagConn;
 use ecsl_index::{FieldID, GlobalID, SourceFileID, TyID, VariantID};
@@ -18,7 +18,7 @@ pub struct TyCtxt {
     /// Links to LocalTyCtxt's from source file ID
     pub sources: RwLock<BTreeMap<SourceFileID, Arc<LocalTyCtxt>>>,
     /// Map Global ID's to TyID
-    pub mappings: RwLock<BTreeMap<GlobalID, TyID>>,
+    pub mappings: RwLock<BiBTreeMap<GlobalID, TyID>>,
     /// BiMap between TyID and TyIr
     pub tyirs: RwLock<BiHashMap<TyID, TyIr>>,
 
@@ -72,11 +72,18 @@ impl TyCtxt {
 
     pub fn get_or_create_tyid(&self, id: GlobalID) -> TyID {
         let mut lock = self.mappings.write().unwrap();
-        let tyid = match lock.entry(id) {
-            Entry::Vacant(vacant) => *vacant.insert(unsafe { self.next_id() }),
-            Entry::Occupied(occupied) => *occupied.get(),
-        };
-        tyid
+        if !lock.contains_left(&id) {
+            let tyid = unsafe { self.next_id() };
+            lock.insert(id, tyid);
+            tyid
+        } else {
+            *lock.get_by_left(&id).unwrap()
+        }
+    }
+
+    pub fn global_from_tyid(&self, tyid: TyID) -> Option<GlobalID> {
+        let lock = self.mappings.read().unwrap();
+        lock.get_by_right(&tyid).copied()
     }
 
     pub fn tyid_from_tyir(&self, tyir: TyIr) -> TyID {
@@ -226,13 +233,24 @@ impl TyCtxt {
             let tyid = TyID::new(s[(start + 4)..(start + end_offset)].parse().unwrap());
             start += end_offset + 1;
 
-            if tyid == TyID::UNKNOWN {
-                out.push_str("?");
-            } else if let Some((span, fid)) = self.get_span(tyid) {
-                let ty_str = lexers.get(&fid).unwrap().span_str(span);
-                out.push_str(ty_str);
+            if s[start..].find("!") == Some(0) {
+                // start += 1;
+                if let Some((span, fid)) = self.get_span(tyid) {
+                    let ty_str = lexers.get(&fid).unwrap().span_str(span);
+                    out.push_str(ty_str);
+                } else {
+                    out.push_str("?");
+                }
+                return Some(out);
+            }
+
+            let tyir = self.get_tyir(tyid);
+            let fmt_string = tyir.into_fmt_string();
+
+            if let Some(s) = self.format_str(&fmt_string, lexers) {
+                out.push_str(&s);
             } else {
-                out.push_str("?");
+                out.push_str(&fmt_string);
             }
         }
 

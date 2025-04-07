@@ -1,5 +1,7 @@
 #![feature(if_let_guard)]
+#![feature(impl_trait_in_bindings)]
 use ecsl_ast::expr::{BinOpKind, RangeType, UnOpKind};
+use ecsl_ast::item::{ImplBlock, Item, ItemKind};
 use ecsl_ast::parse::{Immediate, ParamKind};
 use ecsl_ast::stmt::InlineBytecode;
 use ecsl_ast::ty::Mutable;
@@ -8,7 +10,7 @@ use ecsl_ast::{
     expr::{Expr, ExprKind},
     parse::FnDef,
     stmt::{Block, Stmt, StmtKind},
-    visit::{walk_block, FnCtxt, Visitor, VisitorCF},
+    visit::{walk_block, Visitor, VisitorCF},
 };
 use ecsl_error::{ext::EcslErrorExt, EcslError, ErrorLevel};
 use ecsl_gir::cons::Constant;
@@ -19,7 +21,7 @@ use ecsl_gir_pass::linker::FunctionLinker;
 use ecsl_index::{BlockID, ConstID, FieldID, LocalID, SymbolID, TyID};
 use ecsl_ty::ctxt::TyCtxt;
 use ecsl_ty::local::LocalTyCtxt;
-use ecsl_ty::{GenericsScope, TyIr};
+use ecsl_ty::{FnParent, GenericsScope, TyIr};
 use ext::IntoTyID;
 use log::debug;
 use std::collections::{BTreeMap, BTreeSet};
@@ -215,18 +217,16 @@ impl TyCheck {
         }
         return found;
     }
-}
 
-impl Visitor for TyCheck {
-    fn visit_fn(&mut self, f: &FnDef, _ctxt: FnCtxt) -> VisitorCF {
+    fn process_fn(&mut self, f: &FnDef, scope: Option<SymbolID>) -> VisitorCF {
         self.generic_scope.add_opt(f.generics.clone());
 
         // Create GIR for Fn
-        let tyid = self.get_tyid(f.ident);
+        let tyid = self.get_tyid((scope, f.ident));
         self.cur_gir = Some(GIR::new(tyid, f.span));
 
         // Get tyir
-        let TyIr::Fn(fn_tyir) = self.get_tyir(f.ident) else {
+        let TyIr::Fn(fn_tyir) = self.get_tyir((scope, f.ident)) else {
             panic!("Internal Compiler Error: Fn {} has not been defined", tyid);
         };
 
@@ -260,12 +260,19 @@ impl Visitor for TyCheck {
                 LocalKind::Arg,
             ));
 
-            if let Some(_) = self
-                .symbols
-                .last_mut()
-                .unwrap()
-                .insert(ident, Place::from_local(local_id, param.span))
-            {
+            let place = match &param.kind {
+                ParamKind::SelfReference(_, _) => Place::from_local(local_id, param.span)
+                    .with_projection(Projection::Ref {
+                        mutable,
+                        original: tyir_param.ty,
+                        ref_type: self
+                            .global()
+                            .tyid_from_tyir(TyIr::Ref(mutable, tyir_param.ty)),
+                    }),
+                _ => Place::from_local(local_id, param.span),
+            };
+
+            if let Some(_) = self.symbols.last_mut().unwrap().insert(ident, place) {
                 self.ty_ctxt.diag.push_error(
                     EcslError::new(ErrorLevel::Error, TyCheckError::SymbolRedefined)
                         .with_span(|_| param.span),
@@ -294,6 +301,33 @@ impl Visitor for TyCheck {
 
         self.linker.add_gir(tyid, self.cur_gir.take().unwrap());
         self.generated_gir.push(tyid);
+
+        self.generic_scope.pop();
+
+        VisitorCF::Continue
+    }
+}
+
+impl Visitor for TyCheck {
+    fn visit_item(&mut self, i: &Item) -> VisitorCF {
+        match &i.kind {
+            ItemKind::Fn(fn_def) => self.process_fn(fn_def, None)?,
+            ItemKind::Impl(impl_def) => self.visit_impl(&impl_def)?,
+            _ => (),
+        }
+        VisitorCF::Continue
+    }
+
+    fn visit_impl(&mut self, i: &ImplBlock) -> VisitorCF {
+        self.generic_scope.add_opt(i.generics.clone());
+
+        let scope = i.ty.into_scope().unwrap();
+
+        for f in i.fn_defs.iter() {
+            self.process_fn(f, Some(scope))?;
+        }
+
+        self.generic_scope.pop();
 
         VisitorCF::Continue
     }
@@ -991,12 +1025,12 @@ impl Visitor for TyCheck {
         }
 
         macro_rules! err {
-            ($e:expr,$s:expr) => {
+            ($e:expr,$s:expr) => {{
                 self.ty_ctxt
                     .diag
                     .push_error(EcslError::new(ErrorLevel::Error, $e).with_span(|_| $s));
                 return VisitorCF::Break;
-            };
+            }};
         }
 
         let span = e.span;
@@ -1082,6 +1116,87 @@ impl Visitor for TyCheck {
 
                 Some((tyid, Operand::Constant(const_id)))
             }
+            ExprKind::StaticFunction(scope, symbol_id, generics, exprs) => {
+                let mut tyid = catch_unknown!(self.get_tyid((Some(*scope), *symbol_id)));
+
+                let Some(fn_tyir) = self.get_tyir(tyid).into_fn() else {
+                    err!(TyCheckError::FunctionDoesntExist, e.span);
+                };
+
+                let mut exprs_tys = Vec::new();
+
+                let fn_tyir = if fn_tyir.total_generics > 0 {
+                    let params = generics
+                        .params
+                        .iter()
+                        .map(|ty| self.get_tyid((ty, &self.generic_scope)))
+                        .collect::<Vec<_>>();
+
+                    for p in params.iter() {
+                        _ = catch_unknown!(*p);
+                    }
+
+                    tyid = self
+                        .ty_ctxt
+                        .get_mono_variant(tyid, &params, generics.span)
+                        .unwrap();
+                    self.get_tyir(tyid).into_fn().unwrap()
+                } else {
+                    fn_tyir
+                };
+
+                let ret_ty = fn_tyir.ret.ty;
+                // Preallocate the size of the return value on the stack
+                self.push_stmt_to_cur_block(gir::Stmt {
+                    span: e.span,
+                    kind: gir::StmtKind::AllocReturn(ret_ty),
+                });
+
+                // Iter over all expressions
+                for expr in exprs {
+                    self.visit_expr(expr)?;
+                    let (ty, op) = self.pop();
+                    exprs_tys.push((ty, op, expr.span))
+                }
+
+                err_if!(
+                    exprs_tys.len() != fn_tyir.params.len(),
+                    TyCheckError::NoFunctionWithNArguments(exprs_tys.len()),
+                    e.span
+                );
+
+                let mut operands = Vec::new();
+                for ((l, op, span), (_, r)) in exprs_tys.iter().zip(&fn_tyir.params) {
+                    unify!(
+                        *l,
+                        r.ty,
+                        TyCheckError::IncorrectFunctionArguments { from: *l, to: r.ty },
+                        *span
+                    );
+                    operands.push(op.clone());
+                }
+
+                let local_id = self.new_local(Local::new(
+                    e.span,
+                    Mutable::Imm,
+                    ret_ty,
+                    LocalKind::Internal,
+                ));
+
+                // Create Assignment Stmt
+                self.push_stmt_to_cur_block(gir::Stmt {
+                    span: e.span,
+                    kind: gir::StmtKind::Assign(
+                        Place::from_local(local_id, span),
+                        gir::Expr {
+                            span: e.span, //TODO: Replace Span
+                            kind: gir::ExprKind::Call(tyid, operands),
+                        },
+                    ),
+                });
+
+                Some((ret_ty, Operand::Move(Place::from_local(local_id, span))))
+            }
             ExprKind::Function(parent, generics, symbol_id, exprs) => {
                 let parent = match parent {
                     Some(expr) => {
@@ -1092,22 +1207,40 @@ impl Visitor for TyCheck {
                     _ => None,
                 };
 
-                let mut tyid = catch_unknown!(self.get_tyid(*symbol_id));
+                let mut tyid = match parent {
+                    Some((tyid, _, _)) => self.get_tyid((tyid, *symbol_id)),
+                    None => self.get_tyid(*symbol_id),
+                };
+
                 let Some(fn_tyir) = self.get_tyir(tyid).into_fn() else {
                     err!(TyCheckError::FunctionDoesntExist, e.span);
                 };
 
                 let mut exprs_tys = Vec::new();
                 match (parent, &fn_tyir.parent) {
-                    (Some((ty, op, span)), Some(tyid)) => {
-                        err_if!(ty != tyid.ty, TyCheckError::NotAMemberFunction(ty), span);
-                        exprs_tys.push((ty, op, span));
+                    (Some((ty, op, span)), FnParent::Value(_, parent)) => {
+                        err_if!(
+                            ty != parent.ty,
+                            TyCheckError::MismatchedFunction(ty, parent.ty),
+                            span
+                        );
+                        exprs_tys.push((ty, op, span))
                     }
-                    (None, None) => (),
-                    (None, Some(ty)) => {
+                    (Some((ty, op, span)), FnParent::Ref(mutable, parent)) => {
+                        let ref_tyid = self.get_tyid(TyIr::Ref(*mutable, parent.ty));
+                        if ty == parent.ty {
+                            todo!("Value into reference")
+                        } else if ty == ref_tyid {
+                            exprs_tys.push((ty, op, span))
+                        } else {
+                            err!(TyCheckError::MismatchedFunction(ty, tyid), span);
+                        }
+                    }
+                    (None, FnParent::None) => (),
+                    (None, FnParent::Ref(_, ty) | FnParent::Value(_, ty)) => {
                         err!(TyCheckError::NotAFreeFunction(ty.ty), e.span);
                     }
-                    (Some((ty, _, _)), None) => {
+                    (Some((ty, _, _)), FnParent::None) => {
                         err!(TyCheckError::NotAMemberFunction(ty), e.span);
                     }
                 }
@@ -1458,14 +1591,19 @@ impl Visitor for TyCheck {
                 );
 
                 // Get struct TyIR
-                let TyIr::ADT(struct_tyir) = self.get_tyir(e_ty) else {
-                    err!(TyCheckError::TypeIsNotAStruct, e.span);
+                fn get_adt(s: &TyCheck, tyid: TyID) -> Option<ecsl_ty::ADTDef> {
+                    match s.get_tyir(tyid) {
+                        TyIr::ADT(adt) if adt.is_struct() => Some(adt),
+                        TyIr::Ref(_, tyid) => {
+                            // todo!("need to add a deref to the place or something");
+                            get_adt(s, tyid)
+                        }
+                        _ => None,
+                    }
+                }
+                let Some(struct_tyir) = get_adt(self, e_ty) else {
+                    err!(TyCheckError::TypeIsNotAStruct, e.span)
                 };
-                err_if!(
-                    !struct_tyir.is_struct(),
-                    TyCheckError::TypeIsNotAStruct,
-                    e.span
-                );
 
                 // Get the structs fields
                 let variant = struct_tyir.get_struct_fields();
@@ -1592,6 +1730,7 @@ impl Visitor for TyCheck {
                 // Visit expr
                 self.visit_expr(expr)?;
                 let (ty, op) = self.pop();
+                catch_unknown!(ty);
 
                 let mut place = match op {
                     Operand::Copy(place) | Operand::Move(place) => place,
@@ -1704,13 +1843,17 @@ pub enum TyCheckError {
 
     NotAMemberFunction(TyID),
     NotAFreeFunction(TyID),
+    MismatchedFunction(TyID, TyID),
 }
 
 impl std::fmt::Display for TyCheckError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         use TyCheckError::*;
         let s = match self {
-            UnknownTy => "Unknown Type",
+            UnknownTy => {
+                let var_name = "Unknown Type";
+                var_name
+            }
             LHSMatchRHS(lhs, rhs) => &format!("Type '{}' must match Type '{}'", lhs, rhs),
             AssignWrongType { from, to } => {
                 &format!("Cannot assign Type '{}' to Type '{}'", from, to)
@@ -1765,6 +1908,10 @@ impl std::fmt::Display for TyCheckError {
                 &format!("Function cannot be called as a member of Type '{}'", tyid)
             }
             NotAFreeFunction(tyid) => &format!("Function is a member of Type '{}'", tyid),
+            MismatchedFunction(lhs, rhs) => &format!(
+                "Expr with Type '{}' and function requires Type '{}'",
+                lhs, rhs
+            ),
         };
         write!(f, "{}", s)
     }

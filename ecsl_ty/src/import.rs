@@ -1,5 +1,5 @@
 use cfgrammar::Span;
-use ecsl_index::GlobalID;
+use ecsl_index::{GlobalID, SourceFileID, SymbolID};
 use std::path::PathBuf;
 
 #[derive(Debug)]
@@ -15,7 +15,8 @@ pub enum Import {
 #[derive(Debug, Clone)]
 pub struct ImportPath {
     pub path: PathBuf,
-    pub from: GlobalID,
+    pub file: SourceFileID,
+    pub from: SymbolID,
     pub span: Span,
 }
 

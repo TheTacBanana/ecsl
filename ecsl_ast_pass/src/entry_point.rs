@@ -37,10 +37,10 @@ impl Visitor for EntryPoint {
             return VisitorCF::Continue;
         };
 
-        let tyid = self
-            .ty_ctxt
-            .global
-            .get_or_create_tyid(GlobalID::new(f.ident, self.ty_ctxt.file));
+        let tyid =
+            self.ty_ctxt
+                .global
+                .get_or_create_tyid(GlobalID::new(None, f.ident, self.ty_ctxt.file));
         let tyir = self.ty_ctxt.global.get_tyir(tyid);
 
         let int_tyid = self.ty_ctxt.global.tyid_from_tyir(TyIr::Int);

@@ -4,6 +4,7 @@ use crate::{
     import::{Import, ImportPath},
     FieldDef, GenericsScope, TyIr, TypeError,
 };
+use bimap::BiBTreeMap;
 use cfgrammar::Span;
 use ecsl_ast::ty::{Ty, TyKind};
 use ecsl_diagnostics::DiagConn;
@@ -12,7 +13,7 @@ use ecsl_index::{GlobalID, SourceFileID, SymbolID, TyID};
 use ecsl_parse::table::SymbolTable;
 use log::error;
 use std::{
-    collections::BTreeMap,
+    collections::{btree_map::Entry, BTreeMap},
     sync::{Arc, RwLock},
 };
 
@@ -24,9 +25,10 @@ pub struct LocalTyCtxt {
 
     /// Import Mappings
     pub imported: RwLock<BTreeMap<SymbolID, Import>>,
+    pub imported_resolved: RwLock<BiBTreeMap<(Option<SymbolID>, SymbolID), GlobalID>>,
 
     pub defined: RwLock<BTreeMap<SymbolID, Definition>>,
-    // pub impl_blocks: RwLock<BTreeMap<SymbolID, ImplBlock>>,
+    pub assoc: RwLock<BTreeMap<SymbolID, BTreeMap<SymbolID, Definition>>>,
 }
 
 pub trait LocalTyCtxtExt {
@@ -52,6 +54,8 @@ impl LocalTyCtxtExt for Arc<TyCtxt> {
             diag,
             imported: Default::default(),
             defined: Default::default(),
+            assoc: Default::default(),
+            imported_resolved: Default::default(),
         });
         self.sources.write().unwrap().insert(file, lctx.clone());
         lctx
@@ -60,24 +64,68 @@ impl LocalTyCtxtExt for Arc<TyCtxt> {
 
 impl LocalTyCtxt {
     pub fn define_symbol(&self, def: Definition) {
-        let symbol = def.ident();
-        if self.defined.read().unwrap().contains_key(&symbol) {
-            let symbol = self.table.get_symbol(symbol).unwrap();
-            self.diag.push_error(
-                EcslError::new(
-                    ErrorLevel::Error,
-                    ImportError::MultipleDefinitions(&symbol.name),
-                )
-                .with_span(|_| def.span()),
-            );
+        match def {
+            Definition::Struct(_) | Definition::Enum(_) | Definition::Function(_) => {
+                let key = def.ident();
+                if self.defined.read().unwrap().contains_key(&key) {
+                    let symbol = self.table.get_symbol(key).unwrap();
+                    self.diag.push_error(
+                        EcslError::new(
+                            ErrorLevel::Error,
+                            ImportError::MultipleDefinitions(&symbol.name),
+                        )
+                        .with_span(|_| def.span()),
+                    );
 
-            return;
+                    return;
+                }
+                self.defined.write().unwrap().insert(key, def);
+            }
+            Definition::AssocFunction(gen, ty, fn_def) => {
+                let scope = match &ty.kind {
+                    TyKind::Ident(ident) => ident,
+                    TyKind::Entity(ident, _) => ident,
+                    _ => {
+                        self.diag.push_error(
+                            EcslError::new(ErrorLevel::Error, "Unknown Type")
+                                .with_span(|_| fn_def.span),
+                        );
+                        return;
+                    }
+                };
+
+                let mut assoc = self.assoc.write().unwrap();
+
+                match assoc.entry(*scope) {
+                    Entry::Vacant(vacant) => {
+                        let mut new = BTreeMap::new();
+                        new.insert(fn_def.ident, Definition::AssocFunction(gen, ty, fn_def));
+                        vacant.insert(new);
+                    }
+                    Entry::Occupied(mut occupied) => {
+                        if occupied.get().contains_key(&fn_def.ident) {
+                            let symbol = self.table.get_symbol(fn_def.ident).unwrap();
+                            self.diag.push_error(
+                                EcslError::new(
+                                    ErrorLevel::Error,
+                                    ImportError::MultipleDefinitions(&symbol.name),
+                                )
+                                .with_span(|_| fn_def.span),
+                            );
+                            return;
+                        }
+
+                        occupied
+                            .get_mut()
+                            .insert(fn_def.ident, Definition::AssocFunction(gen, ty, fn_def));
+                    }
+                }
+            }
         }
-        self.defined.write().unwrap().insert(def.ident(), def);
     }
 
     pub fn import_symbol(&self, import: ImportPath) {
-        let symbol = import.from.symbol();
+        let symbol = import.from;
         if import.path.as_os_str().is_empty() {
             self.diag.push_error(
                 EcslError::new(ErrorLevel::Error, ImportError::SelfImport)
@@ -137,7 +185,7 @@ impl LocalTyCtxt {
             ($sym:ident) => {
                 if let Some(index) = scope.scope_index(*$sym) {
                     self.global.tyid_from_tyir(TyIr::GenericParam(index))
-                } else if let Some(gid) = self.get_global_id(*$sym) {
+                } else if let Some(gid) = self.get_global_id(None, *$sym) {
                     self.global.get_or_create_tyid(gid)
                 } else {
                     self.diag.push_error(
@@ -209,10 +257,10 @@ impl LocalTyCtxt {
             TyKind::Ref(mutable, ty) => from_tyir!(TyIr::Ref(*mutable, self.get_tyid(ty, scope)?)),
             TyKind::Array(ty, span) => from_tyir!(TyIr::Array(self.get_tyid(ty, scope)?, *span)),
             TyKind::Ptr(mutable, ty) => from_tyir!(TyIr::Ptr(*mutable, self.get_tyid(ty, scope)?)),
+            TyKind::Entity(_, _) => from_tyir!(TyIr::Entity),
             e => todo!("{:?}", e),
             // TyKind::Ptr(mutable, ty) => todo!(),
             // TyKind::ArrayRef(mutable, ty) => todo!(),
-            // TyKind::Entity(entity_ty) => todo!(),
             // TyKind::Schedule => todo!(),
         }
     }
@@ -290,7 +338,8 @@ impl LocalTyCtxt {
                 | TyIr::Char
                 | TyIr::Int
                 | TyIr::Float
-                | TyIr::Str => Some(id),
+                | TyIr::Str
+                | TyIr::Entity => Some(id),
                 e => {
                     error!("{:?}", e);
                     None
@@ -298,19 +347,26 @@ impl LocalTyCtxt {
             }
         }
     }
-    pub fn get_global_id(&self, id: SymbolID) -> Option<GlobalID> {
-        {
+    pub fn get_global_id(&self, scope: Option<SymbolID>, id: SymbolID) -> Option<GlobalID> {
+        if let Some(scope) = scope {
+            let assoc = self.assoc.read().unwrap();
+
+            if let Some(assoc) = assoc.get(&scope) {
+                if assoc.contains_key(&id) {
+                    return Some(GlobalID::new(Some(scope), id, self.file));
+                }
+            }
+
+            let imported = self.imported_resolved.read().unwrap();
+            imported.get_by_left(&(Some(scope), id)).copied()
+        } else {
             let defined = self.defined.read().unwrap();
             if defined.contains_key(&id) {
-                return Some(GlobalID::new(id, self.file));
+                return Some(GlobalID::new(scope, id, self.file));
             }
+
+            let imported = self.imported_resolved.read().unwrap();
+            imported.get_by_left(&(None, id)).copied()
         }
-        {
-            let imported = self.imported.read().unwrap();
-            if let Some(Import::Resolved(mapped_import)) = imported.get(&id) {
-                return Some(mapped_import.to);
-            }
-        }
-        None
     }
 }

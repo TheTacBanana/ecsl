@@ -14,3 +14,4 @@ ecsl_context = { path = "../ecsl_context" }
 lrpar.workspace = true
 log.workspace = true
 convert_case = "0.7.1"
+bimap = "0.6.3"

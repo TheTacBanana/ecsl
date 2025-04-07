@@ -209,6 +209,7 @@ pub enum Bytecode {
     /// Compare 2 ints equality and push bool to stack
     GEQ_F,
 
+    // Integer numeric instructions
     /// Add the top 2 integers of the stack and push the result
     ADD_I,
     /// Sub the top 2 integers of the stack and push the result
@@ -220,6 +221,7 @@ pub enum Bytecode {
     /// Negate the top integer of the stack and push the result
     NEG_I,
 
+    // Float numeric instructions
     /// Add the top 2 floats of the stack and push the result
     ADD_F,
     /// Sub the top 2 floats of the stack and push the result
@@ -231,6 +233,7 @@ pub enum Bytecode {
     /// Negate the top integer of the stack and push the result
     NEG_F,
 
+    // Cast instructions
     /// Cast integer to float
     ITF,
     /// Cast float to integer
@@ -245,4 +248,10 @@ pub enum Bytecode {
     PRINT_F,
     /// Pop bool from stack and print to stdout
     PRINT_B,
+
+    // ECS Instructions
+    /// Create a new entity and push the entity id to the stack
+    NENT,
+    /// Pop the entity id from the stack and remove it
+    RENT,
 }

@@ -45,6 +45,7 @@ pub enum TyIr {
     Array(TyID, usize),
     ArrayRef(Mutable, TyID),
     GenericParam(usize),
+    Entity,
 }
 
 impl From<Literal> for TyIr {
@@ -79,6 +80,28 @@ impl TyIr {
             TyIr::Fn(fndef) => Some(fndef),
             _ => None,
         }
+    }
+
+    pub fn into_fmt_string(&self) -> String {
+        let s = match self {
+            TyIr::Unknown => "?",
+            TyIr::Bottom => "()",
+            TyIr::Bool => "bool",
+            TyIr::Char => "char",
+            TyIr::Int => "int",
+            TyIr::Float => "float",
+            TyIr::Str => "str",
+            TyIr::Range(tyid, range_type) => &format!("{}{}{}", tyid, range_type, tyid),
+            TyIr::Ref(mutable, tyid) => &format!("&{} {}", mutable, tyid),
+            TyIr::Ptr(mutable, tyid) => &format!("*{} {}", mutable, tyid),
+            TyIr::ADT(adtdef) => &format!("{}!", adtdef.id),
+            TyIr::Fn(_) => "fn",
+            TyIr::Array(tyid, n) => &format!("[{}:{}]", tyid, n),
+            TyIr::ArrayRef(tyid, _) => &format!("[{}]", tyid),
+            TyIr::GenericParam(_) => todo!(),
+            TyIr::Entity => "Entity",
+        };
+        s.to_string()
     }
 }
 
@@ -160,8 +183,15 @@ pub struct FieldDef {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum FnParent {
+    None,
+    Ref(Mutable, FieldDef),
+    Value(Mutable, FieldDef),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct FnDef {
-    pub parent: Option<FieldDef>,
+    pub parent: FnParent,
 
     pub tyid: TyID,
     pub kind: FnKind,

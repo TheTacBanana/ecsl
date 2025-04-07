@@ -37,7 +37,7 @@ impl std::fmt::Display for ExprKind {
             ExprKind::UnOp(op, operand) => write!(f, "{:?} {}", op, operand),
             ExprKind::Reference(mutable, local_id) => write!(f, "{} {}", mutable, local_id),
             ExprKind::Call(ty_id, operands) => {
-                write!(f, "{}(", ty_id)?;
+                write!(f, "{:?}(", ty_id)?;
                 for op in operands {
                     write!(f, "{}", op)?;
                 }
@@ -61,6 +61,15 @@ impl std::fmt::Display for Operand {
             Operand::Copy(local_id) => write!(f, "{} Copied", local_id),
             Operand::Move(local_id) => write!(f, "{} Moved", local_id),
             Operand::Constant(const_id) => write!(f, "C{}", const_id),
+        }
+    }
+}
+
+impl Operand {
+    pub fn place_mut(&mut self) -> Option<&mut Place> {
+        match self {
+            Operand::Copy(place) | Operand::Move(place) => Some(place),
+            Operand::Constant(_) => None,
         }
     }
 }

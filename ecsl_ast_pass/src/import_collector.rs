@@ -50,7 +50,8 @@ impl<'a> Visitor for ImportCollector<'a> {
                 UsePath::Item(span, id) => {
                     self.ty_ctxt.import_symbol(ImportPath {
                         path: buf,
-                        from: GlobalID::new(*id, self.ty_ctxt.file),
+                        file: self.ty_ctxt.file,
+                        from: *id,
                         span: *span,
                     });
                 }
