@@ -872,7 +872,7 @@ Expr -> Result<Expr, ()>:
     }
     | Expr 'NOTEQ' Expr {
         Ok(Expr::new($span, ExprKind::BinOp(
-            BinOpKind::Eq,
+            BinOpKind::Neq,
             P::new($1?),
             P::new($3?),
         )))
