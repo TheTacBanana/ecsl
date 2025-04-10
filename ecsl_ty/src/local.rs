@@ -9,7 +9,7 @@ use cfgrammar::Span;
 use ecsl_ast::ty::{Ty, TyKind};
 use ecsl_diagnostics::DiagConn;
 use ecsl_error::{ext::EcslErrorExt, EcslError, ErrorLevel};
-use ecsl_index::{GlobalID, SourceFileID, SymbolID, TyID};
+use ecsl_index::{FieldID, GlobalID, SourceFileID, SymbolID, TyID};
 use ecsl_parse::table::SymbolTable;
 use log::error;
 use std::{
@@ -82,21 +82,11 @@ impl LocalTyCtxt {
                 self.defined.write().unwrap().insert(key, def);
             }
             Definition::AssocFunction(gen, ty, fn_def) => {
-                let scope = match &ty.kind {
-                    TyKind::Ident(ident) => ident,
-                    TyKind::Entity(ident, _) => ident,
-                    _ => {
-                        self.diag.push_error(
-                            EcslError::new(ErrorLevel::Error, "Unknown Type")
-                                .with_span(|_| fn_def.span),
-                        );
-                        return;
-                    }
-                };
+                let scope = ty.into_scope().unwrap();
 
                 let mut assoc = self.assoc.write().unwrap();
 
-                match assoc.entry(*scope) {
+                match assoc.entry(scope) {
                     Entry::Vacant(vacant) => {
                         let mut new = BTreeMap::new();
                         new.insert(fn_def.ident, Definition::AssocFunction(gen, ty, fn_def));
@@ -254,12 +244,25 @@ impl LocalTyCtxt {
                     Some(adt_base_id)
                 }
             }
-            TyKind::Ref(mutable, ty) => from_tyir!(TyIr::Ref(*mutable, self.get_tyid(ty, scope)?)),
+            TyKind::Ref(mutable, ty) => from_tyir!(TyIr::Ref(
+                *mutable,
+                FieldDef {
+                    id: FieldID::ZERO,
+                    ty: self.get_tyid(ty, scope)?,
+                    params: Vec::new()
+                }
+            )),
             TyKind::Array(ty, span) => from_tyir!(TyIr::Array(self.get_tyid(ty, scope)?, *span)),
-            TyKind::Ptr(mutable, ty) => from_tyir!(TyIr::Ptr(*mutable, self.get_tyid(ty, scope)?)),
+            TyKind::Ptr(mutable, ty) => from_tyir!(TyIr::Ref(
+                *mutable,
+                FieldDef {
+                    id: FieldID::ZERO,
+                    ty: self.get_tyid(ty, scope)?,
+                    params: Vec::new()
+                }
+            )),
             TyKind::Entity(_, _) => from_tyir!(TyIr::Entity),
             e => todo!("{:?}", e),
-            // TyKind::Ptr(mutable, ty) => todo!(),
             // TyKind::ArrayRef(mutable, ty) => todo!(),
             // TyKind::Schedule => todo!(),
         }
@@ -327,6 +330,14 @@ impl LocalTyCtxt {
                 TyIr::Fn(fn_tyir) => {
                     fn_tyir.map(map_tyid);
                     fn_tyir.resolved_generics = fn_tyir.total_generics;
+
+                    let new_tyid = self.global.tyid_from_tyir(tyir);
+                    self.global.monos.insert_mapping(key, new_tyid);
+
+                    Some(new_tyid)
+                }
+                TyIr::Ref(_, tyid) => {
+                    map_tyid(tyid);
 
                     let new_tyid = self.global.tyid_from_tyir(tyir);
                     self.global.monos.insert_mapping(key, new_tyid);

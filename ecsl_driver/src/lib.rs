@@ -133,7 +133,7 @@ impl Driver {
 
                 Some((diag, ast, table, local_ctxt))
             },
-            || Ok(()),
+            || diag.finish_stage(finish_stage),
         )?;
 
         // Verify imports

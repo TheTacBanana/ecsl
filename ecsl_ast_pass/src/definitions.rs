@@ -4,6 +4,7 @@ use ecsl_ast::{
     parse::FnDef,
     visit::{walk_item, FnCtxt, Visitor, VisitorCF},
 };
+use ecsl_error::{ext::EcslErrorExt, EcslError, ErrorLevel};
 use ecsl_ty::{def::Definition, local::LocalTyCtxt};
 use std::sync::Arc;
 
@@ -48,6 +49,13 @@ impl Visitor for TypeDefCollector {
     }
 
     fn visit_impl(&mut self, i: &ImplBlock) -> VisitorCF {
+        if i.ty.into_scope().is_none() {
+            self.ty_ctxt.diag.push_error(
+                EcslError::new(ErrorLevel::Error, "Cannot impl for Type").with_span(|_| i.ty.span),
+            );
+            return VisitorCF::Continue;
+        }
+
         for f in &i.fn_defs {
             self.ty_ctxt.define_symbol(Definition::AssocFunction(
                 i.generics.clone(),
