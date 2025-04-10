@@ -60,7 +60,7 @@ impl std::fmt::Display for Operand {
         match self {
             Operand::Copy(local_id) => write!(f, "{} Copied", local_id),
             Operand::Move(local_id) => write!(f, "{} Moved", local_id),
-            Operand::Constant(const_id) => write!(f, "C{}", const_id),
+            Operand::Constant(const_id) => write!(f, "{}", const_id),
         }
     }
 }

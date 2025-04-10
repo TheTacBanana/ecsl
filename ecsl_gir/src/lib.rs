@@ -141,7 +141,7 @@ pub struct Block {
 
 impl std::fmt::Display for Block {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "Block {}:", self.id)?;
+        writeln!(f, "{}:", self.id)?;
         for s in &self.stmts {
             writeln!(f, "\t{}", s)?;
         }

@@ -34,16 +34,16 @@ pub enum TyIr {
     /// Range over a numeric type
     Range(TyID, RangeType),
     /// Reference to another type
-    Ref(Mutable, TyID),
-    // Pointer to another type
-    Ptr(Mutable, TyID),
+    Ref(Mutable, FieldDef),
+    /// Pointer to another type
+    Ptr(Mutable, FieldDef),
     /// ADT types
     ADT(ADTDef),
     /// A function type
     Fn(FnDef),
     /// A sized array type
     Array(TyID, usize),
-    ArrayRef(Mutable, TyID),
+    ArrayRef(Mutable, FieldDef),
     GenericParam(usize),
     Entity,
 }
@@ -97,7 +97,7 @@ impl TyIr {
             TyIr::ADT(adtdef) => &format!("{}!", adtdef.id),
             TyIr::Fn(_) => "fn",
             TyIr::Array(tyid, n) => &format!("[{}:{}]", tyid, n),
-            TyIr::ArrayRef(tyid, _) => &format!("[{}]", tyid),
+            TyIr::ArrayRef(mutable, tyid) => &format!("&{} [{}]", mutable, tyid),
             TyIr::GenericParam(_) => todo!(),
             TyIr::Entity => "Entity",
         };
@@ -180,6 +180,20 @@ pub struct FieldDef {
     pub id: FieldID,
     pub ty: TyID,
     pub params: Vec<TyID>,
+}
+
+impl std::fmt::Display for FieldDef {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.ty)?;
+        if !self.params.is_empty() {
+            write!(f, "<")?;
+            for p in self.params.iter() {
+                write!(f, "{},", p)?;
+            }
+            write!(f, ">")?;
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

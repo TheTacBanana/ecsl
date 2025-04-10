@@ -7,7 +7,7 @@ use ecsl_parse::LexerTy;
 use log::{debug, error};
 use lrpar::NonStreamingLexer;
 use std::{
-    collections::{btree_map::Entry, BTreeMap},
+    collections::BTreeMap,
     sync::{Arc, RwLock, RwLockWriteGuard},
 };
 
@@ -181,6 +181,17 @@ impl TyCtxt {
         }
         let mut sizes = self.sizes.write().unwrap();
 
+        self.internal_get_field_offset(id, vid, fid, &mut offsets, &mut sizes)
+    }
+
+    fn internal_get_field_offset(
+        &self,
+        id: TyID,
+        vid: VariantID,
+        fid: FieldID,
+        offsets: &mut RwLockWriteGuard<BTreeMap<(TyID, VariantID, FieldID), usize>>,
+        sizes: &mut RwLockWriteGuard<BTreeMap<TyID, usize>>,
+    ) -> Option<usize> {
         let tyir = self.get_tyir(id);
         let offset = match tyir {
             TyIr::ADT(def) => {
@@ -191,11 +202,14 @@ impl TyCtxt {
                 }
                 for (_, field) in fields {
                     offsets.insert((id, vid, field.id), offset);
-                    offset += self.internal_get_size(field.ty, &mut sizes)?;
+                    offset += self.internal_get_size(field.ty, sizes)?;
                 }
                 *offsets.get(&(id, vid, fid)).unwrap()
             }
-            e => panic!("{id:?} {e:?}"),
+            e => {
+                error!("{id:?} {e:?}");
+                return None;
+            }
         };
 
         return Some(offset);
@@ -212,13 +226,6 @@ impl TyCtxt {
         match self.get_tyir(id) {
             TyIr::Int | TyIr::Float => true,
             _ => false,
-        }
-    }
-
-    pub fn is_reference(&self, id: TyID) -> Option<TyID> {
-        match self.get_tyir(id) {
-            TyIr::Ref(_, tyid) => Some(tyid),
-            _ => None,
         }
     }
 

@@ -21,9 +21,10 @@ use ecsl_gir_pass::linker::FunctionLinker;
 use ecsl_index::{BlockID, ConstID, FieldID, LocalID, SymbolID, TyID};
 use ecsl_ty::ctxt::TyCtxt;
 use ecsl_ty::local::LocalTyCtxt;
-use ecsl_ty::{FnParent, GenericsScope, TyIr};
+use ecsl_ty::{ADTDef, FieldDef, FnParent, GenericsScope, TyIr};
 use ext::IntoTyID;
-use log::debug;
+use log::{debug, error};
+use lrpar::Span;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
@@ -84,11 +85,11 @@ impl TyCheck {
     pub fn get_tyir(&self, t: impl IntoTyID) -> TyIr {
         self.ty_ctxt
             .global
-            .get_tyir(t.into_tyid(&self.ty_ctxt).unwrap())
+            .get_tyir(t.into_tyid(&self.ty_ctxt).unwrap_or(TyID::UNKNOWN))
     }
 
     pub fn get_tyid(&self, t: impl IntoTyID) -> TyID {
-        t.into_tyid(&self.ty_ctxt).unwrap()
+        t.into_tyid(&self.ty_ctxt).unwrap_or(TyID::UNKNOWN)
     }
 
     pub fn cur_gir(&self) -> &GIR {
@@ -224,6 +225,7 @@ impl TyCheck {
         // Create GIR for Fn
         let tyid = self.get_tyid((scope, f.ident));
         self.cur_gir = Some(GIR::new(tyid, f.span));
+        debug!("Fn {:?}", tyid);
 
         // Get tyir
         let TyIr::Fn(fn_tyir) = self.get_tyir((scope, f.ident)) else {
@@ -260,17 +262,7 @@ impl TyCheck {
                 LocalKind::Arg,
             ));
 
-            let place = match &param.kind {
-                ParamKind::SelfReference(_, _) => Place::from_local(local_id, param.span)
-                    .with_projection(Projection::Ref {
-                        mutable,
-                        original: tyir_param.ty,
-                        ref_type: self
-                            .global()
-                            .tyid_from_tyir(TyIr::Ref(mutable, tyir_param.ty)),
-                    }),
-                _ => Place::from_local(local_id, param.span),
-            };
+            let place = Place::from_local(local_id, param.span);
 
             if let Some(_) = self.symbols.last_mut().unwrap().insert(ident, place) {
                 self.ty_ctxt.diag.push_error(
@@ -393,6 +385,12 @@ impl Visitor for TyCheck {
         }
         let span = s.span;
         match &s.kind {
+            StmtKind::Semi => {
+                self.ty_ctxt.diag.push_error(
+                    EcslError::new(ErrorLevel::Warning, TyCheckError::TrailingSemi)
+                        .with_span(|_| s.span),
+                );
+            }
             StmtKind::Let(mutable, symbol_id, span, ty, expr) => {
                 // Visit expression
                 self.visit_expr(expr)?;
@@ -908,7 +906,6 @@ impl Visitor for TyCheck {
                             let field_def = var.field_tys.get(field_id).unwrap();
 
                             // Insert Ident into local Mapping
-
                             err_if!(
                                 self.symbols
                                     .last_mut()
@@ -978,7 +975,6 @@ impl Visitor for TyCheck {
             // StmtKind::Break => todo!(),
             // StmtKind::Continue => todo!(),
             // StmtKind::Return(expr) => todo!(),
-            // StmtKind::Semi => todo!(),
         }
 
         VisitorCF::Continue
@@ -1207,18 +1203,30 @@ impl Visitor for TyCheck {
                     _ => None,
                 };
 
-                let mut tyid = match parent {
-                    Some((tyid, _, _)) => self.get_tyid((tyid, *symbol_id)),
+                // Convert from ref type or actual type and get any associated function with them
+                let mut fn_tyid = match parent {
+                    Some((tyid, _, span)) => match self.get_tyir(tyid) {
+                        TyIr::Ref(_, field_def) => {
+                            let mono_tyid = self
+                                .ty_ctxt
+                                .get_mono_variant(field_def.ty, &field_def.params, span)
+                                .unwrap();
+
+                            self.get_tyid((mono_tyid, *symbol_id))
+                        }
+                        _ => self.get_tyid((tyid, *symbol_id)),
+                    },
                     None => self.get_tyid(*symbol_id),
                 };
 
-                let Some(fn_tyir) = self.get_tyir(tyid).into_fn() else {
+                // Get the Tyir for the function
+                let Some(fn_tyir) = self.get_tyir(fn_tyid).into_fn() else {
                     err!(TyCheckError::FunctionDoesntExist, e.span);
                 };
 
                 let mut exprs_tys = Vec::new();
                 match (parent, &fn_tyir.parent) {
-                    (Some((ty, op, span)), FnParent::Value(_, parent)) => {
+                    (Some((ty, op, span)), FnParent::Value(_, ref parent)) => {
                         err_if!(
                             ty != parent.ty,
                             TyCheckError::MismatchedFunction(ty, parent.ty),
@@ -1227,17 +1235,32 @@ impl Visitor for TyCheck {
                         exprs_tys.push((ty, op, span))
                     }
                     (Some((ty, op, span)), FnParent::Ref(mutable, parent)) => {
-                        let ref_tyid = self.get_tyid(TyIr::Ref(*mutable, parent.ty));
+                        let ref_tyid = self.get_tyid(TyIr::Ref(*mutable, parent.clone()));
                         if ty == parent.ty {
-                            todo!("Value into reference")
+                            let mut place = match op {
+                                Operand::Copy(place) | Operand::Move(place) => {
+                                    let local = self.get_local_mut(place.local);
+                                    local.kind.promote_from_temp(LocalKind::Internal);
+                                    place
+                                }
+                                _ => err!(TyCheckError::DotSyntaxOnConst, e.span),
+                            };
+
+                            place.with_projection_ref(Projection::Ref {
+                                mutable: *mutable,
+                                original: ty,
+                                ref_type: ref_tyid,
+                            });
+
+                            exprs_tys.push((ref_tyid, Operand::Copy(place), span));
                         } else if ty == ref_tyid {
                             exprs_tys.push((ty, op, span))
                         } else {
-                            err!(TyCheckError::MismatchedFunction(ty, tyid), span);
+                            err!(TyCheckError::MismatchedFunction(ty, fn_tyid), span);
                         }
                     }
                     (None, FnParent::None) => (),
-                    (None, FnParent::Ref(_, ty) | FnParent::Value(_, ty)) => {
+                    (None, FnParent::Ref(_, ref ty) | FnParent::Value(_, ref ty)) => {
                         err!(TyCheckError::NotAFreeFunction(ty.ty), e.span);
                     }
                     (Some((ty, _, _)), FnParent::None) => {
@@ -1256,11 +1279,11 @@ impl Visitor for TyCheck {
                         _ = catch_unknown!(*p);
                     }
 
-                    tyid = self
+                    fn_tyid = self
                         .ty_ctxt
-                        .get_mono_variant(tyid, &params, generics.span)
+                        .get_mono_variant(fn_tyid, &params, generics.span)
                         .unwrap();
-                    self.get_tyir(tyid).into_fn().unwrap()
+                    self.get_tyir(fn_tyid).into_fn().unwrap()
                 } else {
                     fn_tyir
                 };
@@ -1287,6 +1310,7 @@ impl Visitor for TyCheck {
 
                 let mut operands = Vec::new();
                 for ((l, op, span), (_, r)) in exprs_tys.iter().zip(&fn_tyir.params) {
+                    debug!("{:?} {:?}", self.get_tyir(*l), self.get_tyir(r.ty));
                     unify!(
                         *l,
                         r.ty,
@@ -1310,7 +1334,7 @@ impl Visitor for TyCheck {
                         Place::from_local(local_id, span),
                         gir::Expr {
                             span: e.span, //TODO: Replace Span
-                            kind: gir::ExprKind::Call(tyid, operands),
+                            kind: gir::ExprKind::Call(fn_tyid, operands),
                         },
                     ),
                 });
@@ -1437,8 +1461,10 @@ impl Visitor for TyCheck {
                 };
 
                 Some((
-                    deref_tyid,
-                    Operand::Copy(place.with_projection(Projection::Deref { new_ty: deref_tyid })),
+                    deref_tyid.ty,
+                    Operand::Copy(place.with_projection(Projection::Deref {
+                        new_ty: deref_tyid.ty,
+                    })),
                 ))
             }
             ExprKind::Cast(expr, ty) => {
@@ -1590,19 +1616,34 @@ impl Visitor for TyCheck {
                     e.span
                 );
 
-                // Get struct TyIR
-                fn get_adt(s: &TyCheck, tyid: TyID) -> Option<ecsl_ty::ADTDef> {
-                    match s.get_tyir(tyid) {
+                let get_struct_tyir = |s: &TyCheck, tyid: TyID, tyir: TyIr| -> Option<ADTDef> {
+                    match tyir {
                         TyIr::ADT(adt) if adt.is_struct() => Some(adt),
-                        TyIr::Ref(_, tyid) => {
-                            // todo!("need to add a deref to the place or something");
-                            get_adt(s, tyid)
+                        TyIr::Entity => todo!("Entity Fields"),
+                        _ => {
+                            s.ty_ctxt.diag.push_error(
+                                EcslError::new(
+                                    ErrorLevel::Error,
+                                    TyCheckError::TypeHasNoFields(tyid),
+                                )
+                                .with_span(|_| expr.span),
+                            );
+                            None
                         }
-                        _ => None,
                     }
-                }
-                let Some(struct_tyir) = get_adt(self, e_ty) else {
-                    err!(TyCheckError::TypeIsNotAStruct, e.span)
+                };
+
+                let place = e_op.place_mut().unwrap();
+                let adtdef = match self.get_tyir(e_ty) {
+                    TyIr::Ref(_, def) => {
+                        place.with_projection_ref(Projection::Deref { new_ty: def.ty });
+                        get_struct_tyir(self, def.ty, self.get_tyir(def.ty))
+                    }
+                    tyir => get_struct_tyir(self, e_ty, tyir),
+                };
+
+                let Some(struct_tyir) = adtdef else {
+                    return VisitorCF::Break;
                 };
 
                 // Get the structs fields
@@ -1749,7 +1790,14 @@ impl Visitor for TyCheck {
                 };
                 err_if!(!can_ref, TyCheckError::CannotReference, expr.span);
 
-                let ref_tyid = self.ty_ctxt.global.tyid_from_tyir(TyIr::Ref(*mutable, ty));
+                let ref_tyid = self.ty_ctxt.global.tyid_from_tyir(TyIr::Ref(
+                    *mutable,
+                    FieldDef {
+                        id: FieldID::ZERO,
+                        ty,
+                        params: Vec::new(),
+                    },
+                ));
 
                 place.with_projection_ref(Projection::Ref {
                     mutable: *mutable,
@@ -1840,20 +1888,19 @@ pub enum TyCheckError {
     TypeIsNotAStruct,
     TypeIsNotAnEnum,
     DeadCode,
+    TypeHasNoFields(TyID),
 
     NotAMemberFunction(TyID),
     NotAFreeFunction(TyID),
     MismatchedFunction(TyID, TyID),
+    TrailingSemi,
 }
 
 impl std::fmt::Display for TyCheckError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         use TyCheckError::*;
         let s = match self {
-            UnknownTy => {
-                let var_name = "Unknown Type";
-                var_name
-            }
+            UnknownTy => "Unknown Type",
             LHSMatchRHS(lhs, rhs) => &format!("Type '{}' must match Type '{}'", lhs, rhs),
             AssignWrongType { from, to } => {
                 &format!("Cannot assign Type '{}' to Type '{}'", from, to)
@@ -1912,6 +1959,8 @@ impl std::fmt::Display for TyCheckError {
                 "Expr with Type '{}' and function requires Type '{}'",
                 lhs, rhs
             ),
+            TrailingSemi => "Trailing semicolon",
+            TypeHasNoFields(tyid) => &format!("Type '{}' has no fields", tyid),
         };
         write!(f, "{}", s)
     }

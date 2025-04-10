@@ -307,9 +307,7 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
 
                         FieldDef {
                             id,
-                            ty: ty_ctxt
-                                .get_mono_variant(parent.ty, &parent.params, *span)
-                                .unwrap(),
+                            ty: ty_ctxt.global.tyid_from_tyir(TyIr::Ref(*mutable, parent)),
                             params: Vec::new(),
                         }
                     }

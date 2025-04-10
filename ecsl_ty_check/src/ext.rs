@@ -1,6 +1,7 @@
 use ecsl_ast::ty::Ty;
 use ecsl_index::{GlobalID, SymbolID, TyID};
 use ecsl_ty::{local::LocalTyCtxt, GenericsScope, TyIr};
+use log::debug;
 
 pub trait IntoTyID {
     fn into_tyid(self, ty_ctxt: &LocalTyCtxt) -> Option<TyID>;
@@ -26,6 +27,7 @@ impl IntoTyID for GlobalID {
 
 impl IntoTyID for (TyID, SymbolID) {
     fn into_tyid(self, ty_ctxt: &LocalTyCtxt) -> Option<TyID> {
+        debug!("{:?} {:?}", self.0, ty_ctxt.global.get_tyir(self.0));
         let global_for_tyid = ty_ctxt.global.global_from_tyid(self.0)?;
 
         if global_for_tyid.source_file() == ty_ctxt.file {
