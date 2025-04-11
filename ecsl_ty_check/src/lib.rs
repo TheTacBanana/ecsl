@@ -23,7 +23,7 @@ use ecsl_ty::ctxt::TyCtxt;
 use ecsl_ty::local::LocalTyCtxt;
 use ecsl_ty::{ADTDef, FieldDef, FnParent, GenericsScope, TyIr};
 use ext::IntoTyID;
-use log::{debug, error};
+use log::debug;
 use lrpar::Span;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
@@ -323,6 +323,80 @@ impl TyCheck {
         self.generic_scope.pop();
 
         VisitorCF::Continue
+    }
+
+    /// Make a reference to an expression
+    pub fn reference_expr(
+        &mut self,
+        mutable: Mutable,
+        ty: TyID,
+        op: Operand,
+        span: Span,
+    ) -> Option<(TyID, Operand)> {
+        // Get the place we are referencing
+        let place_to_reference = match op {
+            Operand::Copy(place) | Operand::Move(place) => place,
+            Operand::Constant(_) => {
+                self.ty_ctxt.diag.push_error(
+                    EcslError::new(ErrorLevel::Error, TyCheckError::CannotReference)
+                        .with_span(|_| span),
+                );
+                return None;
+            }
+        };
+
+        // Project the Tyir to ensure we dont have multiple layers of references
+        let projected_tyir = self.get_tyir(place_to_reference.projected_tyid(self.cur_gir()));
+        if let TyIr::Ref(_, _) = projected_tyir {
+            self.ty_ctxt.diag.push_error(
+                EcslError::new(ErrorLevel::Error, TyCheckError::CannotDoubleReference)
+                    .with_span(|_| span),
+            );
+        }
+
+        // Test that the local can be referenced
+        // Aka the local is not temp
+        let local = self.cur_gir().get_local(place_to_reference.local);
+        if !local.kind.can_reference() {
+            self.ty_ctxt.diag.push_error(
+                EcslError::new(ErrorLevel::Error, TyCheckError::CannotReference)
+                    .with_span(|_| span),
+            );
+            return None;
+        }
+
+        // Get the new TyID for the ref type
+        let ref_tyid = self.ty_ctxt.global.tyid_from_tyir(TyIr::Ref(
+            mutable,
+            FieldDef {
+                id: FieldID::ZERO,
+                ty,
+                params: Vec::new(),
+            },
+        ));
+
+        // Create a local with the tyid
+        let local = self.new_local(Local::new(
+            span,
+            Mutable::Imm,
+            ref_tyid,
+            LocalKind::Internal,
+        ));
+
+        // Create a place from the local and emit a gir stmt to create the refrence
+        let place = Place::from_local(local, span);
+        self.push_stmt_to_cur_block(gir::Stmt {
+            span,
+            kind: gir::StmtKind::Assign(
+                place.clone(),
+                gir::Expr {
+                    span,
+                    kind: gir::ExprKind::Reference(mutable, place.clone()),
+                },
+            ),
+        });
+
+        Some((ref_tyid, Operand::Copy(place)))
     }
 }
 
@@ -804,7 +878,7 @@ impl Visitor for TyCheck {
                 self.break_continue_stack.push(BreakContinue {
                     br: leave_block,
                     co: Some(increment_block),
-                    });
+                });
 
                 walk_block(self, block)?;
 
@@ -1350,7 +1424,7 @@ impl Visitor for TyCheck {
                     (Some((ty, op, span)), FnParent::Ref(mutable, parent)) => {
                         let ref_tyid = self.get_tyid(TyIr::Ref(*mutable, parent.clone()));
                         if ty == parent.ty {
-                            let mut place = match op {
+                            match &op {
                                 Operand::Copy(place) | Operand::Move(place) => {
                                     let local = self.get_local_mut(place.local);
                                     local.kind.promote_from_temp(LocalKind::Internal);
@@ -1359,13 +1433,11 @@ impl Visitor for TyCheck {
                                 _ => err!(TyCheckError::DotSyntaxOnConst, e.span),
                             };
 
-                            place.with_projection_ref(Projection::Ref {
-                                mutable: *mutable,
-                                original: ty,
-                                ref_type: ref_tyid,
-                            });
+                            let Some((ty, op)) = self.reference_expr(*mutable, ty, op, span) else {
+                                return VisitorCF::Break;
+                            };
 
-                            exprs_tys.push((ref_tyid, Operand::Copy(place), span));
+                            exprs_tys.push((ty, op, span));
                         } else if ty == ref_tyid {
                             exprs_tys.push((ty, op, span))
                         } else {
@@ -1423,7 +1495,6 @@ impl Visitor for TyCheck {
 
                 let mut operands = Vec::new();
                 for ((l, op, span), (_, r)) in exprs_tys.iter().zip(&fn_tyir.params) {
-                    debug!("{:?} {:?}", self.get_tyir(*l), self.get_tyir(r.ty));
                     unify!(
                         *l,
                         r.ty,
@@ -1773,7 +1844,7 @@ impl Visitor for TyCheck {
                 match &mut e_op {
                     Operand::Copy(place) | Operand::Move(place) => {
                         place.with_projection_ref(gir::Projection::Field {
-                            ty: e_ty,
+                            ty: struct_tyir.id,
                             fid: *field_id,
                             vid: variant.id,
                             new_ty: field_def.ty,
@@ -1886,39 +1957,12 @@ impl Visitor for TyCheck {
                 let (ty, op) = self.pop();
                 catch_unknown!(ty);
 
-                let mut place = match op {
-                    Operand::Copy(place) | Operand::Move(place) => place,
-                    Operand::Constant(_) => {
-                        err!(TyCheckError::CannotReference, expr.span);
-                    }
-                };
+                let out = self.reference_expr(*mutable, ty, op, span);
+                if out.is_none() {
+                    return VisitorCF::Break;
+                }
 
-                let local = self.cur_gir().get_local(place.local);
-                let can_ref = match local.kind {
-                    LocalKind::Temp => false,
-                    LocalKind::Let => true,
-                    LocalKind::Arg => true,
-                    LocalKind::Internal => true,
-                    LocalKind::Ret => panic!("Internal Compiler Error"),
-                };
-                err_if!(!can_ref, TyCheckError::CannotReference, expr.span);
-
-                let ref_tyid = self.ty_ctxt.global.tyid_from_tyir(TyIr::Ref(
-                    *mutable,
-                    FieldDef {
-                        id: FieldID::ZERO,
-                        ty,
-                        params: Vec::new(),
-                    },
-                ));
-
-                place.with_projection_ref(Projection::Ref {
-                    mutable: *mutable,
-                    original: ty,
-                    ref_type: ref_tyid,
-                });
-
-                Some((ref_tyid, Operand::Copy(place)))
+                out
             }
             e => panic!("{:?}", e),
             // ExprKind::Array(exprs) => todo!(),
@@ -1957,6 +2001,7 @@ pub enum TyCheckError {
         index: TyID,
     },
     CannotReference,
+    CannotDoubleReference,
     CannotDeref(TyID),
 
     ExpectedBoolean(TyID),
@@ -2007,6 +2052,9 @@ pub enum TyCheckError {
     NotAFreeFunction(TyID),
     MismatchedFunction(TyID, TyID),
     TrailingSemi,
+
+    NoBreak,
+    NoContinue,
 }
 
 impl std::fmt::Display for TyCheckError {
@@ -2063,6 +2111,7 @@ impl std::fmt::Display for TyCheckError {
             TypeIsNotAStruct => "Type is not a struct",
             TypeIsNotAnEnum => "Type is not an enum",
             CannotReference => "Cannot reference expr",
+            CannotDoubleReference => "Cannot create references to reference types",
             CannotDeref(tyid) => &format!("Cannot deref Type '{}'", tyid),
             NotAMemberFunction(tyid) => {
                 &format!("Function cannot be called as a member of Type '{}'", tyid)
@@ -2074,6 +2123,8 @@ impl std::fmt::Display for TyCheckError {
             ),
             TrailingSemi => "Trailing semicolon",
             TypeHasNoFields(tyid) => &format!("Type '{}' has no fields", tyid),
+            NoBreak => "Break outside of breakable context",
+            NoContinue => "Continue outside of continuable context",
         };
         write!(f, "{}", s)
     }
