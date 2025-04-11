@@ -59,13 +59,23 @@ pub struct TyCheck {
     block_stack: Vec<BlockID>,
     symbols: Vec<BTreeMap<SymbolID, Place>>,
     stack: Vec<(TyID, Operand)>,
+
+    break_continue_stack: Vec<BreakContinue>,
 }
 
 #[allow(unused)]
 enum TerminationKind {
+    /// Decrease depth
     Lower,
     Equal,
+    /// Increase depth aka more indentation
     Higher,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct BreakContinue {
+    pub br: BlockID,
+    pub co: Option<BlockID>,
 }
 
 impl TyCheck {
@@ -79,6 +89,7 @@ impl TyCheck {
             block_stack: Default::default(),
             symbols: Default::default(),
             stack: Default::default(),
+            break_continue_stack: Default::default(),
         }
     }
 
@@ -217,6 +228,21 @@ impl TyCheck {
             }
         }
         return found;
+    }
+
+    /// Get the current break point
+    pub fn break_point(&self) -> Option<BlockID> {
+        self.break_continue_stack.last().map(|s| s.br)
+    }
+
+    /// Get the current continue point
+    pub fn continue_point(&self) -> Option<BlockID> {
+        for br_co in self.break_continue_stack.iter().rev() {
+            if let Some(co) = br_co.co {
+                return Some(co);
+            }
+        }
+        return None;
     }
 
     fn process_fn(&mut self, f: &FnDef, scope: Option<SymbolID>) -> VisitorCF {
@@ -773,14 +799,24 @@ impl Visitor for TyCheck {
                         });
                     });
 
+                let increment_block = self.new_block_without_stack();
+
+                self.break_continue_stack.push(BreakContinue {
+                    br: leave_block,
+                    co: Some(increment_block),
+                    });
+
                 walk_block(self, block)?;
 
-                let _increment_block =
-                    self.terminate_with_new_block(TerminationKind::Lower, |block, next| {
+                self.terminate_with_existing_block(
+                    TerminationKind::Lower,
+                    increment_block,
+                    |block, next| {
                         block.terminate_no_replace(Terminator {
                             kind: TerminatorKind::Jump(next),
                         });
-                    });
+                    },
+                );
 
                 let one_const = self.new_constant(Constant::Internal {
                     imm: Immediate::Int(1),
@@ -810,6 +846,8 @@ impl Visitor for TyCheck {
                     },
                 );
                 self.block_stack.push(leave_block);
+
+                self.break_continue_stack.pop();
 
                 assert_eq!(
                     symbols_len,
@@ -864,6 +902,11 @@ impl Visitor for TyCheck {
 
                 let current_block = self.cur_block();
                 let out_block = self.new_block_without_stack();
+
+                self.break_continue_stack.push(BreakContinue {
+                    br: out_block,
+                    co: None,
+                });
 
                 let mut arms = BTreeMap::new();
                 let mut default_arm = None;
@@ -969,12 +1012,82 @@ impl Visitor for TyCheck {
                         cases,
                     ),
                 });
+
+                self.break_continue_stack.pop();
             }
-            e => todo!("{e:?}"),
-            // StmtKind::While(expr, block) => todo!(),
-            // StmtKind::Break => todo!(),
-            // StmtKind::Continue => todo!(),
-            // StmtKind::Return(expr) => todo!(),
+            StmtKind::While(expr, block) => {
+                // Terminate block with block for expr
+                let expr_block =
+                    self.terminate_with_new_block(TerminationKind::Higher, |block, id| {
+                        block.terminate(Terminator {
+                            kind: TerminatorKind::Jump(id),
+                        });
+                    });
+
+                // Unify Condition
+                self.visit_expr(expr.as_ref())?;
+                let (cond_ty, cond_op) = self.pop();
+                unify!(
+                    cond_ty,
+                    self.get_tyid(TyIr::Bool),
+                    TyCheckError::ExpectedBoolean(cond_ty),
+                    expr.span
+                );
+
+                // Create the next block
+                let to_next = self.new_block_without_stack();
+
+                // Push break continue to stack
+                self.break_continue_stack.push(BreakContinue {
+                    br: to_next,
+                    co: Some(expr_block),
+                });
+
+                // Walk if block
+                let start_of_block = self.new_block();
+                walk_block(self, block)?;
+                let end_of_block = self.pop_block();
+
+                // Terminate expr block with jump
+                self.block_mut(expr_block).terminate(Terminator {
+                    kind: TerminatorKind::Switch(
+                        cond_op,
+                        vec![
+                            SwitchCase::Value(Immediate::Bool(true), start_of_block),
+                            SwitchCase::Default(to_next),
+                        ],
+                    ),
+                });
+
+                // Jump back to expr block
+                self.block_mut(end_of_block)
+                    .terminate_no_replace(Terminator {
+                        kind: TerminatorKind::Jump(expr_block),
+                    });
+
+                self.push_block_stack(to_next);
+
+                // Pop break continue stack
+                self.break_continue_stack.pop();
+            }
+            StmtKind::Break => {
+                if let Some(br) = self.break_point() {
+                    self.block_mut(self.cur_block()).terminate(Terminator {
+                        kind: TerminatorKind::Jump(br),
+                    });
+                } else {
+                    err!(TyCheckError::NoBreak, s.span);
+                }
+            }
+            StmtKind::Continue => {
+                if let Some(co) = self.continue_point() {
+                    self.block_mut(self.cur_block()).terminate(Terminator {
+                        kind: TerminatorKind::Jump(co),
+                    });
+                } else {
+                    err!(TyCheckError::NoBreak, s.span);
+                }
+            }
         }
 
         VisitorCF::Continue
