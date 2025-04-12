@@ -4,6 +4,10 @@ const thread = @import("thread.zig");
 const ProgramThread = thread.ProgramThread;
 const StackFrame = ProgramThread.StackFrame;
 
+fn u64_plus_i64(u: u64, i: i64) u64 {
+    return @intCast(@as(i64, @intCast(u)) + i);
+}
+
 pub inline fn undf(_: *ProgramThread) !void {
     return ProgramThread.ProgramPanic.UndefinedInstruction;
 }
@@ -12,7 +16,7 @@ pub inline fn halt(t: *ProgramThread) void {
     t.state.status = ProgramThread.ProgramStatus.HaltProgram;
 }
 
-pub inline fn pop(self: *ProgramThread, size: u8) !void {
+pub fn pop(self: *ProgramThread, size: u8) !void {
     // Check for type larger than stack
     if (size > self.sp) {
         return error.EmptyStack;
@@ -22,20 +26,37 @@ pub inline fn pop(self: *ProgramThread, size: u8) !void {
     self.sp -= size;
 }
 
-pub inline fn ldr(self: *ProgramThread, size: u8, offset: i64) !void {
-    const from_slice = self.stack[self.offset_from_bp(offset)..][0..size];
+pub inline fn pbp(self: *ProgramThread) !void {
+    const bp = self.get_bp();
+    try self.push_stack(u64, @constCast(&bp));
+}
+
+pub fn ldr(self: *ProgramThread, size: u8, offset: i64) !void {
+    const address = try self.pop_stack(u64);
+    const inter = u64_plus_i64(address.*, offset);
+    std.log.debug("ldr {}", .{inter});
+    const ptr = try self.get_ptr(inter);
+
+    // Guard against stack overflow
     const new_sp = self.sp + size;
+
     if (new_sp >= self.stack.len) {
         return error.StackOverflow;
     }
 
-    const to_slice = self.stack[self.sp .. self.sp + size][0..size];
-    @memcpy(to_slice, from_slice);
+    const stack_slice = self.stack[self.sp..][0..size];
+    const cast_ptr: [*]u8 = @ptrCast(ptr);
+    @memcpy(stack_slice, cast_ptr[0..size]);
 
     self.sp = new_sp;
 }
 
-pub inline fn str(self: *ProgramThread, size: u8, offset: i64) !void {
+pub fn str(self: *ProgramThread, size: u8, offset: i64) !void {
+    const address = try self.pop_stack(u64);
+    const inter = u64_plus_i64(address.*, offset);
+    std.log.debug("str {}", .{inter});
+    const ptr = try self.get_ptr(inter);
+
     // Check for type larger than stack
     if (size > self.sp) {
         return error.EmptyStack;
@@ -45,9 +66,15 @@ pub inline fn str(self: *ProgramThread, size: u8, offset: i64) !void {
 
     // Get slice of stack
     const from_slice = self.stack[self.sp..][0..size];
-    const to_slice = self.stack[self.offset_from_bp(offset)..][0..size];
+    const cast_ptr: [*]u8 = @ptrCast(ptr);
 
-    @memcpy(to_slice, from_slice);
+    @memcpy(cast_ptr[0..size], from_slice);
+}
+
+pub inline fn pshr(self: *ProgramThread, offset: i64) !void {
+    const address = try self.pop_stack(u64);
+    const new_offset: u64 = u64_plus_i64(address.*, offset);
+    try self.push_stack(u64, @constCast(&new_offset));
 }
 
 pub inline fn setsp(self: *ProgramThread, offset: u64) !void {
@@ -312,3 +339,7 @@ pub fn print_b(self: *ProgramThread) !void {
         bw.flush() catch return;
     }
 }
+
+pub fn nent(_: *ProgramThread) !void {}
+
+pub fn rent(_: *ProgramThread) !void {}

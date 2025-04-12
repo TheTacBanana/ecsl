@@ -133,10 +133,21 @@ pub enum Bytecode {
     /// Pop the N bytes of the stack
     POP(u8),
 
-    /// Load the N bytes from [BP + offset] and push to the top of the stack
+    /// Push the BP address to the stack
+    PBP,
+
+    /// Pop the address from the top of the stack and and push the N bytes
+    /// from the [address + offset] and push to the top of the stack
+    /// Most LDRs will have a PBP before
     LDR(u8, i64),
-    /// Pop the top N bytes from top of stack to the signed offset from the BP
+    /// Pop the address from the top of the stack and and pop the N bytes
+    /// from the top of the stack to the [address + offset]
+    /// Most STRs will have a PBP before
     STR(u8, i64),
+    /// Pop the address from the top of the stack and push [address + offset]
+    /// to the top of the stack
+    /// Aka: Create a reference
+    PSHR(i64),
 
     /// Set the SP to the [BP + offset]
     SETSP(u64),
@@ -150,7 +161,7 @@ pub enum Bytecode {
     /// CALL but provided with an address to jump to when a panic is caught
     /// Catch jump should be within the same function
     CALLCU(u64, u64),
-    /// Pop return address (8 bytes) and jump
+    /// Return from Function
     RET,
 
     /// Panic with no message //TODO: Pointer to string
@@ -248,7 +259,6 @@ pub enum Bytecode {
     PRINT_F,
     /// Pop bool from stack and print to stdout
     PRINT_B,
-
     // ECS Instructions
     /// Create a new entity and push the entity id to the stack
     NENT,

@@ -384,19 +384,19 @@ impl TyCheck {
         ));
 
         // Create a place from the local and emit a gir stmt to create the refrence
-        let place = Place::from_local(local, span);
+        let place_that_the_reference_is = Place::from_local(local, span);
         self.push_stmt_to_cur_block(gir::Stmt {
             span,
             kind: gir::StmtKind::Assign(
-                place.clone(),
+                place_that_the_reference_is.clone(),
                 gir::Expr {
                     span,
-                    kind: gir::ExprKind::Reference(mutable, place.clone()),
+                    kind: gir::ExprKind::Reference(mutable, place_to_reference),
                 },
             ),
         });
 
-        Some((ref_tyid, Operand::Copy(place)))
+        Some((ref_tyid, Operand::Copy(place_that_the_reference_is.clone())))
     }
 }
 
@@ -514,7 +514,7 @@ impl Visitor for TyCheck {
                     Operand::Copy(place) | Operand::Move(place) => {
                         let local = self.get_local_mut(place.local);
 
-                        if local.kind.promote_from_temp(LocalKind::Let) {
+                        if local.kind.promote_to_let() {
                             local.mutable = *mutable;
                             local.span = *span;
 
@@ -2110,7 +2110,7 @@ impl std::fmt::Display for TyCheckError {
             DeadCode => "Stmts after terminator",
             TypeIsNotAStruct => "Type is not a struct",
             TypeIsNotAnEnum => "Type is not an enum",
-            CannotReference => "Cannot reference expr",
+            CannotReference => "Cannot reference temporary expression",
             CannotDoubleReference => "Cannot create references to reference types",
             CannotDeref(tyid) => &format!("Cannot deref Type '{}'", tyid),
             NotAMemberFunction(tyid) => {

@@ -234,6 +234,18 @@ pub enum LocalKind {
 }
 
 impl LocalKind {
+    pub fn promote_to_let(&mut self) -> bool {
+        match self {
+            LocalKind::Temp | LocalKind::Internal => {
+                *self = LocalKind::Let;
+                true
+            }
+            _ => false,
+        }
+    }
+
+    /// Promote a local kind to a new kind if it is temp
+    /// Return true if anything happened
     pub fn promote_from_temp(&mut self, kind: LocalKind) -> bool {
         match self {
             LocalKind::Temp => {
@@ -241,6 +253,17 @@ impl LocalKind {
                 true
             }
             _ => false,
+        }
+    }
+
+    /// Tests wether a local kind can be referenced
+    pub fn can_reference(&self) -> bool {
+        match self {
+            LocalKind::Arg => true,
+            LocalKind::Let => true,
+            LocalKind::Internal => true,
+            LocalKind::Temp => false, // TODO: Promotion of const literals
+            LocalKind::Ret => false,
         }
     }
 }
@@ -298,7 +321,6 @@ impl Place {
             match proj {
                 Projection::Field { new_ty, .. } => tyid = *new_ty,
                 Projection::Discriminant { .. } => (),
-                Projection::Ref { ref_type, .. } => tyid = *ref_type,
                 Projection::Deref { new_ty } => tyid = *new_ty,
             }
         }
@@ -313,12 +335,6 @@ impl Place {
                     f(new_ty);
                 }
                 Projection::Discriminant { tyid } => f(tyid),
-                Projection::Ref {
-                    original, ref_type, ..
-                } => {
-                    f(original);
-                    f(ref_type);
-                }
                 Projection::Deref { new_ty } => f(new_ty),
             }
         }
@@ -336,11 +352,6 @@ pub enum Projection {
     Discriminant {
         tyid: TyID,
     },
-    Ref {
-        mutable: Mutable,
-        original: TyID,
-        ref_type: TyID,
-    },
     Deref {
         new_ty: TyID,
     },
@@ -348,6 +359,24 @@ pub enum Projection {
 
 impl std::fmt::Display for Place {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}{:?}", self.local, self.projections)
+        write!(f, "{}", self.local)?;
+        if !self.projections.is_empty() {
+            // write!(f, "[")?;
+            for proj in self.projections.iter() {
+                write!(f, "{}", proj)?;
+            }
+            // write!(f, "]")?;
+        }
+        Ok(())
+    }
+}
+
+impl std::fmt::Display for Projection {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Projection::Field { fid, .. } => write!(f, ".{}", fid.inner()),
+            Projection::Discriminant { .. } => write!(f, "Disc"),
+            Projection::Deref { .. } => write!(f, "*"),
+        }
     }
 }
