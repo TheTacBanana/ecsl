@@ -1,5 +1,4 @@
 #![feature(if_let_guard)]
-#![feature(impl_trait_in_bindings)]
 use ecsl_ast::expr::{BinOpKind, RangeType, UnOpKind};
 use ecsl_ast::item::{ImplBlock, Item, ItemKind};
 use ecsl_ast::parse::{Immediate, ParamKind};
@@ -1419,6 +1418,14 @@ impl Visitor for TyCheck {
                             TyCheckError::MismatchedFunction(ty, parent.ty),
                             span
                         );
+                        match &op {
+                            Operand::Copy(place) | Operand::Move(place) => {
+                                let local = self.get_local_mut(place.local);
+                                local.kind.promote_from_temp(LocalKind::Internal);
+                                place
+                            }
+                            _ => err!(TyCheckError::DotSyntaxOnConst, e.span),
+                        };
                         exprs_tys.push((ty, op, span))
                     }
                     (Some((ty, op, span)), FnParent::Ref(mutable, parent)) => {

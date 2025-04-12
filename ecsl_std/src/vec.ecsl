@@ -58,7 +58,7 @@ impl Vec3 {
     fn length(&self) float {
         return (self.x * self.x +
                 self.y * self.y +
-                self.z * self.z);
+                self.z * self.z).sqrt();
     }
 
     fn normalize(&self) {

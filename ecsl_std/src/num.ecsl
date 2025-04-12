@@ -1,4 +1,5 @@
 use bool::bool;
+use panic::panic;
 
 // Builtin 32 Bit Signed Integer Type
 [copy, builtin(4), allow_casing]
@@ -68,6 +69,34 @@ impl float {
             return true;
         }
         return false;
+    }
+
+    // Newton-raphson approximation of a square root
+    fn sqrt(self) float {
+        // Short circuit for panic or less than 0
+        if (self < 0.0) {
+            panic();
+        }
+        if (self == 0.0) {
+            return 0.0;
+        }
+
+        let guess = self / 2.0;
+        let tolerance = float->epsilon();
+        for (i in 0..100) {
+            let nextGuess = 0.5 * (guess + self / guess);
+            if ((nextGuess - guess).abs() < tolerance) {
+                return nextGuess;
+            }
+            guess = nextGuess;
+        }
+
+        panic();
+    }
+
+    // Epsilon value for floating point approximations
+    fn epsilon() float {
+        return 0.0000000001;
     }
 
     // Get NaN value

@@ -4,7 +4,6 @@ use ecsl_ast::{
     visit::{walk_item, Visitor, VisitorCF},
 };
 use ecsl_context::Context;
-use ecsl_index::GlobalID;
 use ecsl_ty::{import::ImportPath, local::LocalTyCtxt};
 use std::{collections::VecDeque, path::PathBuf, sync::Arc};
 
