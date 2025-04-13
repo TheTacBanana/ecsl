@@ -197,6 +197,7 @@ pub fn generate_pre_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                         "bool" => Some(TyIr::Bool),
                         "char" => Some(TyIr::Char),
                         "str" => Some(TyIr::Str),
+                        "Entity" => Some(TyIr::Entity),
                         _ => None,
                     };
 

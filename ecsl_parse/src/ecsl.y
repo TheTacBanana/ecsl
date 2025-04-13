@@ -136,6 +136,16 @@ Item -> Result<Item, ()>:
         }))))
     }
     | FnDef { Ok(Item::new($span, ItemKind::Fn(P::new($1?)))) }
+    | Attributes 'STRUCT' Component 'ENTITY' Generics FieldDefs {
+        Ok(Item::new($span, ItemKind::Struct(P::new(StructDef {
+            span: $4.map_err(|_| ())?.span(),
+            kind: $3?,
+            ident: table.definition($4.map_err(|_| ())?.span(), SymbolKind::Struct($3?)),
+            attributes: $1?,
+            generics: $5?,
+            fields: $6?,
+        }))))
+    }
     | Attributes 'STRUCT' Component 'IDENT' Generics FieldDefs {
         Ok(Item::new($span, ItemKind::Struct(P::new(StructDef {
             span: $4.map_err(|_| ())?.span(),
@@ -472,6 +482,12 @@ UsePath -> Result<UsePath, ()>:
         ))
     }
     | 'IDENT' {
+        Ok(UsePath::Item(
+            $span,
+            table.definition($1.map_err(|_| ())?.span(), SymbolKind::ImportItem),
+        ))
+    }
+    | 'ENTITY' {
         Ok(UsePath::Item(
             $span,
             table.definition($1.map_err(|_| ())?.span(), SymbolKind::ImportItem),
@@ -973,6 +989,14 @@ Expr -> Result<Expr, ()>:
             $5?,
         )))
     }
+    | 'ENTITY' 'ARROW' 'IDENT' FnConcreteGenerics FnArgExpr {
+        Ok(Expr::new($span, ExprKind::StaticFunction(
+            table.usage($1.map_err(|_| ())?.span(), SymbolKind::FunctionUsage),
+            table.usage($3.map_err(|_| ())?.span(), SymbolKind::FunctionUsage),
+            $4?,
+            $5?,
+        )))
+    }    
     | Expr 'DOT' 'IDENT' FnConcreteGenerics FnArgExpr {
         Ok(Expr::new($span, ExprKind::Function(
             Some(P::new($1?)),
