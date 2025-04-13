@@ -1168,8 +1168,12 @@ impl Visitor for TyCheck {
 
     fn visit_expr(&mut self, e: &Expr) -> VisitorCF {
         macro_rules! catch_unknown {
-            ($i:expr) => {{
+            ($i:expr,$err:expr) => {{
                 if $i == TyID::UNKNOWN {
+                    self.ty_ctxt
+                        .diag
+                        .push_error(EcslError::new(ErrorLevel::Error, $err).with_span(|_| e.span));
+
                     return VisitorCF::Break;
                 }
                 $i
@@ -1289,7 +1293,8 @@ impl Visitor for TyCheck {
                 Some((found.projected_tyid(self.cur_gir()), Operand::Copy(found)))
             }
             ExprKind::Lit(literal) => {
-                let tyid = catch_unknown!(self.get_tyid(TyIr::from(*literal)));
+                let tyid =
+                    catch_unknown!(self.get_tyid(TyIr::from(*literal)), TyCheckError::UnknownTy);
                 let const_id = self.new_constant(Constant::External {
                     span: e.span,
                     tyid,
@@ -1299,7 +1304,10 @@ impl Visitor for TyCheck {
                 Some((tyid, Operand::Constant(const_id)))
             }
             ExprKind::StaticFunction(scope, symbol_id, generics, exprs) => {
-                let mut tyid = catch_unknown!(self.get_tyid((Some(*scope), *symbol_id)));
+                let mut tyid = catch_unknown!(
+                    self.get_tyid((Some(*scope), *symbol_id)),
+                    TyCheckError::FunctionDoesntExist
+                );
 
                 let Some(fn_tyir) = self.get_tyir(tyid).into_fn() else {
                     err!(TyCheckError::FunctionDoesntExist, e.span);
@@ -1315,7 +1323,7 @@ impl Visitor for TyCheck {
                         .collect::<Vec<_>>();
 
                     for p in params.iter() {
-                        _ = catch_unknown!(*p);
+                        _ = catch_unknown!(*p, TyCheckError::UnknownTy);
                     }
 
                     tyid = self
@@ -1468,7 +1476,7 @@ impl Visitor for TyCheck {
                         .collect::<Vec<_>>();
 
                     for p in params.iter() {
-                        _ = catch_unknown!(*p);
+                        _ = catch_unknown!(*p, TyCheckError::UnknownTy);
                     }
 
                     fn_tyid = self
@@ -1664,7 +1672,10 @@ impl Visitor for TyCheck {
                 let (e_ty, e_op) = self.pop();
 
                 let from = self.get_tyir(e_ty);
-                let to_tyid = catch_unknown!(self.get_tyid((ty.as_ref(), &self.generic_scope)));
+                let to_tyid = catch_unknown!(
+                    self.get_tyid((ty.as_ref(), &self.generic_scope)),
+                    TyCheckError::UnknownTy
+                );
                 let to_tyir = self.get_tyir(to_tyid);
 
                 use ecsl_gir::expr::{Expr, ExprKind};
@@ -1718,7 +1729,10 @@ impl Visitor for TyCheck {
                 panic!("Internal Compiler Error: Range Expr Ty Check")
             }
             ExprKind::Struct(ty, fields) => {
-                let struct_tyid = catch_unknown!(self.get_tyid((ty.as_ref(), &self.generic_scope)));
+                let struct_tyid = catch_unknown!(
+                    self.get_tyid((ty.as_ref(), &self.generic_scope)),
+                    TyCheckError::UnknownTy
+                );
                 let TyIr::ADT(struct_tyir) = self.get_tyir(struct_tyid) else {
                     err!(TyCheckError::TypeIsNotAStruct, e.span);
                 };
@@ -1863,10 +1877,14 @@ impl Visitor for TyCheck {
                 Some((field_def.ty, e_op))
             }
             ExprKind::Enum(ty, variant, fields) => {
-                let enum_tyid = catch_unknown!(self.get_tyid((ty.as_ref(), &self.generic_scope)));
+                let enum_tyid = catch_unknown!(
+                    self.get_tyid((ty.as_ref(), &self.generic_scope)),
+                    TyCheckError::UnknownTy
+                );
                 let TyIr::ADT(enum_tyir) = self.get_tyir(enum_tyid) else {
                     err!(TyCheckError::TypeIsNotAnEnum, e.span);
                 };
+
                 err_if!(!enum_tyir.is_enum(), TyCheckError::TypeIsNotAnEnum, e.span);
 
                 let local_id = self.new_local(Local::new(
@@ -1962,7 +1980,7 @@ impl Visitor for TyCheck {
                 // Visit expr
                 self.visit_expr(expr)?;
                 let (ty, op) = self.pop();
-                catch_unknown!(ty);
+                catch_unknown!(ty, TyCheckError::UnknownTy);
 
                 let out = self.reference_expr(*mutable, ty, op, span);
                 if out.is_none() {

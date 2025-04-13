@@ -104,7 +104,6 @@ impl TyCtxt {
 
     pub fn insert_size(&self, id: TyID, size: usize) {
         let mut sizes = self.sizes.write().unwrap();
-        debug!("{:?} {:?}", id, size);
         sizes.insert(id, size);
     }
 

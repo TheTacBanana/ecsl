@@ -11,7 +11,7 @@ use ecsl_diagnostics::DiagConn;
 use ecsl_error::{ext::EcslErrorExt, EcslError, ErrorLevel};
 use ecsl_index::{FieldID, GlobalID, SourceFileID, SymbolID, TyID};
 use ecsl_parse::table::SymbolTable;
-use log::error;
+use log::{debug, error};
 use std::{
     collections::{btree_map::Entry, BTreeMap},
     sync::{Arc, RwLock},
@@ -227,9 +227,14 @@ impl LocalTyCtxt {
                     let param_tyid = self.get_tyid(g, scope)?;
                     params.push(param_tyid);
 
-                    match self.global.get_tyir(param_tyid) {
+                    let tyir = self.global.get_tyir(param_tyid);
+                    match tyir {
+                        TyIr::Ref(_, field_def) => match self.global.get_tyir(field_def.ty) {
+                            TyIr::GenericParam(_) => (),
+                            _ => known_tys += 1,
+                        },
                         TyIr::GenericParam(_) => (),
-                        _ => known_tys += 1, //TODO: Generic
+                        _ => known_tys += 1,
                     }
                 }
 
@@ -269,14 +274,14 @@ impl LocalTyCtxt {
     }
 
     pub fn get_mono_variant(&self, id: TyID, params: &Vec<TyID>, span: Span) -> Option<TyID> {
-        let map_tyid = |field: &mut FieldDef| {
-            let tyir = self.global.get_tyir(field.ty);
-            field.ty = match &tyir {
+        fn map_tyid(s: &LocalTyCtxt, field: &mut FieldDef, params: &Vec<TyID>, span: Span) {
+            let mut tyir = s.global.get_tyir(field.ty);
+            field.ty = match &mut tyir {
                 TyIr::GenericParam(i) => params.get(*i).copied().unwrap(),
                 TyIr::ADT(adtdef) => {
                     let mut field_params = Vec::new();
                     for param_tyid in &mut field.params {
-                        match self.global.get_tyir(*param_tyid) {
+                        match s.global.get_tyir(*param_tyid) {
                             TyIr::GenericParam(index) => {
                                 *param_tyid = params.get(index).copied().unwrap_or(*param_tyid)
                             }
@@ -286,19 +291,22 @@ impl LocalTyCtxt {
                     }
 
                     if adtdef.total_generics != field_params.len() {
-                        self.diag.push_error(
+                        s.diag.push_error(
                             EcslError::new(ErrorLevel::Error, "Mismatched generics")
                                 .with_span(|_| span),
                         );
                         TyID::UNKNOWN
                     } else {
-                        self.get_mono_variant(field.ty, &field_params, span)
-                            .unwrap()
+                        s.get_mono_variant(field.ty, &field_params, span).unwrap()
                     }
+                }
+                TyIr::Ref(_, field_def) => {
+                    map_tyid(s, field_def, params, span);
+                    s.global.tyid_from_tyir(tyir)
                 }
                 _ => field.ty,
             };
-        };
+        }
 
         let monos = self.global.monos.mono_map.read().unwrap();
         let key = (id, params.clone());
@@ -310,16 +318,17 @@ impl LocalTyCtxt {
             let mut tyir = self.global.get_tyir(id).clone();
             let generic_count = tyir.get_generics();
 
-            if params.len() != generic_count {
-                self.diag.push_error(
-                    EcslError::new(ErrorLevel::Error, "Mismatched generics").with_span(|_| span),
-                );
-                return Some(TyID::UNKNOWN);
-            }
-
             match &mut tyir {
                 TyIr::ADT(adt_tyir) => {
-                    adt_tyir.map(map_tyid);
+                    if params.len() != generic_count {
+                        self.diag.push_error(
+                            EcslError::new(ErrorLevel::Error, "Mismatched generics")
+                                .with_span(|_| span),
+                        );
+                        return Some(TyID::UNKNOWN);
+                    }
+
+                    adt_tyir.map(|f| map_tyid(self, f, params, span));
                     adt_tyir.resolved_generics = adt_tyir.total_generics;
 
                     let new_tyid = self.global.tyid_from_tyir(tyir);
@@ -328,7 +337,15 @@ impl LocalTyCtxt {
                     Some(new_tyid)
                 }
                 TyIr::Fn(fn_tyir) => {
-                    fn_tyir.map(map_tyid);
+                    if params.len() != generic_count {
+                        self.diag.push_error(
+                            EcslError::new(ErrorLevel::Error, "Mismatched generics")
+                                .with_span(|_| span),
+                        );
+                        return Some(TyID::UNKNOWN);
+                    }
+
+                    fn_tyir.map(|f| map_tyid(self, f, params, span));
                     fn_tyir.resolved_generics = fn_tyir.total_generics;
 
                     let new_tyid = self.global.tyid_from_tyir(tyir);
@@ -336,8 +353,8 @@ impl LocalTyCtxt {
 
                     Some(new_tyid)
                 }
-                TyIr::Ref(_, tyid) => {
-                    map_tyid(tyid);
+                TyIr::Ref(_, field) => {
+                    map_tyid(self, field, params, span);
 
                     let new_tyid = self.global.tyid_from_tyir(tyir);
                     self.global.monos.insert_mapping(key, new_tyid);

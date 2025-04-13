@@ -98,7 +98,7 @@ impl TyIr {
             TyIr::Fn(_) => "fn",
             TyIr::Array(tyid, n) => &format!("[{}:{}]", tyid, n),
             TyIr::ArrayRef(mutable, tyid) => &format!("&{} [{}]", mutable, tyid),
-            TyIr::GenericParam(_) => todo!(),
+            TyIr::GenericParam(i) => &format!("T{}", i + 1),
             TyIr::Entity => "Entity",
         };
         s.to_string()
