@@ -1,4 +1,5 @@
 use panic::panic;
+use bool::bool;
 
 enum Option<T> {
     Some {
@@ -7,37 +8,37 @@ enum Option<T> {
     None,
 }
 
- // impl<T> Option<T> {
- //     fn is_some(&self) bool {
- //         match (self) {
- //             Some { val } -> {
- //                 return true;
- //             },
- //             None -> {
- //                 return false;
- //             }
- //         }
- //     }
+impl<T> Option<T> {
+     fn is_some(self) bool {
+         match (self) {
+             Some { val } -> {
+                 return true;
+             },
+             None -> {
+                 return false;
+             }
+         }
+     }
 
- //     fn is_none(&self) bool {
- //         match (self) {
- //             Some { val } -> {
- //                 return false;
- //             },
- //             None -> {
- //                 return true;
- //             }
- //         }
- //     }
+     fn is_none(self) bool {
+         match (self) {
+             Some { val } -> {
+                 return false;
+             },
+             None -> {
+                 return true;
+             }
+         }
+     }
 
- //     fn unwrap(self) T {
- //         match (self) {
- //             Some { val } -> {
- //                 return val;
- //             },
- //             None -> {
- //                 panic("Unwrap failed");
- //             }
- //         }
- //     }
- // }
+     fn unwrap(self) T {
+         match (self) {
+             Some { val } -> {
+                 return val;
+             },
+             None -> {
+                 panic();
+             }
+         }
+     }
+}

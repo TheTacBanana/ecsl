@@ -220,6 +220,10 @@ pub struct FnDef {
 
 impl FnDef {
     pub fn map(&mut self, mut f: impl FnMut(&mut FieldDef)) {
+        match &mut self.parent {
+            FnParent::None => (),
+            FnParent::Ref(_, field_def) | FnParent::Value(_, field_def) => f(field_def),
+        }
         for (_, field) in &mut self.params {
             f(field);
         }

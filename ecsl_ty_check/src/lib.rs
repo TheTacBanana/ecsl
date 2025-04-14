@@ -22,7 +22,7 @@ use ecsl_ty::ctxt::TyCtxt;
 use ecsl_ty::local::LocalTyCtxt;
 use ecsl_ty::{ADTDef, FieldDef, FnParent, GenericsScope, TyIr};
 use ext::IntoTyID;
-use log::debug;
+use log::{debug, error};
 use lrpar::Span;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
@@ -1388,6 +1388,7 @@ impl Visitor for TyCheck {
                 Some((ret_ty, Operand::Move(Place::from_local(local_id, span))))
             }
             ExprKind::Function(parent, generics, symbol_id, exprs) => {
+                debug!("before all of it");
                 let parent = match parent {
                     Some(expr) => {
                         self.visit_expr(expr)?;
@@ -1408,6 +1409,7 @@ impl Visitor for TyCheck {
 
                             self.get_tyid((mono_tyid, *symbol_id))
                         }
+                        TyIr::ADT(adt) => self.get_tyid((adt.id, *symbol_id)),
                         _ => self.get_tyid((tyid, *symbol_id)),
                     },
                     None => self.get_tyid(*symbol_id),
@@ -1416,6 +1418,44 @@ impl Visitor for TyCheck {
                 // Get the Tyir for the function
                 let Some(fn_tyir) = self.get_tyir(fn_tyid).into_fn() else {
                     err!(TyCheckError::FunctionDoesntExist, e.span);
+                };
+
+                let fn_tyir = if fn_tyir.total_generics > 0 {
+                    let mut params = Vec::new();
+                    if let Some((parent, _, _)) = &parent {
+                        if let Some((_, existing_generics)) = self
+                            .ty_ctxt
+                            .global
+                            .monos
+                            .mono_map
+                            .read()
+                            .unwrap()
+                            .get_by_right(parent)
+                        {
+                            params.extend(existing_generics.clone());
+                        }
+                    }
+
+                    generics
+                        .params
+                        .iter()
+                        .map(|ty| self.get_tyid((ty, &self.generic_scope)))
+                        .for_each(|ty| params.push(ty));
+
+                    for p in params.iter() {
+                        _ = catch_unknown!(*p, TyCheckError::UnknownTy);
+                    }
+
+                    fn_tyid = self
+                        .ty_ctxt
+                        .get_mono_variant(fn_tyid, &params, generics.span)
+                        .unwrap();
+                    let tyir = self.get_tyir(fn_tyid).into_fn().unwrap();
+
+                    error!("{:?}", tyir);
+                    tyir
+                } else {
+                    fn_tyir
                 };
 
                 let mut exprs_tys = Vec::new();
@@ -1467,26 +1507,6 @@ impl Visitor for TyCheck {
                         err!(TyCheckError::NotAMemberFunction(ty), e.span);
                     }
                 }
-
-                let fn_tyir = if fn_tyir.total_generics > 0 {
-                    let params = generics
-                        .params
-                        .iter()
-                        .map(|ty| self.get_tyid((ty, &self.generic_scope)))
-                        .collect::<Vec<_>>();
-
-                    for p in params.iter() {
-                        _ = catch_unknown!(*p, TyCheckError::UnknownTy);
-                    }
-
-                    fn_tyid = self
-                        .ty_ctxt
-                        .get_mono_variant(fn_tyid, &params, generics.span)
-                        .unwrap();
-                    self.get_tyir(fn_tyid).into_fn().unwrap()
-                } else {
-                    fn_tyir
-                };
 
                 let ret_ty = fn_tyir.ret.ty;
                 // Preallocate the size of the return value on the stack

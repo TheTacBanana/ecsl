@@ -9,6 +9,7 @@ use {
     std::panic::{panic, assert_true, assert_false},
     std::option::Option,
     std::vec::Vec3,
+    std::entity::Entity,
 };
 
 [terminator]

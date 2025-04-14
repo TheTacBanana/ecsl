@@ -281,13 +281,15 @@ impl LocalTyCtxt {
                 TyIr::ADT(adtdef) => {
                     let mut field_params = Vec::new();
                     for param_tyid in &mut field.params {
-                        match s.global.get_tyir(*param_tyid) {
-                            TyIr::GenericParam(index) => {
-                                *param_tyid = params.get(index).copied().unwrap_or(*param_tyid)
-                            }
-                            _ => (),
+                        let mut temp = FieldDef {
+                            id: FieldID::ZERO,
+                            ty: *param_tyid,
+                            params: Vec::new(),
                         };
-                        field_params.push(*param_tyid)
+
+                        map_tyid(s, &mut temp, params, span);
+
+                        field_params.push(temp.ty);
                     }
 
                     if adtdef.total_generics != field_params.len() {
@@ -302,19 +304,19 @@ impl LocalTyCtxt {
                 }
                 TyIr::Ref(_, field_def) => {
                     map_tyid(s, field_def, params, span);
-                    s.global.tyid_from_tyir(tyir)
+                    s.global.tyid_from_tyir(tyir.clone())
                 }
                 _ => field.ty,
             };
         }
 
-        let monos = self.global.monos.mono_map.read().unwrap();
         let key = (id, params.clone());
-        if let Some(mono) = monos.get_by_left(&key) {
-            Some(*mono)
-        } else {
-            drop(monos);
-
+        {
+            if let Some(mono) = self.global.monos.mono_map.read().unwrap().get_by_left(&key) {
+                return Some(*mono);
+            }
+        }
+        {
             let mut tyir = self.global.get_tyir(id).clone();
             let generic_count = tyir.get_generics();
 
@@ -327,7 +329,6 @@ impl LocalTyCtxt {
                         );
                         return Some(TyID::UNKNOWN);
                     }
-
                     adt_tyir.map(|f| map_tyid(self, f, params, span));
                     adt_tyir.resolved_generics = adt_tyir.total_generics;
 

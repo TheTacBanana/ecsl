@@ -34,7 +34,6 @@ pub inline fn pbp(self: *ProgramThread) !void {
 pub fn ldr(self: *ProgramThread, size: u8, offset: i64) !void {
     const address = try self.pop_stack(u64);
     const inter = u64_plus_i64(address.*, offset);
-    std.log.debug("ldr {}", .{inter});
     const ptr = try self.get_ptr(inter);
 
     // Guard against stack overflow
@@ -54,7 +53,6 @@ pub fn ldr(self: *ProgramThread, size: u8, offset: i64) !void {
 pub fn str(self: *ProgramThread, size: u8, offset: i64) !void {
     const address = try self.pop_stack(u64);
     const inter = u64_plus_i64(address.*, offset);
-    std.log.debug("str {}", .{inter});
     const ptr = try self.get_ptr(inter);
 
     // Check for type larger than stack

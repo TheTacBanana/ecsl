@@ -4,7 +4,7 @@ use cfgrammar::Span;
 use ecsl_diagnostics::DiagConn;
 use ecsl_index::{FieldID, GlobalID, SourceFileID, TyID, VariantID};
 use ecsl_parse::LexerTy;
-use log::{debug, error};
+use log::error;
 use lrpar::NonStreamingLexer;
 use std::{
     collections::BTreeMap,
