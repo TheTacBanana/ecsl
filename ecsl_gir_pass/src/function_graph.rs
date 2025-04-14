@@ -1,15 +1,19 @@
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet},
     sync::{Arc, RwLock},
 };
 
+use cfgrammar::Span;
+use ecsl_ast::parse::FnKind;
+use ecsl_error::{ext::EcslErrorExt, EcslError, ErrorLevel};
 use ecsl_gir::{
     expr::ExprKind,
     stmt::{Stmt, StmtKind},
     visit::{Visitor, VisitorCF},
     GIR,
 };
-use ecsl_index::TyID;
+use ecsl_index::{SourceFileID, TyID};
+use ecsl_ty::ctxt::TyCtxt;
 use log::debug;
 use petgraph::{prelude::DiGraphMap, visit::Bfs};
 
@@ -17,21 +21,49 @@ use crate::GIRPass;
 
 #[derive(Debug)]
 pub struct FunctionGraph {
-    pub graph: RwLock<DiGraphMap<TyID, ()>>,
+    pub graph: RwLock<DiGraphMap<TyID, Span>>,
+    pub fnkinds: RwLock<BTreeMap<TyID, (FnKind, SourceFileID, Span)>>,
 }
 
 impl FunctionGraph {
     pub fn new() -> Self {
         Self {
             graph: Default::default(),
+            fnkinds: Default::default(),
         }
     }
 
     fn add_dependencies(&self, deps: FunctionDependencies) {
-        let mut graph = self.graph.write().unwrap();
-        graph.add_node(deps.fnid);
-        for dep in deps.depends {
-            graph.add_edge(deps.fnid, dep, ());
+        {
+            let mut graph = self.graph.write().unwrap();
+            graph.add_node(deps.fnid);
+            for dep in deps.depends {
+                graph.add_edge(deps.fnid, dep.0, dep.1);
+            }
+        }
+        {
+            let mut fnkinds = self.fnkinds.write().unwrap();
+            fnkinds.insert(deps.fnid, (deps.fnkind, deps.fid, deps.span));
+        }
+    }
+
+    pub fn find_sys_calls(&self, ctxt: &Arc<TyCtxt>) {
+        let graph = self.graph.read().unwrap();
+        let fnkinds = self.fnkinds.read().unwrap();
+
+        let edges = graph.all_edges();
+        for (from, to, span) in edges {
+            let (fkind, tkind) = (fnkinds.get(&from).unwrap(), fnkinds.get(&to).unwrap());
+            match (fkind.0, tkind.0) {
+                (FnKind::Fn, FnKind::Sys) => {
+                    ctxt.diag.push_error(
+                        EcslError::new(ErrorLevel::Error, "Cannot call sys from fn")
+                            .with_span(|_| *span)
+                            .with_file(|_| fkind.1),
+                    );
+                }
+                _ => (),
+            }
         }
     }
 
@@ -63,7 +95,10 @@ impl FunctionGraph {
 #[derive(Debug)]
 pub struct FunctionDependencies {
     pub fnid: TyID,
-    pub depends: Vec<TyID>,
+    pub fnkind: FnKind,
+    pub fid: SourceFileID,
+    pub span: Span,
+    pub depends: Vec<(TyID, Span)>,
 }
 
 impl GIRPass for FunctionDependencies {
@@ -73,6 +108,9 @@ impl GIRPass for FunctionDependencies {
     fn apply_pass<'a>(gir: &mut GIR, fn_graph: &'a Arc<FunctionGraph>) -> () {
         let mut s = FunctionDependencies {
             fnid: gir.fn_id,
+            fnkind: gir.fn_kind,
+            fid: gir.fid,
+            span: gir.span,
             depends: Vec::new(),
         };
         s.visit_gir(gir);
@@ -87,7 +125,7 @@ impl Visitor for FunctionDependencies {
             StmtKind::Assign(_, expr) => {
                 match expr.kind {
                     ExprKind::Call(ty_id, _) => {
-                        self.depends.push(ty_id);
+                        self.depends.push((ty_id, expr.span));
                     }
                     _ => (),
                 };

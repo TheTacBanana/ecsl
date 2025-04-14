@@ -1,7 +1,7 @@
 use cfgrammar::Span;
 use cons::Constant;
-use ecsl_ast::ty::Mutable;
-use ecsl_index::{BlockID, ConstID, FieldID, LocalID, TyID, VariantID};
+use ecsl_ast::{parse::FnKind, ty::Mutable};
+use ecsl_index::{BlockID, ConstID, FieldID, LocalID, SourceFileID, TyID, VariantID};
 use petgraph::prelude::DiGraphMap;
 use std::collections::BTreeMap;
 use stmt::Stmt;
@@ -20,6 +20,8 @@ pub type P<T> = Box<T>;
 pub struct GIR {
     pub span: Span,
     pub fn_id: TyID,
+    pub fid: SourceFileID,
+    pub fn_kind: FnKind,
     locals: BTreeMap<LocalID, Local>,
     consts: BTreeMap<ConstID, Constant>,
     blocks: BTreeMap<BlockID, Block>,
@@ -49,10 +51,12 @@ impl std::fmt::Display for GIR {
 }
 
 impl GIR {
-    pub fn new(fn_id: TyID, span: Span) -> Self {
+    pub fn new(fn_id: TyID, fn_kind: FnKind, fid: SourceFileID, span: Span) -> Self {
         Self {
             span,
             fn_id,
+            fn_kind,
+            fid,
             locals: Default::default(),
             consts: Default::default(),
             blocks: Default::default(),

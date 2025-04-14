@@ -33,7 +33,9 @@ impl Driver {
         diag.finish_stage(|_| ())?;
 
         if path.is_ok() {
-            info!("Compilation took {:?}", start_time.elapsed());
+            info!("Finished in {:?}", start_time.elapsed());
+        } else {
+            info!("Exited in {:?}", start_time.elapsed());
         }
 
         Ok(path?)
@@ -241,6 +243,7 @@ impl Driver {
             || diag.finish_stage(finish_stage),
         )?;
         function_graph.prune_unused(entry_point.0);
+        function_graph.find_sys_calls(&ty_ctxt);
 
         debug!("Prune unused functions");
         let assoc = (&context, assoc).par_map_assoc(

@@ -249,13 +249,14 @@ impl TyCheck {
 
         // Create GIR for Fn
         let tyid = self.get_tyid((scope, f.ident));
-        self.cur_gir = Some(GIR::new(tyid, f.span));
         debug!("Fn {:?}", tyid);
 
         // Get tyir
         let TyIr::Fn(fn_tyir) = self.get_tyir((scope, f.ident)) else {
             panic!("Internal Compiler Error: Fn {} has not been defined", tyid);
         };
+
+        self.cur_gir = Some(GIR::new(tyid, fn_tyir.kind, self.ty_ctxt.file, f.span));
 
         // Insert Return Type as Local
         self.new_local(Local::new(
@@ -1388,7 +1389,6 @@ impl Visitor for TyCheck {
                 Some((ret_ty, Operand::Move(Place::from_local(local_id, span))))
             }
             ExprKind::Function(parent, generics, symbol_id, exprs) => {
-                debug!("before all of it");
                 let parent = match parent {
                     Some(expr) => {
                         self.visit_expr(expr)?;
@@ -1452,7 +1452,6 @@ impl Visitor for TyCheck {
                         .unwrap();
                     let tyir = self.get_tyir(fn_tyid).into_fn().unwrap();
 
-                    error!("{:?}", tyir);
                     tyir
                 } else {
                     fn_tyir
