@@ -92,19 +92,23 @@ impl std::fmt::Display for ConstID {
 generate_index_type!(AssemblerConstID);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct GlobalID(SymbolID, SourceFileID);
+pub struct GlobalID(Option<SymbolID>, SymbolID, SourceFileID);
 
 impl GlobalID {
-    pub fn new(s: SymbolID, f: SourceFileID) -> Self {
-        GlobalID(s, f)
+    pub fn new(scope: Option<SymbolID>, s: SymbolID, f: SourceFileID) -> Self {
+        GlobalID(scope, s, f)
     }
 
-    pub fn symbol(&self) -> SymbolID {
+    pub fn scope(&self) -> Option<SymbolID> {
         self.0
     }
 
-    pub fn source_file(&self) -> SourceFileID {
+    pub fn symbol(&self) -> SymbolID {
         self.1
+    }
+
+    pub fn source_file(&self) -> SourceFileID {
+        self.2
     }
 }
 

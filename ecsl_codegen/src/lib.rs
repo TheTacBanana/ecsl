@@ -8,10 +8,10 @@ use ecsl_gir::{
     LocalKind, Place, Projection, GIR,
 };
 use ecsl_gir_pass::{const_eval::ConstMap, GIRPass};
-use ecsl_index::{BlockID, ConstID, LocalID};
+use ecsl_index::{BlockID, LocalID};
 use ecsl_ty::{local::LocalTyCtxt, TyIr};
 use log::debug;
-use petgraph::{algo::toposort, visit::Bfs};
+use petgraph::visit::{Bfs, Dfs};
 use std::{collections::BTreeMap, sync::Arc};
 
 pub struct CodeGen<'a> {
@@ -97,8 +97,6 @@ impl<'a> CodeGen<'a> {
             post_offset += size as i64;
         }
 
-        debug!("Offsets: {:?}", self.offsets);
-
         let mut bfs = Bfs::new(gir.ordering(), BlockID::ZERO);
         while let Some(block_id) = bfs.next(gir.ordering()) {
             let mut instrs = Vec::new();
@@ -147,15 +145,11 @@ impl<'a> CodeGen<'a> {
                                 });
                             }
                             ExprKind::Call(ty_id, operands) => {
-                                for op in operands {
-                                    self.load_operand(op, &mut instrs);
-                                }
-                                instrs.push(ins!(CALL, Immediate::AddressOf(*ty_id)));
-
                                 let mut argument_size = 0;
                                 for op in operands {
-                                    argument_size += self.operand_size(op)
+                                    argument_size += self.load_operand(op, &mut instrs);
                                 }
+                                instrs.push(ins!(CALL, Immediate::AddressOf(*ty_id)));
                                 if argument_size > 0 {
                                     instrs.push(ins!(POP, Immediate::UByte(argument_size as u8)));
                                 }
@@ -178,16 +172,16 @@ impl<'a> CodeGen<'a> {
                                     e => panic!("{:?}", e),
                                 })
                             }
-                            ExprKind::Reference(_, _) => todo!(),
+                            ExprKind::Reference(_, place) => {
+                                debug!("{:?}", place);
+                                let (mut nav, size, offset) = self.navigate_to_place(place);
+                                debug!("{:?} {:?} {:?}", nav, size, offset);
+                                nav.push(ins!(PSHR, Immediate::Long(offset.unwrap())));
+                                instrs.extend(nav);
+                            }
                         }
 
-                        if let Some(place_offset) = self.place_offset(place) {
-                            instrs.push(ins!(
-                                STR,
-                                Immediate::UByte(place_offset.size as u8),
-                                Immediate::Long(place_offset.offset)
-                            ));
-                        }
+                        self.store_to_place(place, &mut instrs);
                     }
                     StmtKind::AllocReturn(ty_id) => {
                         let size = self.ty_ctxt.global.get_size(*ty_id).unwrap();
@@ -261,7 +255,13 @@ impl<'a> CodeGen<'a> {
             self.blocks.insert(block_id, instrs);
         }
 
-        let visit_order = toposort(gir.ordering(), None).unwrap();
+        // Use a dfs preorder
+        let mut dfs = Dfs::new(gir.ordering(), BlockID::ZERO);
+        let mut visit_order = Vec::new();
+        while let Some(node) = dfs.next(gir.ordering()) {
+            visit_order.push(node);
+        }
+        assert!(visit_order.first().is_none_or(|s| *s == BlockID::ZERO));
 
         // Remove all No Ops
         for (_, block) in self.blocks.iter_mut() {
@@ -311,57 +311,84 @@ impl<'a> CodeGen<'a> {
         }
     }
 
-    pub fn load_operand(&self, operand: &Operand, instrs: &mut Vec<BytecodeInstruction>) {
+    /// Loads the operand and returns the size of the value on the stack
+    /// Outputs instructions via the mutable reference
+    pub fn load_operand(&self, operand: &Operand, instrs: &mut Vec<BytecodeInstruction>) -> usize {
         match operand {
             Operand::Copy(place) | Operand::Move(place) => {
-                if let Some(place_offset) = self.place_offset(&place) {
-                    instrs.push(ins!(
+                let (mut nav, size, offset) = self.navigate_to_place(place);
+
+                if let Some(offset) = offset {
+                    nav.push(ins!(
                         LDR,
-                        Immediate::UByte(place_offset.size as u8),
-                        Immediate::Long(place_offset.offset)
+                        Immediate::UByte(size as u8),
+                        Immediate::Long(offset)
                     ));
+
+                    instrs.extend(nav);
                 }
+                return size;
             }
-            Operand::Constant(const_id) => instrs.push(self.load_const(*const_id)),
-        }
-    }
-
-    pub fn operand_size(&self, operand: &Operand) -> usize {
-        match operand {
-            Operand::Copy(place) | Operand::Move(place) => {
-                if let Some(place_offset) = self.place_offset(&place) {
-                    place_offset.size
-                } else {
-                    assert!(place.projections.len() == 0);
-                    let tyid = self.gir.get_local(place.local).tyid;
-                    self.ty_ctxt.global.get_size(tyid).unwrap()
-                }
+            Operand::Constant(const_id) => {
+                let cons = self.const_map.get(&const_id).unwrap();
+                let ins = match cons {
+                    Immediate::AddressOf(_) => ins!(PSHI_L, *cons),
+                    Immediate::ConstAddressOf(_) => ins!(PSHI_L, *cons),
+                    Immediate::LabelOf(_) => ins!(PSHI_L, *cons),
+                    Immediate::Int(_) => ins!(PSHI, *cons),
+                    Immediate::Bool(_) => ins!(PSHI_B, *cons),
+                    Immediate::UByte(_) => ins!(PSHI_B, *cons),
+                    Immediate::Float(_) => ins!(PSHI, *cons),
+                    e => panic!("{:?}", e),
+                };
+                instrs.push(ins);
+                return cons.size_of();
             }
-            Operand::Constant(const_id) => self.const_map.get(const_id).unwrap().size_of(),
         }
     }
 
-    pub fn load_const(&self, cons: ConstID) -> BytecodeInstruction {
-        let cons = self.const_map.get(&cons).unwrap();
-        match cons {
-            Immediate::AddressOf(_) => ins!(PSHI_L, *cons),
-            Immediate::ConstAddressOf(_) => ins!(PSHI_L, *cons),
-            Immediate::LabelOf(_) => ins!(PSHI_L, *cons),
-            Immediate::Int(_) => ins!(PSHI, *cons),
-            Immediate::Bool(_) => ins!(PSHI_B, *cons),
-            Immediate::UByte(_) => ins!(PSHI_B, *cons),
-            Immediate::Float(_) => ins!(PSHI, *cons),
-            e => panic!("{:?}", e),
+    pub fn store_to_place(&self, place: &Place, instrs: &mut Vec<BytecodeInstruction>) {
+        let (mut nav, size, offset) = self.navigate_to_place(place);
+
+        if let Some(offset) = offset {
+            nav.push(ins!(
+                STR,
+                Immediate::UByte(size as u8),
+                Immediate::Long(offset)
+            ));
+
+            instrs.extend(nav);
         }
     }
 
-    pub fn place_offset(&self, place: &Place) -> Option<StackOffset> {
-        let local = self.gir.get_local(place.local);
-        let Some(stack_offset) = self.offsets.get(&place.local) else {
-            return None;
+    /// Returns a vec of instructions to navigate to the place
+    /// The size of the final value
+    /// And the offset if it exits
+    pub fn navigate_to_place(
+        &self,
+        place: &Place,
+    ) -> (Vec<BytecodeInstruction>, usize, Option<i64>) {
+        let mut instrs = Vec::new();
+
+        let projected_tyid = place.projected_tyid(&self.gir);
+
+        let Some(stack_offset) = self.offsets.get(&place.local).copied() else {
+            if let Some(Projection::Discriminant { .. }) = place.projections.last() {
+                panic!("Internal Compiler Error: Assumption that Enums have LocalKind::Internal has been broken")
+            }
+            return (
+                instrs,
+                self.ty_ctxt.global.get_size(projected_tyid).unwrap(),
+                None,
+            );
         };
-        let mut stack_offset = *stack_offset;
-        stack_offset.size = self.ty_ctxt.global.get_size(local.tyid).unwrap();
+
+        debug!("{:?} {:?}", self.offsets, stack_offset);
+
+        let mut cur_stack_offset = stack_offset;
+
+        // let mut ldr_stack = Vec::new();
+        instrs.push(ins!(PBP));
 
         let mut iter = place.projections.iter();
         while let Some(proj) = iter.next() {
@@ -378,19 +405,32 @@ impl<'a> CodeGen<'a> {
                         .get_field_offset(*ty, *vid, *fid)
                         .unwrap();
                     let size = self.ty_ctxt.global.get_size(*new_ty).unwrap();
-                    stack_offset.offset += offset as i64;
-                    stack_offset.size = size;
+                    cur_stack_offset.offset += offset as i64;
+                    cur_stack_offset.size = size;
                 }
                 Projection::Discriminant { tyid } => {
                     let TyIr::ADT(adt) = self.ty_ctxt.global.get_tyir(*tyid) else {
                         panic!()
                     };
 
-                    stack_offset.size = adt.discriminant_size().unwrap();
+                    cur_stack_offset.size = adt.discriminant_size().unwrap();
+                }
+                Projection::Deref { new_ty } => {
+                    instrs.extend(vec![
+                        // ins!(PSHR, Immediate::Long(cur_stack_offset.offset)),
+                        ins!(
+                            LDR,
+                            Immediate::UByte(8),
+                            Immediate::Long(cur_stack_offset.offset)
+                        ),
+                    ]);
+
+                    cur_stack_offset.offset = 0;
+                    cur_stack_offset.size = self.ty_ctxt.global.get_size(*new_ty).unwrap();
                 }
             }
         }
 
-        Some(stack_offset)
+        return (instrs, cur_stack_offset.size, Some(cur_stack_offset.offset));
     }
 }

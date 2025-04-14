@@ -1,0 +1,29 @@
+use bool::bool;
+use option::Option;
+
+[copy, builtin(8)]
+struct Entity;
+
+impl Entity {
+    sys new() Entity {
+        byt {
+            NENT;
+            RET;
+        }
+    }
+
+    sys destroy(self) {
+        byt {
+            LDR #8UB #self;
+            RENT;
+        }
+    }
+
+    sys has<T>(&self) bool {
+        return true;
+    }
+    
+    sys get<T>(&self) Option<&T> {
+        return Option::<&T>::None;
+    }
+}

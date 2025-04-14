@@ -2,6 +2,7 @@ use ansi_term::Colour::Red;
 use ecsl_error::ext::EcslErrorExt;
 use ecsl_error::{EcslError, ErrorLevel};
 use ecsl_index::SourceFileID;
+use log::debug;
 use std::io::Write;
 use std::sync::Arc;
 use std::{sync::RwLock, vec};
@@ -62,13 +63,14 @@ impl Diagnostics {
         }
     }
 
-    pub fn push_error(&self, error: EcslError) {
+    pub fn push_error(&self, err: EcslError) {
+        debug!("{}", err);
         self.stages
             .write()
             .unwrap()
             .last_mut()
             .unwrap()
-            .push(error.into());
+            .push(err.into());
     }
 }
 

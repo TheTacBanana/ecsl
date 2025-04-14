@@ -34,17 +34,23 @@ pub enum TyIr {
     /// Range over a numeric type
     Range(TyID, RangeType),
     /// Reference to another type
-    Ref(Mutable, TyID),
-    // Pointer to another type
-    Ptr(Mutable, TyID),
+    Ref(Mutable, FieldDef),
+    /// Pointer to another type
+    Ptr(Mutable, FieldDef),
     /// ADT types
     ADT(ADTDef),
     /// A function type
     Fn(FnDef),
+    /// Entity Type
+    Entity,
+    /// Schedule Type
+    Schedule,
+    /// Generic param which is then monomorphised
+    GenericParam(usize),
     /// A sized array type
     Array(TyID, usize),
-    ArrayRef(Mutable, TyID),
-    GenericParam(usize),
+    /// Reference to an array of type
+    ArrayRef(Mutable, FieldDef),
 }
 
 impl From<Literal> for TyIr {
@@ -79,6 +85,29 @@ impl TyIr {
             TyIr::Fn(fndef) => Some(fndef),
             _ => None,
         }
+    }
+
+    pub fn into_fmt_string(&self) -> String {
+        let s = match self {
+            TyIr::Unknown => "?",
+            TyIr::Bottom => "()",
+            TyIr::Bool => "bool",
+            TyIr::Char => "char",
+            TyIr::Int => "int",
+            TyIr::Float => "float",
+            TyIr::Str => "str",
+            TyIr::Range(tyid, range_type) => &format!("{}{}{}", tyid, range_type, tyid),
+            TyIr::Ref(mutable, tyid) => &format!("&{} {}", mutable, tyid),
+            TyIr::Ptr(mutable, tyid) => &format!("*{} {}", mutable, tyid),
+            TyIr::ADT(adtdef) => &format!("{}!", adtdef.id),
+            TyIr::Fn(_) => "fn",
+            TyIr::Array(tyid, n) => &format!("[{}:{}]", tyid, n),
+            TyIr::ArrayRef(mutable, tyid) => &format!("&{} [{}]", mutable, tyid),
+            TyIr::GenericParam(i) => &format!("T{}", i + 1),
+            TyIr::Entity => "Entity",
+            TyIr::Schedule => "Schedule",
+        };
+        s.to_string()
     }
 }
 
@@ -159,8 +188,31 @@ pub struct FieldDef {
     pub params: Vec<TyID>,
 }
 
+impl std::fmt::Display for FieldDef {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.ty)?;
+        if !self.params.is_empty() {
+            write!(f, "<")?;
+            for p in self.params.iter() {
+                write!(f, "{},", p)?;
+            }
+            write!(f, ">")?;
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum FnParent {
+    None,
+    Ref(Mutable, FieldDef),
+    Value(Mutable, FieldDef),
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct FnDef {
+    pub parent: FnParent,
+
     pub tyid: TyID,
     pub kind: FnKind,
     pub params: BTreeMap<FieldID, FieldDef>,
@@ -174,6 +226,10 @@ pub struct FnDef {
 
 impl FnDef {
     pub fn map(&mut self, mut f: impl FnMut(&mut FieldDef)) {
+        match &mut self.parent {
+            FnParent::None => (),
+            FnParent::Ref(_, field_def) | FnParent::Value(_, field_def) => f(field_def),
+        }
         for (_, field) in &mut self.params {
             f(field);
         }
@@ -195,13 +251,10 @@ impl GenericsScope {
         self.scopes.push(g);
     }
 
-    pub fn add_opt(&mut self, g: Option<ecsl_ast::ty::Generics>) -> usize {
+    pub fn add_opt(&mut self, g: Option<ecsl_ast::ty::Generics>) {
         if let Some(g) = g {
-            let len = g.params.len();
             self.scopes.push(g);
-            return len;
         }
-        return 0;
     }
 
     pub fn scope_index(&self, id: SymbolID) -> Option<usize> {
@@ -215,6 +268,16 @@ impl GenericsScope {
             }
         }
         return None;
+    }
+
+    pub fn total(&self) -> usize {
+        let mut i = 0;
+        for s in &self.scopes {
+            for _ in &s.params {
+                i += 1;
+            }
+        }
+        i
     }
 
     pub fn pop(&mut self) {

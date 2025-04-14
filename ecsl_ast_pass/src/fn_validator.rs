@@ -78,7 +78,7 @@ impl Visitor for FnValidator {
             FnCtxt::Free => {
                 for p in &f.params {
                     match &p.kind {
-                        ParamKind::SelfValue(_) | ParamKind::SelfReference(_) => Some(
+                        ParamKind::SelfValue(_, _) | ParamKind::SelfReference(_, _) => Some(
                             self.diag.push_error(
                                 EcslError::new(
                                     ErrorLevel::Error,
@@ -94,38 +94,21 @@ impl Visitor for FnValidator {
             }
             FnCtxt::Impl => {
                 let mut first = true;
-                let mut found = false;
                 for p in &f.params {
                     match (first, &p.kind) {
-                        (false, ParamKind::SelfValue(_) | ParamKind::SelfReference(_)) => {
-                            found = true;
-                            Some(
-                                self.diag.push_error(
-                                    EcslError::new(
-                                        ErrorLevel::Error,
-                                        FnValidationError::IncorrectSelfPosition,
-                                    )
-                                    .with_span(|_| f.span)
-                                    .with_note(|_| "Self can only be first parameter".to_string()),
-                                ),
-                            )
+                        (false, ParamKind::SelfValue(_, _) | ParamKind::SelfReference(_, _)) => {
+                            self.diag.push_error(
+                                EcslError::new(
+                                    ErrorLevel::Error,
+                                    FnValidationError::IncorrectSelfPosition,
+                                )
+                                .with_span(|_| f.span)
+                                .with_note(|_| "Self can only be first parameter".to_string()),
+                            );
                         }
-                        (_, ParamKind::SelfValue(_) | ParamKind::SelfReference(_)) => {
-                            found = true;
-                            None
-                        }
-                        _ => None,
+                        _ => (),
                     };
-
                     first = false;
-                }
-
-                if !found {
-                    self.diag.push_error(
-                        EcslError::new(ErrorLevel::Error, FnValidationError::NoSelfInAssocFunction)
-                            .with_span(|_| f.span)
-                            .with_note(|_| "Move out of impl block".to_string()),
-                    );
                 }
             }
         }
@@ -137,8 +120,6 @@ impl Visitor for FnValidator {
 
         // Exclude ECS Features from fn's
         let err = match (&e.kind, fn_header.kind) {
-            (ExprKind::Entity, FnKind::Fn) => Some(FnValidationError::EntityUsedInPlainFn),
-            (ExprKind::Resource, FnKind::Fn) => Some(FnValidationError::ResourceUsedInPlainFn),
             (ExprKind::Query(_), FnKind::Fn) => Some(FnValidationError::QueryUsedInPlainFn),
             (ExprKind::Schedule(_), FnKind::Fn) => Some(FnValidationError::ScheduleUsedInPlainFn),
             _ => None,
@@ -200,7 +181,7 @@ impl Visitor for FnValidator {
     fn visit_ty(&mut self, t: &Ty) -> VisitorCF {
         let fn_header = self.fn_headers.last().unwrap();
         let err = match (&t.kind, fn_header.kind) {
-            (TyKind::Entity(_), FnKind::Fn) => Some(FnValidationError::EntityUsedInPlainFn),
+            (TyKind::Entity(_, _), FnKind::Fn) => Some(FnValidationError::EntityUsedInPlainFn),
             (TyKind::Schedule, FnKind::Fn) => Some(FnValidationError::ScheduleUsedInPlainFn),
 
             _ => None,

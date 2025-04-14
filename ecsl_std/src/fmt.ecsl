@@ -4,6 +4,7 @@ use string::str;
 
 fn print(s: str) {
     byt {
+        PBP;
         LDR #8UB #s;
         PRINT_S;
     }
@@ -11,6 +12,7 @@ fn print(s: str) {
 
 fn print_int(i: int) {
     byt {
+        PBP;
         LDR #4UB #i;
         PRINT_I;
     }
@@ -18,6 +20,7 @@ fn print_int(i: int) {
 
 fn print_float(f: float) {
     byt {
+        PBP;
         LDR #4UB #f;
         PRINT_F;
     }
@@ -25,6 +28,7 @@ fn print_float(f: float) {
 
 fn print_bool(b: bool) {
     byt {
+        PBP;
         LDR #1UB #b;
         PRINT_B;
     }

@@ -2,7 +2,7 @@ use crate::Place;
 use cfgrammar::Span;
 pub use ecsl_ast::expr::{BinOpKind, UnOpKind};
 pub use ecsl_ast::ty::Mutable;
-use ecsl_index::{ConstID, LocalID, TyID};
+use ecsl_index::{ConstID, TyID};
 
 #[derive(Debug, Clone)]
 pub struct Expr {
@@ -21,7 +21,7 @@ pub enum ExprKind {
     Value(Operand),
     BinOp(BinOp, Operand, Operand),
     UnOp(UnOp, Operand),
-    Reference(Mutable, LocalID),
+    Reference(Mutable, Place),
     /// From To
     Cast(Operand, OperandKind, OperandKind),
     Call(TyID, Vec<Operand>),
@@ -35,11 +35,11 @@ impl std::fmt::Display for ExprKind {
                 write!(f, "{} {:?} {}", lhs, op, rhs)
             }
             ExprKind::UnOp(op, operand) => write!(f, "{:?} {}", op, operand),
-            ExprKind::Reference(mutable, local_id) => write!(f, "{} {}", mutable, local_id),
+            ExprKind::Reference(mutable, place) => write!(f, "&{} {}", mutable, place),
             ExprKind::Call(ty_id, operands) => {
-                write!(f, "{}(", ty_id)?;
+                write!(f, "{:?}(", ty_id)?;
                 for op in operands {
-                    write!(f, "{}", op)?;
+                    write!(f, "{}, ", op)?;
                 }
                 write!(f, ")")
             }
@@ -58,9 +58,18 @@ pub enum Operand {
 impl std::fmt::Display for Operand {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Operand::Copy(local_id) => write!(f, "{} Copied", local_id),
-            Operand::Move(local_id) => write!(f, "{} Moved", local_id),
-            Operand::Constant(const_id) => write!(f, "C{}", const_id),
+            Operand::Copy(place) => write!(f, "{} Copied", place),
+            Operand::Move(place) => write!(f, "{} Moved", place),
+            Operand::Constant(const_id) => write!(f, "{}", const_id),
+        }
+    }
+}
+
+impl Operand {
+    pub fn place_mut(&mut self) -> Option<&mut Place> {
+        match self {
+            Operand::Copy(place) | Operand::Move(place) => Some(place),
+            Operand::Constant(_) => None,
         }
     }
 }

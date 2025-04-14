@@ -40,6 +40,7 @@ impl GIRPass for ReturnPath {
                     StmtKind::BYT(bytecode_instruction) => match bytecode_instruction.op {
                         ecsl_bytecode::Opcode::HALT => continue 'outer,
                         ecsl_bytecode::Opcode::PANIC => continue 'outer,
+                        ecsl_bytecode::Opcode::RET => continue 'outer,
                         _ => (),
                     },
                     _ => (),

@@ -1,0 +1,76 @@
+use num::float;
+
+struct Vec3 {
+    x: float,
+    y: float,
+    z: float,
+}
+
+impl Vec3 {
+    fn new(x: float, y: float, z: float) Vec3 {
+        return Vec3 {
+            x: x,
+            y: y,
+            z: z,
+        };
+    }
+
+    fn zero() Vec3 {
+        return Vec3 {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        };
+    }
+
+    fn ones() Vec3 {
+        return Vec3 {
+            x: 1.0,
+            y: 1.0,
+            z: 1.0,
+        };
+    }
+
+    fn unit_x() Vec3 {
+        return Vec3 {
+            x: 1.0,
+            y: 0.0,
+            z: 0.0
+        };
+    }
+
+    fn unit_y() Vec3 {
+        return Vec3 {
+            x: 0.0,
+            y: 1.0,
+            z: 0.0
+        };
+    }
+
+    fn unit_z() Vec3 {
+        return Vec3 {
+            x: 0.0,
+            y: 0.0,
+            z: 1.0
+        };
+    }
+
+    fn length(&self) float {
+        return (self.x * self.x +
+                self.y * self.y +
+                self.z * self.z).sqrt();
+    }
+
+    fn normalize(&self) {
+        let l = self.length();
+        self.x = self.x / l;
+        self.y = self.y / l;
+        self.z = self.z / l;
+    }
+
+    fn dot(&self, rhs: &Vec3) float {
+        return (self.x * rhs.x +
+                self.y * rhs.y +
+                self.z * rhs.z);
+    }
+}

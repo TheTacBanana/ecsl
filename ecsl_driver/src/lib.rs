@@ -33,7 +33,9 @@ impl Driver {
         diag.finish_stage(|_| ())?;
 
         if path.is_ok() {
-            info!("Compilation took {:?}", start_time.elapsed());
+            info!("Finished in {:?}", start_time.elapsed());
+        } else {
+            info!("Exited in {:?}", start_time.elapsed());
         }
 
         Ok(path?)
@@ -133,7 +135,7 @@ impl Driver {
 
                 Some((diag, ast, table, local_ctxt))
             },
-            || Ok(()),
+            || diag.finish_stage(finish_stage),
         )?;
 
         // Verify imports
@@ -167,13 +169,6 @@ impl Driver {
         let assoc = (&context, assoc).par_map_assoc(
             |_, _, (diag, ast, table, local_ctxt)| {
                 generate_definition_tyir(local_ctxt.clone());
-                Some((diag, ast, table, local_ctxt))
-            },
-            || diag.finish_stage(finish_stage),
-        )?;
-        let assoc = (&context, assoc).par_map_assoc(
-            |_, _, (diag, ast, table, local_ctxt)| {
-                validate_field_generics(local_ctxt.clone());
                 Some((diag, ast, table, local_ctxt))
             },
             || diag.finish_stage(finish_stage),
@@ -248,6 +243,7 @@ impl Driver {
             || diag.finish_stage(finish_stage),
         )?;
         function_graph.prune_unused(entry_point.0);
+        function_graph.find_sys_calls(&ty_ctxt);
 
         debug!("Prune unused functions");
         let assoc = (&context, assoc).par_map_assoc(

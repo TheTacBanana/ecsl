@@ -1,5 +1,126 @@
+use bool::bool;
+use panic::panic;
+
+// Builtin 32 Bit Signed Integer Type
 [copy, builtin(4), allow_casing]
 struct int;
 
+impl int {
+    // Get minimum value for int
+    fn min() int {
+        return -2147483648;
+    }
+
+    // Get maximum value for int
+    fn max() int {
+        return 2147483647;
+    }
+
+    // Get the absolute value
+    fn abs(self) int {
+        if (self < 0) {
+            return -self;
+        }
+        return self;
+    }
+
+    // Test if positive
+    fn positive(self) bool {
+        if (self > 0) {
+            return true;
+        }
+        return false;
+    }
+
+    // Test if negative
+    fn negative(self) bool {
+        if (self < 0) {
+            return true;
+        }
+        return false;
+    }
+}
+
+// Builtin 32 Bit Floating Point Type
 [copy, builtin(4), allow_casing]
 struct float;
+
+impl float {
+    // Get the absoloute
+    fn abs(self) float {
+        if (self < 0.0) {
+            return -self;
+        } else {
+            return self;
+        }
+    }
+
+    // Test if positive
+    fn positive(self) bool {
+        if (self > 0.0) {
+            return true;
+        }
+        return false;
+    }
+
+    // Test if negative
+    fn negative(self) bool {
+        if (self < 0.0) {
+            return true;
+        }
+        return false;
+    }
+
+    // Newton-raphson approximation of a square root
+    fn sqrt(self) float {
+        // Short circuit for panic or less than 0
+        if (self < 0.0) {
+            panic();
+        }
+        if (self == 0.0) {
+            return 0.0;
+        }
+
+        let guess = self / 2.0;
+        let tolerance = float->epsilon();
+        for (i in 0..100) {
+            let nextGuess = 0.5 * (guess + self / guess);
+            if ((nextGuess - guess).abs() < tolerance) {
+                return nextGuess;
+            }
+            guess = nextGuess;
+        }
+
+        panic();
+    }
+
+    // Epsilon value for floating point approximations
+    fn epsilon() float {
+        return 0.0000000001;
+    }
+
+    // Get NaN value
+    fn nan() float {
+        return 0.0 / 0.0;
+    }
+
+    // Test if value is NaN
+    fn is_nan(self) bool {
+        return self != self;
+    }
+
+    // Get +inf value
+    fn inf() float {
+        return 1.0 / 0.0;
+    }
+
+    // Get -inf value
+    fn neg_inf() float {
+        return -1.0 / 0.0;
+    }
+
+    // Test if value is +/- inf
+    fn is_inf(self) bool {
+        return (self == 1.0 / 0.0) || (self == -1.0 / 0.0);
+    }
+}

@@ -7,6 +7,7 @@
 %avoid_insert 'ENTITY'
 %avoid_insert 'QUERY'
 %avoid_insert 'RESOURCE'
+%avoid_insert 'SCHEDULE'
 %avoid_insert 'SELF'
 
 %epp 'USE' 'use'
@@ -90,6 +91,7 @@
 
 %parse-param table: Rc<RefCell<PartialSymbolTable>>
 
+%left 'PATH'
 %right 'ASSIGN'
 %left 'DOTDOT' 'DOTDOTEQ'
 %left 'OR'
@@ -134,6 +136,16 @@ Item -> Result<Item, ()>:
         }))))
     }
     | FnDef { Ok(Item::new($span, ItemKind::Fn(P::new($1?)))) }
+    | Attributes 'STRUCT' Component 'ENTITY' Generics FieldDefs {
+        Ok(Item::new($span, ItemKind::Struct(P::new(StructDef {
+            span: $4.map_err(|_| ())?.span(),
+            kind: $3?,
+            ident: table.definition($4.map_err(|_| ())?.span(), SymbolKind::Struct($3?)),
+            attributes: $1?,
+            generics: $5?,
+            fields: $6?,
+        }))))
+    }
     | Attributes 'STRUCT' Component 'IDENT' Generics FieldDefs {
         Ok(Item::new($span, ItemKind::Struct(P::new(StructDef {
             span: $4.map_err(|_| ())?.span(),
@@ -210,10 +222,10 @@ ArgList -> Result<Vec<Param>, ()>:
 
 Arg -> Result<Param, ()>:
     RefMutability 'SELF' {
-        Ok(Param::new($span,ParamKind::SelfValue($1?)))
+        Ok(Param::new($span,ParamKind::SelfValue($1?, table.usage($2.map_err(|_| ())?.span(), SymbolKind::Local))))
     }
     | 'AMPERSAND' RefMutability 'SELF' {
-        Ok(Param::new($span,ParamKind::SelfReference($2?)))
+        Ok(Param::new($span,ParamKind::SelfReference($2?, table.usage($3.map_err(|_| ())?.span(), SymbolKind::Local))))
     }
     | RefMutability 'IDENT' 'COLON' Ty {
         Ok(Param::new($span, ParamKind::Normal(
@@ -475,6 +487,12 @@ UsePath -> Result<UsePath, ()>:
             table.definition($1.map_err(|_| ())?.span(), SymbolKind::ImportItem),
         ))
     }
+    | 'ENTITY' {
+        Ok(UsePath::Item(
+            $span,
+            table.definition($1.map_err(|_| ())?.span(), SymbolKind::ImportItem),
+        ))
+    }
     | 'SUPER' 'PATH' UsePath {
         Ok(UsePath::Super(
             $1.map_err(|_| ())?.span(),
@@ -519,7 +537,7 @@ Ty -> Result<Ty, ()>:
         ), ConcreteGenerics::empty($span)))
     }
     | EntityTy {
-        Ok(Ty::new($span, TyKind::Entity($1?), ConcreteGenerics::empty($span)))
+        Ok(Ty::new($span, TyKind::Entity(table.create_entry("Entity".to_string()), $1?), ConcreteGenerics::empty($span)))
     }
     | 'SCHEDULE' {
         Ok(Ty::new($span, TyKind::Schedule, ConcreteGenerics::empty($span)))
@@ -686,6 +704,11 @@ ImmediateList -> Result<Vec<Immediate>, ()>:
 
 Immediate -> Result<Immediate, ()>:
     'HASH' 'IDENT' {
+        Ok(Immediate::SymbolOf(
+            table.usage($2.map_err(|_| ())?.span(), SymbolKind::Local)
+        ))
+    }
+    | 'HASH' 'SELF' {
         Ok(Immediate::SymbolOf(
             table.usage($2.map_err(|_| ())?.span(), SymbolKind::Local)
         ))
@@ -865,7 +888,7 @@ Expr -> Result<Expr, ()>:
     }
     | Expr 'NOTEQ' Expr {
         Ok(Expr::new($span, ExprKind::BinOp(
-            BinOpKind::Eq,
+            BinOpKind::Neq,
             P::new($1?),
             P::new($3?),
         )))
@@ -950,13 +973,36 @@ Expr -> Result<Expr, ()>:
             P::new($3?),
         )))
     }
-
     | 'IDENT' FnConcreteGenerics FnArgExpr {
         Ok(Expr::new($span, ExprKind::Function(
             None,
             $2?,
             table.usage($1.map_err(|_| ())?.span(), SymbolKind::FunctionUsage),
             $3?,
+        )))
+    }
+    | 'IDENT' 'ARROW' 'IDENT' FnConcreteGenerics FnArgExpr {
+        Ok(Expr::new($span, ExprKind::StaticFunction(
+            table.usage($1.map_err(|_| ())?.span(), SymbolKind::FunctionUsage),
+            table.usage($3.map_err(|_| ())?.span(), SymbolKind::FunctionUsage),
+            $4?,
+            $5?,
+        )))
+    }
+    | 'ENTITY' 'ARROW' 'IDENT' FnConcreteGenerics FnArgExpr {
+        Ok(Expr::new($span, ExprKind::StaticFunction(
+            table.usage($1.map_err(|_| ())?.span(), SymbolKind::FunctionUsage),
+            table.usage($3.map_err(|_| ())?.span(), SymbolKind::FunctionUsage),
+            $4?,
+            $5?,
+        )))
+    }
+    | 'RESOURCE' 'ARROW' 'IDENT' FnConcreteGenerics FnArgExpr {
+        Ok(Expr::new($span, ExprKind::StaticFunction(
+            table.usage($1.map_err(|_| ())?.span(), SymbolKind::FunctionUsage),
+            table.usage($3.map_err(|_| ())?.span(), SymbolKind::FunctionUsage),
+            $4?,
+            $5?,
         )))
     }
     | Expr 'DOT' 'IDENT' FnConcreteGenerics FnArgExpr {
@@ -984,13 +1030,6 @@ Expr -> Result<Expr, ()>:
                 )
             ),
         )))
-    }
-
-    | 'ENTITY' {
-        Ok(Expr::new($span, ExprKind::Entity))
-    }
-    | 'RESOURCE' {
-        Ok(Expr::new($span, ExprKind::Entity))
     }
     | 'SCHEDULE' ScheduleExpr {
         Ok(Expr::new($span, ExprKind::Schedule(P::new($2?))))
@@ -1052,7 +1091,7 @@ Expr -> Result<Expr, ()>:
     | 'SELF' {
         Ok(Expr::new(
             $span,
-            ExprKind::MethodSelf
+            ExprKind::MethodSelf(table.usage($1.map_err(|_| ())?.span(), SymbolKind::Local))
         ))
     }
     | Literal { Ok($1?) }

@@ -1,10 +1,9 @@
-use std::collections::BTreeMap;
-
 use cfgrammar::Span;
 use cons::Constant;
-use ecsl_ast::ty::Mutable;
-use ecsl_index::{BlockID, ConstID, FieldID, LocalID, TyID, VariantID};
+use ecsl_ast::{parse::FnKind, ty::Mutable};
+use ecsl_index::{BlockID, ConstID, FieldID, LocalID, SourceFileID, TyID, VariantID};
 use petgraph::prelude::DiGraphMap;
+use std::collections::BTreeMap;
 use stmt::Stmt;
 use term::Terminator;
 
@@ -21,6 +20,8 @@ pub type P<T> = Box<T>;
 pub struct GIR {
     pub span: Span,
     pub fn_id: TyID,
+    pub fid: SourceFileID,
+    pub fn_kind: FnKind,
     locals: BTreeMap<LocalID, Local>,
     consts: BTreeMap<ConstID, Constant>,
     blocks: BTreeMap<BlockID, Block>,
@@ -50,10 +51,12 @@ impl std::fmt::Display for GIR {
 }
 
 impl GIR {
-    pub fn new(fn_id: TyID, span: Span) -> Self {
+    pub fn new(fn_id: TyID, fn_kind: FnKind, fid: SourceFileID, span: Span) -> Self {
         Self {
             span,
             fn_id,
+            fn_kind,
+            fid,
             locals: Default::default(),
             consts: Default::default(),
             blocks: Default::default(),
@@ -142,7 +145,7 @@ pub struct Block {
 
 impl std::fmt::Display for Block {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "Block {}:", self.id)?;
+        writeln!(f, "{}:", self.id)?;
         for s in &self.stmts {
             writeln!(f, "\t{}", s)?;
         }
@@ -184,6 +187,10 @@ impl Block {
 
     pub fn empty(&self) -> bool {
         self.stmts.is_empty() && self.term.is_none()
+    }
+
+    pub fn len(&self) -> usize {
+        self.stmts.len()
     }
 
     pub fn stmts(&self) -> impl Iterator<Item = &Stmt> {
@@ -231,6 +238,18 @@ pub enum LocalKind {
 }
 
 impl LocalKind {
+    pub fn promote_to_let(&mut self) -> bool {
+        match self {
+            LocalKind::Temp | LocalKind::Internal => {
+                *self = LocalKind::Let;
+                true
+            }
+            _ => false,
+        }
+    }
+
+    /// Promote a local kind to a new kind if it is temp
+    /// Return true if anything happened
     pub fn promote_from_temp(&mut self, kind: LocalKind) -> bool {
         match self {
             LocalKind::Temp => {
@@ -238,6 +257,17 @@ impl LocalKind {
                 true
             }
             _ => false,
+        }
+    }
+
+    /// Tests wether a local kind can be referenced
+    pub fn can_reference(&self) -> bool {
+        match self {
+            LocalKind::Arg => true,
+            LocalKind::Let => true,
+            LocalKind::Internal => true,
+            LocalKind::Temp => false, // TODO: Promotion of const literals
+            LocalKind::Ret => false,
         }
     }
 }
@@ -295,6 +325,7 @@ impl Place {
             match proj {
                 Projection::Field { new_ty, .. } => tyid = *new_ty,
                 Projection::Discriminant { .. } => (),
+                Projection::Deref { new_ty } => tyid = *new_ty,
             }
         }
         return tyid;
@@ -308,6 +339,7 @@ impl Place {
                     f(new_ty);
                 }
                 Projection::Discriminant { tyid } => f(tyid),
+                Projection::Deref { new_ty } => f(new_ty),
             }
         }
     }
@@ -324,10 +356,31 @@ pub enum Projection {
     Discriminant {
         tyid: TyID,
     },
+    Deref {
+        new_ty: TyID,
+    },
 }
 
 impl std::fmt::Display for Place {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}{:?}", self.local, self.projections)
+        write!(f, "{}", self.local)?;
+        if !self.projections.is_empty() {
+            // write!(f, "[")?;
+            for proj in self.projections.iter() {
+                write!(f, "{}", proj)?;
+            }
+            // write!(f, "]")?;
+        }
+        Ok(())
+    }
+}
+
+impl std::fmt::Display for Projection {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Projection::Field { fid, .. } => write!(f, ".{}", fid.inner()),
+            Projection::Discriminant { .. } => write!(f, "Disc"),
+            Projection::Deref { .. } => write!(f, "*"),
+        }
     }
 }

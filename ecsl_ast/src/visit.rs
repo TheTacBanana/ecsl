@@ -310,6 +310,12 @@ pub fn walk_expr<V: Visitor>(v: &mut V, expr: &Expr) -> VisitorCF {
             visit!(v.visit_ty(t));
         }
         ExprKind::Field(e, _) => visit!(v.visit_expr(e)),
+        ExprKind::StaticFunction(_, _, cg, args) => {
+            visit!(v.visit_concrete_generics(cg));
+            for e in args {
+                visit!(v.visit_expr(e))
+            }
+        }
         ExprKind::Function(e, cg, _, args) => {
             if let Some(e) = e {
                 visit!(v.visit_expr(e));
@@ -321,12 +327,7 @@ pub fn walk_expr<V: Visitor>(v: &mut V, expr: &Expr) -> VisitorCF {
         }
         ExprKind::Query(q) => visit!(v.visit_query(q)),
         ExprKind::Schedule(s) => visit!(v.visit_schedule(s)),
-
-        ExprKind::Lit(_)
-        | ExprKind::Ident(_)
-        | ExprKind::MethodSelf
-        | ExprKind::Entity
-        | ExprKind::Resource => (),
+        ExprKind::Lit(_) | ExprKind::Ident(_) | ExprKind::MethodSelf(_) => (),
     }
     VisitorCF::Continue
 }
@@ -339,7 +340,7 @@ pub fn walk_ty<V: Visitor>(v: &mut V, typ: &Ty) -> VisitorCF {
         TyKind::ArrayRef(_, ty) => visit!(v.visit_ty(ty)),
         TyKind::Ref(_, ty) => visit!(v.visit_ty(ty)),
         TyKind::Ptr(_, ty) => visit!(v.visit_ty(ty)),
-        TyKind::Entity(ty) => {
+        TyKind::Entity(_, ty) => {
             for attr in &ty.bounds {
                 visit!(v.visit_ty(&attr.ty))
             }

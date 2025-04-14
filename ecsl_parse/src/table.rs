@@ -81,11 +81,7 @@ impl<'a, 'b> PartialSymbolTable<'a, 'b> {
             Entry::Vacant(e) => {
                 symbol_id = SymbolID::new(self.symbols.len());
                 e.insert(symbol_id);
-                self.symbols.push(Symbol {
-                    name: name,
-                    // definitions: Vec::new(),
-                    // usages: Vec::new(),
-                });
+                self.symbols.push(Symbol { name });
             }
             Entry::Occupied(e) => {
                 symbol_id = *e.get();

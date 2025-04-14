@@ -60,13 +60,27 @@ impl Param {
     pub fn new(span: Span, kind: ParamKind) -> Self {
         Self { span, kind }
     }
+
+    pub fn symbol(&self) -> SymbolID {
+        self.kind.symbol()
+    }
 }
 
 #[derive(Debug, Clone, AST)]
 pub enum ParamKind {
-    SelfValue(Mutable),
-    SelfReference(Mutable),
+    SelfValue(Mutable, SymbolID),
+    SelfReference(Mutable, SymbolID),
     Normal(Mutable, SymbolID, P<Ty>), //TODO: Find a better name
+}
+
+impl ParamKind {
+    pub fn symbol(&self) -> SymbolID {
+        match self {
+            ParamKind::SelfValue(_, symbol_id)
+            | ParamKind::SelfReference(_, symbol_id)
+            | ParamKind::Normal(_, symbol_id, _) => *symbol_id,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

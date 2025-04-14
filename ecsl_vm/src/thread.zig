@@ -116,27 +116,28 @@ pub const ProgramThread = struct {
 
     pub inline fn next_opcode(self: *ProgramThread) u8 {
         const op_byte = self.vm_ptr.binary[self.pc];
+        // std.log.debug("PC {} Op {}", .{ self.pc, @as(Opcode, @enumFromInt(op_byte)) });
         self.pc += 1;
         return op_byte;
-        // const op = try Opcode.from_byte(op_byte);
-        // std.log.debug("{} {}", .{ self.pc, op });
     }
 
     pub inline fn get_bp(self: *ProgramThread) u64 {
-        return self.call_stack[self.call_stack_index].?.stack_frame_base;
+        return self.vm_ptr.binary.len + self.call_stack[self.call_stack_index].?.stack_frame_base;
     }
 
-    pub inline fn offset_from_bp(self: *ProgramThread, offset: i64) u64 {
-        const bp: i64 = @intCast(self.get_bp());
-        return @intCast(bp + offset); // This might fail if your stack is 8192 Petabytes Big
-    }
+    // pub inline fn offset_from_bp(self: *ProgramThread, offset: i64) u64 {
+    //     const bp: i64 = @intCast(self.get_bp());
+    //     return @intCast(bp + offset); // This might fail if your stack is 8192 Petabytes Big
+    // }
 
     pub fn next_immediate(self: *ProgramThread, comptime T: type) *align(1) const T {
         const temp_pc = self.pc;
         self.pc += @sizeOf(T);
 
-        // std.log.debug("Imm {}", .{val});
-        return @ptrCast(&self.vm_ptr.binary[temp_pc]);
+        const val: *align(1) const T = @ptrCast(&self.vm_ptr.binary[temp_pc]);
+
+        // std.log.debug("Imm {}", .{val.*});
+        return val;
     }
 
     // Push comptime type to stack
@@ -154,6 +155,21 @@ pub const ProgramThread = struct {
 
         self.sp = new_sp;
     }
+
+    // pub fn push_stack_from_ptr(self: *ProgramThread, ptr: *u8, size: u8) ProgramError!void {
+    //     // Guard against stack overflow
+    //     const new_sp = self.sp + size;
+
+    //     if (new_sp >= self.stack.len) {
+    //         return error.StackOverflow;
+    //     }
+
+    //     const stack_slice = self.stack[self.sp..][0..size];
+    //     const cast_ptr: [*]u8 = @ptrCast(ptr);
+    //     @memcpy(stack_slice, cast_ptr);
+
+    //     self.sp = new_sp;
+    // }
 
     pub fn pop_pair(self: *ProgramThread, comptime T: type) ProgramPanic!struct { l: T, r: T } {
         const r = try self.pop_stack(T);
@@ -173,48 +189,45 @@ pub const ProgramThread = struct {
         // Get slice of stack
         const stack_slice = &self.stack[self.sp];
 
-        //TODO:
-        // if (build_options.zero_memory) {
-        //     @memset(stack_slice, 0);
-        // }
-
-        return @ptrCast(stack_slice);
+        const out: *align(1) T = @ptrCast(stack_slice);
+        // std.log.debug("POP {d}", .{out.*});
+        return out;
     }
 
-    // Read type of comptime size from stack
-    pub fn read_stack(self: *ProgramThread, comptime T: type) T {
-        // Pointer to bottom of value
-        const temp_sp = self.sp - @sizeOf(T);
-        // Get slice of stack
-        const stack_slice = self.stack[temp_sp..][0..@sizeOf(T)];
-        // Create copy destination
-        var val = [_]u8{0} ** @sizeOf(T);
-        // Copy slice
-        @memcpy(&val, stack_slice);
-        // Cast value
-        return @bitCast(val);
-    }
+    // // Read type of comptime size from stack
+    // pub fn read_stack(self: *ProgramThread, comptime T: type) T {
+    //     // Pointer to bottom of value
+    //     const temp_sp = self.sp - @sizeOf(T);
+    //     // Get slice of stack
+    //     const stack_slice = self.stack[temp_sp..][0..@sizeOf(T)];
+    //     // Create copy destination
+    //     var val = [_]u8{0} ** @sizeOf(T);
+    //     // Copy slice
+    //     @memcpy(&val, stack_slice);
+    //     // Cast value
+    //     return @bitCast(val);
+    // }
 
-    // Read type of comptime size from stack
-    pub fn read_stack_at_offset(self: *ProgramThread, comptime T: type, offset: i64) *align(1) T {
-        // Get slice of stack
-        const stack_slice = &self.stack[self.offset_from_bp(offset)];
+    // // Read type of comptime size from stack
+    // pub fn read_stack_at_offset(self: *ProgramThread, comptime T: type, offset: i64) *align(1) T {
+    //     // Get slice of stack
+    //     const stack_slice = &self.stack[self.offset_from_bp(offset)];
 
-        // Cast value
-        return @ptrCast(stack_slice);
-    }
+    //     // Cast value
+    //     return @ptrCast(stack_slice);
+    // }
 
-    pub fn write_stack_at_offset(self: *ProgramThread, comptime T: type, val: T, offset: i64) ProgramError!void {
-        // Guard against stack overflow
-        const temp_sp = self.offset_from_bp(offset);
-        if (temp_sp >= self.stack.len) {
-            return error.StackOverflow;
-        }
+    // pub fn write_stack_at_offset(self: *ProgramThread, comptime T: type, val: T, offset: i64) ProgramError!void {
+    //     // Guard against stack overflow
+    //     const temp_sp = self.offset_from_bp(offset);
+    //     if (temp_sp >= self.stack.len) {
+    //         return error.StackOverflow;
+    //     }
 
-        const bytes: [@sizeOf(T)]u8 = @bitCast(val);
-        const stack_slice = self.stack[temp_sp..][0..@sizeOf(T)];
-        @memcpy(stack_slice, &bytes);
-    }
+    //     const bytes: [@sizeOf(T)]u8 = @bitCast(val);
+    //     const stack_slice = self.stack[temp_sp..][0..@sizeOf(T)];
+    //     @memcpy(stack_slice, &bytes);
+    // }
 
     pub inline fn clear_stack(self: *ProgramThread, new_sp: u64) void {
         // Ensure valid clear
@@ -237,6 +250,7 @@ pub const ProgramThread = struct {
         self: *ProgramThread,
         address: u64,
     ) ProgramError!*u8 {
+        // std.log.debug("Ptr to {d}", .{address});
         const binary_len = self.vm_ptr.binary.len;
         if (address < binary_len) {
             return &self.vm_ptr.binary[address];
@@ -246,6 +260,7 @@ pub const ProgramThread = struct {
             return error.InvalidPointer;
         }
     }
+
     pub fn execute_from_address(self: *ProgramThread, from: u64) ProgramStatus {
         self.pc = from;
 

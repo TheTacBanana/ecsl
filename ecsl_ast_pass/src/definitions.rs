@@ -4,8 +4,8 @@ use ecsl_ast::{
     parse::FnDef,
     visit::{walk_item, FnCtxt, Visitor, VisitorCF},
 };
+use ecsl_error::{ext::EcslErrorExt, EcslError, ErrorLevel};
 use ecsl_ty::{def::Definition, local::LocalTyCtxt};
-use log::debug;
 use std::sync::Arc;
 
 pub struct TypeDefCollector {
@@ -48,23 +48,21 @@ impl Visitor for TypeDefCollector {
         VisitorCF::Continue
     }
 
-    fn visit_impl(&mut self, _i: &ImplBlock) -> VisitorCF {
-        debug!("TODO: Store Impl Blocks");
-        // match i.ty.kind {
-        //     TyKind::Ident(symbol_id, concrete_generics) => todo!(),
-        //     TyKind::Array(ty, span) => todo!(),
-        //     TyKind::ArrayRef(mutable, ty) => todo!(),
-        //     TyKind::Ref(mutable, ty) => todo!(),
-        //     TyKind::Ptr(mutable, ty) => todo!(),
-        //     TyKind::Entity(entity_ty) => todo!(),
-        //     TyKind::Query => todo!(),
-        //     TyKind::System => todo!(),
-        //     TyKind::Schedule => todo!(),
-        // }
+    fn visit_impl(&mut self, i: &ImplBlock) -> VisitorCF {
+        if i.ty.into_scope().is_none() {
+            self.ty_ctxt.diag.push_error(
+                EcslError::new(ErrorLevel::Error, "Cannot impl for Type").with_span(|_| i.ty.span),
+            );
+            return VisitorCF::Continue;
+        }
 
-        // for f in &i.fn_defs {
-        // println!("{:?}", f)
-        // }
+        for f in &i.fn_defs {
+            self.ty_ctxt.define_symbol(Definition::AssocFunction(
+                i.generics.clone(),
+                i.ty.clone(),
+                f.clone(),
+            ));
+        }
         VisitorCF::Continue
     }
 }

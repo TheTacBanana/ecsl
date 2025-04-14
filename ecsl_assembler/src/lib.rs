@@ -174,7 +174,10 @@ impl Assembler<Executable> {
                         Immediate::AddressOf(ty_id) => {
                             *op = Immediate::ULong(
                                 start_pos
-                                    + *function_offsets.get(&ty_id).expect(&format!("{:?}", ty_id)),
+                                    + *function_offsets.get(&ty_id).expect(&format!(
+                                        "Internal Compiler Error: Function {:?} not found",
+                                        entry_point
+                                    )),
                             )
                         }
                         Immediate::LabelOf(block_id) => {
@@ -229,7 +232,11 @@ impl Assembler<Executable> {
             address: start_pos,
         });
 
-        let entry_point = start_pos + function_offsets.get(&entry_point).unwrap();
+        let entry_point = start_pos
+            + function_offsets.get(&entry_point).expect(&format!(
+                "Internal Compiler Error: Entry point {:?} not found",
+                entry_point
+            ));
 
         self.file.seek(SeekFrom::Start(0x10))?;
         self.file.write(&entry_point.to_be_bytes())?;

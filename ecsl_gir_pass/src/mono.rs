@@ -8,6 +8,7 @@ use ecsl_gir::{
 };
 use ecsl_index::{LocalID, TyID};
 use ecsl_ty::{local::LocalTyCtxt, TyIr};
+use log::debug;
 use std::{collections::BTreeMap, sync::Arc};
 
 pub fn monomorphize(linker: &mut FunctionLinker, ctxt: &Arc<LocalTyCtxt>) {
@@ -17,6 +18,8 @@ pub fn monomorphize(linker: &mut FunctionLinker, ctxt: &Arc<LocalTyCtxt>) {
 
         for (v, generics) in variants {
             let mut new_gir = gir.clone();
+
+            debug!("{}", new_gir);
 
             let mapping = generics
                 .iter()
@@ -40,21 +43,43 @@ pub struct MonomorphizeFn<'a> {
 
 impl<'a> MonomorphizeFn<'a> {
     pub fn replace_tyid(&self, tyid: &mut TyID, span: Span) {
-        let mono = self.ctxt.global.monos.mono_map.read().unwrap();
-        if let Some((_, params)) = mono.get_by_right(tyid) {
-            let params = params
-                .clone()
-                .drain(..)
-                .map(|ty| {
-                    let mut ty = ty;
-                    self.replace_tyid(&mut ty, span);
-                    ty
-                })
-                .collect();
+        {
+            let params = {
+                self.ctxt
+                    .global
+                    .monos
+                    .mono_map
+                    .read()
+                    .unwrap()
+                    .get_by_right(tyid)
+                    .cloned()
+            };
 
-            *tyid = self.ctxt.get_mono_variant(*tyid, &params, span).unwrap();
-        } else {
-            *tyid = self.mapping.get(&tyid).cloned().unwrap_or(*tyid);
+            if let Some((_, params)) = params {
+                let params = params
+                    .clone()
+                    .drain(..)
+                    .map(|ty| {
+                        let mut ty = ty;
+                        self.replace_tyid(&mut ty, span);
+                        ty
+                    })
+                    .collect::<Vec<_>>();
+
+                *tyid = self.ctxt.get_mono_variant(*tyid, &params, span).unwrap();
+                return;
+            }
+        }
+        {
+            let mut tyir = self.ctxt.global.get_tyir(*tyid);
+            *tyid = match &mut tyir {
+                TyIr::Ref(_, field_def) => {
+                    self.replace_tyid(&mut field_def.ty, span);
+                    self.ctxt.global.tyid_from_tyir(tyir)
+                }
+                _ => self.mapping.get(&tyid).cloned().unwrap_or(*tyid),
+            };
+            return;
         }
     }
 }
