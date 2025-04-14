@@ -1,6 +1,7 @@
 use ecsl_gir::GIR;
 
 pub mod block_order;
+pub mod comp_ids;
 pub mod const_eval;
 pub mod dead_block;
 pub mod function_graph;

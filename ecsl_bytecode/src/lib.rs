@@ -61,6 +61,7 @@ pub enum Immediate {
     Bool(bool),
     UByte(u8),
 
+    UInt(u32),
     Int(i32),
     Float(f32),
 
@@ -78,6 +79,7 @@ impl Immediate {
             Immediate::ConstAddressOf(_) => 8,
             Immediate::Bool(_) => 1,
             Immediate::UByte(_) => 1,
+            Immediate::UInt(_) => 4,
             Immediate::Int(_) => 4,
             Immediate::Float(_) => 4,
             Immediate::Long(_) => 8,
@@ -101,6 +103,7 @@ impl Immediate {
     pub fn to_u32(self) -> Option<u32> {
         unsafe {
             match self {
+                Immediate::UInt(v) => Some(v),
                 Immediate::Int(v) => Some(std::mem::transmute(v)),
                 Immediate::Float(v) => Some(std::mem::transmute(v)),
                 _ => None,

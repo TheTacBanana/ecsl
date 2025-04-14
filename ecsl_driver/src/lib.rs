@@ -7,6 +7,7 @@ use ecsl_diagnostics::{Diagnostics, DiagnosticsExt};
 use ecsl_error::{ext::EcslErrorExt, EcslError};
 use ecsl_gir_pass::{
     block_order::BlockOrder,
+    comp_ids::ComponentDefinitions,
     const_eval::ConstEval,
     dead_block::DeadBlocks,
     function_graph::{FunctionDependencies, FunctionGraph},
@@ -256,6 +257,20 @@ impl Driver {
             || diag.finish_stage(finish_stage),
         )?;
 
+        let comp_defs = Arc::new(ComponentDefinitions::new(ty_ctxt.clone()));
+        let assoc = (&context, assoc).par_map_assoc(
+            |_, _, (diag, ast, table, local_ctxt, linker)| {
+                for (_, gir) in linker.fn_gir.iter() {
+                    for c in gir.components() {
+                        comp_defs.add_component(*c);
+                    }
+                }
+                Some((diag, ast, table, local_ctxt, linker))
+            },
+            || diag.finish_stage(finish_stage),
+        )?;
+
+        info!("Assembling");
         let root_config = context.config().root_config();
         let assembler = Assembler::new(
             root_config.name().to_string(),
@@ -282,8 +297,8 @@ impl Driver {
             |_, _, (local_ctxt, mut linker, gir_consts)| {
                 for (id, gir) in linker.fn_gir.iter_mut() {
                     let consts = gir_consts.get(id).unwrap();
-                    let bytecode = CodeGen::apply_pass(gir, (local_ctxt.clone(), consts));
-                    debug!("{}", gir);
+                    let bytecode =
+                        CodeGen::apply_pass(gir, (local_ctxt.clone(), comp_defs.clone(), consts));
 
                     assembler.include_function(bytecode);
                 }

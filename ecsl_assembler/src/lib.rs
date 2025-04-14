@@ -30,6 +30,7 @@ pub struct Assembler<T> {
 
 pub struct Pre;
 pub struct ConstData;
+pub struct ComponentData;
 pub struct Executable;
 pub struct Out;
 

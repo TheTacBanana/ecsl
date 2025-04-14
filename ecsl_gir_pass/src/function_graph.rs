@@ -114,7 +114,6 @@ impl GIRPass for FunctionDependencies {
             depends: Vec::new(),
         };
         s.visit_gir(gir);
-        debug!("{:?}", s);
         fn_graph.add_dependencies(s);
     }
 }

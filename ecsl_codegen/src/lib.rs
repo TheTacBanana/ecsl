@@ -7,7 +7,7 @@ use ecsl_gir::{
     term::{SwitchCase, TerminatorKind},
     LocalKind, Place, Projection, GIR,
 };
-use ecsl_gir_pass::{const_eval::ConstMap, GIRPass};
+use ecsl_gir_pass::{comp_ids::ComponentDefinitions, const_eval::ConstMap, GIRPass};
 use ecsl_index::{BlockID, LocalID};
 use ecsl_ty::{local::LocalTyCtxt, TyIr};
 use log::debug;
@@ -16,6 +16,7 @@ use std::{collections::BTreeMap, sync::Arc};
 
 pub struct CodeGen<'a> {
     pub ty_ctxt: Arc<LocalTyCtxt>,
+    pub components: Arc<ComponentDefinitions>,
     pub offsets: BTreeMap<LocalID, StackOffset>,
     pub blocks: BTreeMap<BlockID, Vec<BytecodeInstruction>>,
     pub const_map: &'a ConstMap,
@@ -29,15 +30,16 @@ pub struct StackOffset {
 }
 
 impl<'b> GIRPass for CodeGen<'b> {
-    type PassInput<'a> = (Arc<LocalTyCtxt>, &'a ConstMap);
+    type PassInput<'a> = (Arc<LocalTyCtxt>, Arc<ComponentDefinitions>, &'a ConstMap);
     type PassResult = FunctionBytecode;
 
     fn apply_pass<'a>(
         gir: &mut GIR,
-        (ty_ctxt, const_map): Self::PassInput<'a>,
+        (ty_ctxt, components, const_map): Self::PassInput<'a>,
     ) -> Self::PassResult {
         let mut c = CodeGen {
             ty_ctxt,
+            components,
             offsets: Default::default(),
             blocks: Default::default(),
             const_map,
@@ -50,7 +52,6 @@ impl<'b> GIRPass for CodeGen<'b> {
 impl<'a> CodeGen<'a> {
     pub fn generate_code(&mut self, gir: &GIR) -> FunctionBytecode {
         debug!("Codegen {:?}", gir.fn_id);
-        // debug!("{}", gir);
         let mut locals = gir.locals().collect::<Vec<_>>();
         let first_non_arg = locals
             .iter()
@@ -173,9 +174,7 @@ impl<'a> CodeGen<'a> {
                                 })
                             }
                             ExprKind::Reference(_, place) => {
-                                debug!("{:?}", place);
-                                let (mut nav, size, offset) = self.navigate_to_place(place);
-                                debug!("{:?} {:?} {:?}", nav, size, offset);
+                                let (mut nav, _, offset) = self.navigate_to_place(place);
                                 nav.push(ins!(PSHR, Immediate::Long(offset.unwrap())));
                                 instrs.extend(nav);
                             }
@@ -197,7 +196,16 @@ impl<'a> CodeGen<'a> {
                                     let offset = self.offsets.get(&local_id).unwrap();
                                     *imm = Immediate::Long(offset.offset)
                                 }
-                                // Immediate::Builtin(builtin_op, symbol_id) => ,
+                                Immediate::ComponentOf(tyid) => {
+                                    *imm = Immediate::UInt(
+                                        self.components.get_component(*tyid).inner() as u32,
+                                    )
+                                }
+                                Immediate::SizeOf(tyid) => {
+                                    *imm = Immediate::UByte(
+                                        self.ty_ctxt.global.get_size(*tyid).unwrap() as u8,
+                                    )
+                                }
                                 _ => (),
                             }
                         }
@@ -386,8 +394,6 @@ impl<'a> CodeGen<'a> {
                 None,
             );
         };
-
-        debug!("{:?} {:?}", self.offsets, stack_offset);
 
         let mut cur_stack_offset = stack_offset;
 

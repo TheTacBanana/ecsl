@@ -25,7 +25,7 @@ pub struct GIR {
     pub fn_id: TyID,
     pub fid: SourceFileID,
     pub fn_kind: FnKind,
-    used_components: BTreeSet<TyID>,
+    required_components: BTreeSet<TyID>,
     locals: BTreeMap<LocalID, Local>,
     consts: BTreeMap<ConstID, Constant>,
     blocks: BTreeMap<BlockID, Block>,
@@ -37,7 +37,7 @@ impl std::fmt::Display for GIR {
         writeln!(f, "FnId: {:?}", self.fn_id)?;
 
         writeln!(f, "Required Components:")?;
-        for tyid in &self.used_components {
+        for tyid in &self.required_components {
             writeln!(f, "  {:?}", tyid)?;
         }
         writeln!(f, "")?;
@@ -72,7 +72,7 @@ impl GIR {
             consts: Default::default(),
             blocks: Default::default(),
             block_order: Default::default(),
-            used_components: Default::default(),
+            required_components: Default::default(),
         }
     }
 
@@ -119,7 +119,7 @@ impl GIR {
     }
 
     pub fn require_component(&mut self, tyid: TyID) {
-        self.used_components.insert(tyid);
+        self.required_components.insert(tyid);
     }
 
     pub fn get_block(&self, block: BlockID) -> Option<&Block> {
@@ -148,6 +148,10 @@ impl GIR {
 
     pub fn ordering(&self) -> &DiGraphMap<BlockID, ()> {
         &self.block_order
+    }
+
+    pub fn components(&self) -> impl Iterator<Item = &TyID> {
+        self.required_components.iter()
     }
 }
 
