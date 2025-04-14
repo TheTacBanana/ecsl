@@ -1,6 +1,7 @@
 use crate::{local::LocalTyCtxt, mono::Mono, TyIr};
 use bimap::{BiBTreeMap, BiHashMap};
 use cfgrammar::Span;
+use ecsl_ast::data::DataKind;
 use ecsl_diagnostics::DiagConn;
 use ecsl_index::{FieldID, GlobalID, SourceFileID, TyID, VariantID};
 use ecsl_parse::LexerTy;
@@ -215,15 +216,25 @@ impl TyCtxt {
     }
 
     pub fn is_primitive(&self, id: TyID) -> bool {
-        match self.get_tyir(id) {
+        let defs = self.tyirs.read().unwrap();
+        match defs.get_by_left(&id).unwrap() {
             TyIr::Bool | TyIr::Char | TyIr::Int | TyIr::Float => true,
             _ => false,
         }
     }
 
     pub fn is_numeric(&self, id: TyID) -> bool {
-        match self.get_tyir(id) {
+        let defs = self.tyirs.read().unwrap();
+        match defs.get_by_left(&id).unwrap() {
             TyIr::Int | TyIr::Float => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_comp(&self, id: TyID) -> bool {
+        let defs = self.tyirs.read().unwrap();
+        match defs.get_by_left(&id).unwrap() {
+            TyIr::ADT(adt) => adt.kind == DataKind::Component,
             _ => false,
         }
     }

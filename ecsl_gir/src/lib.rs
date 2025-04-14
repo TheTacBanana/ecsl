@@ -1,9 +1,12 @@
 use cfgrammar::Span;
 use cons::Constant;
-use ecsl_ast::{parse::FnKind, ty::Mutable};
+use ecsl_ast::{
+    parse::FnKind,
+    ty::{Mutable, TyKind},
+};
 use ecsl_index::{BlockID, ConstID, FieldID, LocalID, SourceFileID, TyID, VariantID};
 use petgraph::prelude::DiGraphMap;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use stmt::Stmt;
 use term::Terminator;
 
@@ -22,6 +25,7 @@ pub struct GIR {
     pub fn_id: TyID,
     pub fid: SourceFileID,
     pub fn_kind: FnKind,
+    used_components: BTreeSet<TyID>,
     locals: BTreeMap<LocalID, Local>,
     consts: BTreeMap<ConstID, Constant>,
     blocks: BTreeMap<BlockID, Block>,
@@ -31,6 +35,13 @@ pub struct GIR {
 impl std::fmt::Display for GIR {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "FnId: {:?}", self.fn_id)?;
+
+        writeln!(f, "Required Components:")?;
+        for tyid in &self.used_components {
+            writeln!(f, "  {:?}", tyid)?;
+        }
+        writeln!(f, "")?;
+
         writeln!(f, "Locals:")?;
         for (i, local) in &self.locals {
             writeln!(f, "  {} : {}", i, local)?;
@@ -61,6 +72,7 @@ impl GIR {
             consts: Default::default(),
             blocks: Default::default(),
             block_order: Default::default(),
+            used_components: Default::default(),
         }
     }
 
@@ -104,6 +116,10 @@ impl GIR {
             .unwrap_or(BlockID::ZERO);
         self.blocks.insert(id, Block::new(id));
         id
+    }
+
+    pub fn require_component(&mut self, tyid: TyID) {
+        self.used_components.insert(tyid);
     }
 
     pub fn get_block(&self, block: BlockID) -> Option<&Block> {

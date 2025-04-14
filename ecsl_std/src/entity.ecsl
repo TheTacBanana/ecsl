@@ -19,11 +19,18 @@ impl Entity {
         }
     }
 
+    [require_comp_generics]
     sys has<T>(&self) bool {
         return true;
     }
-    
+
+    [require_comp_generics]
     sys get<T>(&self) Option<&T> {
         return Option::<&T>::None;
+    }
+
+    [require_comp_generics]
+    sys insert<T>(&self, t: T) {
+
     }
 }

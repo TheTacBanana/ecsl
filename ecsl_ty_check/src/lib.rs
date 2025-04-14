@@ -1,7 +1,7 @@
 #![feature(if_let_guard)]
 use ecsl_ast::expr::{BinOpKind, RangeType, UnOpKind};
 use ecsl_ast::item::{ImplBlock, Item, ItemKind};
-use ecsl_ast::parse::{Immediate, ParamKind};
+use ecsl_ast::parse::{AttributeMarker, Immediate, ParamKind};
 use ecsl_ast::stmt::InlineBytecode;
 use ecsl_ast::ty::Mutable;
 use ecsl_ast::SourceAST;
@@ -22,7 +22,7 @@ use ecsl_ty::ctxt::TyCtxt;
 use ecsl_ty::local::LocalTyCtxt;
 use ecsl_ty::{ADTDef, FieldDef, FnParent, GenericsScope, TyIr};
 use ext::IntoTyID;
-use log::{debug, error};
+use log::debug;
 use lrpar::Span;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
@@ -1323,6 +1323,22 @@ impl Visitor for TyCheck {
                         .map(|ty| self.get_tyid((ty, &self.generic_scope)))
                         .collect::<Vec<_>>();
 
+                    // If the fn is marked as requiring comp generics then enforce that
+                    if fn_tyir
+                        .attributes
+                        .get_marker(AttributeMarker::RequireCompGenerics)
+                    {
+                        for tyid in params.iter() {
+                            err_if!(
+                                !self.ty_ctxt.global.is_comp(*tyid),
+                                TyCheckError::RequiresCompGenerics(*tyid),
+                                e.span
+                            );
+
+                            self.cur_gir_mut().require_component(*tyid);
+                        }
+                    }
+
                     for p in params.iter() {
                         _ = catch_unknown!(*p, TyCheckError::UnknownTy);
                     }
@@ -1422,6 +1438,9 @@ impl Visitor for TyCheck {
 
                 let fn_tyir = if fn_tyir.total_generics > 0 {
                     let mut params = Vec::new();
+
+                    // If the parent exists and it has existing generics put them at
+                    // the start of the params
                     if let Some((parent, _, _)) = &parent {
                         if let Some((_, existing_generics)) = self
                             .ty_ctxt
@@ -1436,12 +1455,30 @@ impl Visitor for TyCheck {
                         }
                     }
 
+                    // Convert the params to tyid
                     generics
                         .params
                         .iter()
                         .map(|ty| self.get_tyid((ty, &self.generic_scope)))
                         .for_each(|ty| params.push(ty));
 
+                    // If the fn is marked as requiring comp generics then enforce that
+                    if fn_tyir
+                        .attributes
+                        .get_marker(AttributeMarker::RequireCompGenerics)
+                    {
+                        for tyid in params.iter() {
+                            err_if!(
+                                !self.ty_ctxt.global.is_comp(*tyid),
+                                TyCheckError::RequiresCompGenerics(*tyid),
+                                e.span
+                            );
+
+                            self.cur_gir_mut().require_component(*tyid);
+                        }
+                    }
+
+                    // Catch unknown params
                     for p in params.iter() {
                         _ = catch_unknown!(*p, TyCheckError::UnknownTy);
                     }
@@ -2079,6 +2116,8 @@ pub enum TyCheckError {
 
     DotSyntaxOnConst,
 
+    RequiresCompGenerics(TyID),
+
     // Enum related errors
     TypeCannotBeMatched(TyID),
     NoVariantWithName(TyID),
@@ -2169,6 +2208,7 @@ impl std::fmt::Display for TyCheckError {
             TypeHasNoFields(tyid) => &format!("Type '{}' has no fields", tyid),
             NoBreak => "Break outside of breakable context",
             NoContinue => "Continue outside of continuable context",
+            RequiresCompGenerics(tyid) => &format!("Type '{}' is not a component", tyid),
         };
         write!(f, "{}", s)
     }
