@@ -1,5 +1,5 @@
 use ecsl_bytecode::{FunctionBytecode, Immediate};
-use ecsl_index::{AssemblerConstID, TyID};
+use ecsl_index::{AssemblerConstID, ComponentID, TyID};
 use header::{FileType, SectionPointer, SectionType};
 use log::debug;
 use std::collections::BTreeMap;
@@ -30,7 +30,7 @@ pub struct Assembler<T> {
 
 pub struct Pre;
 pub struct ConstData;
-pub struct ComponentData;
+pub struct CompDefs;
 pub struct Executable;
 pub struct Out;
 
@@ -118,7 +118,7 @@ impl Assembler<ConstData> {
     }
 
     /// Write the const data section
-    pub fn write_const_data(mut self) -> std::io::Result<Assembler<Executable>> {
+    pub fn write_const_data(mut self) -> std::io::Result<Assembler<CompDefs>> {
         let start_pos = self.offset_to_alignment()?;
 
         let mut buffer = Vec::new();
@@ -140,6 +140,48 @@ impl Assembler<ConstData> {
 
         self.sections.push(SectionPointer {
             section_type: SectionType::Data,
+            length: (end_pos as u64 - start_pos) as u32,
+            address: start_pos,
+        });
+
+        Ok(self.cast())
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct ComponentDef {
+    pub id: ComponentID,
+    pub size: usize,
+}
+
+impl ComponentDef {
+    pub fn into_bytes(self) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&(self.id.inner() as u32).to_be_bytes());
+        bytes.extend_from_slice(&(self.size as u32).to_be_bytes());
+        bytes
+    }
+}
+
+impl Assembler<CompDefs> {
+    /// Write the const data section
+    pub fn write_comp_defs(
+        mut self,
+        defs: Vec<ComponentDef>,
+    ) -> std::io::Result<Assembler<Executable>> {
+        let start_pos = self.offset_to_alignment()?;
+
+        let mut buffer = Vec::new();
+
+        for def in defs {
+            buffer.extend_from_slice(&def.into_bytes());
+        }
+
+        self.file.write(&buffer)?;
+        let end_pos = self.file.seek(SeekFrom::End(0))?;
+
+        self.sections.push(SectionPointer {
+            section_type: SectionType::ComponentDefinitions,
             length: (end_pos as u64 - start_pos) as u32,
             address: start_pos,
         });

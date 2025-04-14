@@ -279,6 +279,7 @@ impl Driver {
 
         let assembler = assembler.write_temp_header().unwrap();
 
+        debug!("Write const data");
         let assoc = (&context, assoc).par_map_assoc(
             |_, src, (_, _, _, local_ctxt, mut linker)| {
                 let lexer = lexers.get(&src.id).unwrap();
@@ -292,6 +293,11 @@ impl Driver {
             || diag.finish_stage(finish_stage),
         )?;
         let assembler = assembler.write_const_data().unwrap();
+
+        debug!("Write component defs");
+        let assembler = assembler
+            .write_comp_defs(comp_defs.take_components())
+            .unwrap();
 
         let _ = (&context, assoc).par_map_assoc(
             |_, _, (local_ctxt, mut linker, gir_consts)| {

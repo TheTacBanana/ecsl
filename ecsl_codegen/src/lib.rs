@@ -426,14 +426,11 @@ impl<'a> CodeGen<'a> {
                     cur_stack_offset.size = adt.discriminant_size().unwrap();
                 }
                 Projection::Deref { new_ty } => {
-                    instrs.extend(vec![
-                        // ins!(PSHR, Immediate::Long(cur_stack_offset.offset)),
-                        ins!(
-                            LDR,
-                            Immediate::UByte(8),
-                            Immediate::Long(cur_stack_offset.offset)
-                        ),
-                    ]);
+                    instrs.extend(vec![ins!(
+                        LDR,
+                        Immediate::UByte(8),
+                        Immediate::Long(cur_stack_offset.offset)
+                    )]);
 
                     cur_stack_offset.offset = 0;
                     cur_stack_offset.size = self.ty_ctxt.global.get_size(*new_ty).unwrap();

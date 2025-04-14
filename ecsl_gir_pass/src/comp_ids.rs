@@ -1,3 +1,4 @@
+use ecsl_assembler::ComponentDef;
 use ecsl_index::{ComponentID, TyID};
 use ecsl_ty::ctxt::TyCtxt;
 use std::{
@@ -8,12 +9,6 @@ use std::{
 pub struct ComponentDefinitions {
     pub ctxt: Arc<TyCtxt>,
     pub definitions: RwLock<BTreeMap<TyID, ComponentDef>>,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct ComponentDef {
-    pub id: ComponentID,
-    pub size: usize,
 }
 
 impl ComponentDefinitions {
@@ -53,5 +48,10 @@ impl ComponentDefinitions {
 
     pub fn get_component(&self, tyid: TyID) -> ComponentID {
         self.definitions.read().unwrap().get(&tyid).unwrap().id
+    }
+
+    pub fn take_components(&self) -> Vec<ComponentDef> {
+        let mut definitions = self.definitions.write().unwrap();
+        std::mem::take(&mut *definitions).into_values().collect()
     }
 }
