@@ -120,8 +120,6 @@ impl Visitor for FnValidator {
 
         // Exclude ECS Features from fn's
         let err = match (&e.kind, fn_header.kind) {
-            (ExprKind::Entity, FnKind::Fn) => Some(FnValidationError::EntityUsedInPlainFn),
-            (ExprKind::Resource, FnKind::Fn) => Some(FnValidationError::ResourceUsedInPlainFn),
             (ExprKind::Query(_), FnKind::Fn) => Some(FnValidationError::QueryUsedInPlainFn),
             (ExprKind::Schedule(_), FnKind::Fn) => Some(FnValidationError::ScheduleUsedInPlainFn),
             _ => None,

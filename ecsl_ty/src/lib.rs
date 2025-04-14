@@ -41,11 +41,16 @@ pub enum TyIr {
     ADT(ADTDef),
     /// A function type
     Fn(FnDef),
+    /// Entity Type
+    Entity,
+    /// Schedule Type
+    Schedule,
+    /// Generic param which is then monomorphised
+    GenericParam(usize),
     /// A sized array type
     Array(TyID, usize),
+    /// Reference to an array of type
     ArrayRef(Mutable, FieldDef),
-    GenericParam(usize),
-    Entity,
 }
 
 impl From<Literal> for TyIr {
@@ -100,6 +105,7 @@ impl TyIr {
             TyIr::ArrayRef(mutable, tyid) => &format!("&{} [{}]", mutable, tyid),
             TyIr::GenericParam(i) => &format!("T{}", i + 1),
             TyIr::Entity => "Entity",
+            TyIr::Schedule => "Schedule",
         };
         s.to_string()
     }

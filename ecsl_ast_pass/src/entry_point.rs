@@ -30,7 +30,9 @@ impl Visitor for EntryPoint {
         let symbol = self.ty_ctxt.table.get_symbol(f.ident).unwrap();
         let kind = match (symbol.name.as_str(), f.kind) {
             ("main", FnKind::Fn) => Some(EntryPointKind::MainFn),
-            ("main", FnKind::Sys) => Some(EntryPointKind::MainSys),
+            ("main", FnKind::Sys) => Some(EntryPointKind::MainSysOnce), // TODO: Consider what the default should be?
+            ("main_once", FnKind::Sys) => Some(EntryPointKind::MainSysOnce),
+            ("main_loop", FnKind::Sys) => Some(EntryPointKind::MainSysLoop),
             (_, _) => None,
         };
         let Some(entry_point) = kind else {
@@ -41,27 +43,39 @@ impl Visitor for EntryPoint {
             self.ty_ctxt
                 .global
                 .get_or_create_tyid(GlobalID::new(None, f.ident, self.ty_ctxt.file));
-        let tyir = self.ty_ctxt.global.get_tyir(tyid);
+        let tyir = self.ty_ctxt.global.get_tyir(tyid).into_fn().unwrap();
 
-        let int_tyid = self.ty_ctxt.global.tyid_from_tyir(TyIr::Int);
+        let schedule_tyid = self.ty_ctxt.global.tyid_from_tyir(TyIr::Schedule);
 
+        macro_rules! err_if {
+            ($c:expr, $e:expr) => {
+                if $c {
+                    self.ty_ctxt
+                        .diag
+                        .push_error(EcslError::new(ErrorLevel::Error, $e).with_span(|_| f.span));
+                }
+            };
+        }
+
+        err_if!(tyir.params.len() != 0, EntryPointError::CannotHaveArgs);
         match (entry_point, tyir) {
-            (EntryPointKind::MainFn, TyIr::Fn(ecsl_ty::FnDef { params, ret, .. })) => {
-                if params.len() != 0 {
-                    self.ty_ctxt.diag.push_error(
-                        EcslError::new(ErrorLevel::Error, EntryPointError::CannotHaveArgs)
-                            .with_span(|_| f.span),
-                    );
-                }
-
-                if !(ret.ty == TyID::BOTTOM || ret.ty == int_tyid) {
-                    self.ty_ctxt.diag.push_error(
-                        EcslError::new(ErrorLevel::Error, EntryPointError::WrongReturnType)
-                            .with_span(|_| f.span),
-                    );
-                }
+            (EntryPointKind::MainFn, ecsl_ty::FnDef { ret, .. }) => {
+                err_if!(!(ret.ty == TyID::BOTTOM), EntryPointError::WrongReturnType);
 
                 self.entry_points.push((tyid, entry_point));
+            }
+            (EntryPointKind::MainSysOnce, ecsl_ty::FnDef { ret, .. }) => {
+                err_if!(
+                    !(ret.ty == TyID::BOTTOM || ret.ty == schedule_tyid),
+                    EntryPointError::WrongReturnType
+                );
+
+                if ret.ty == schedule_tyid {
+                    self.entry_points.push((tyid, EntryPointKind::MainSysOnce));
+                } else {
+                    self.entry_points
+                        .push((tyid, EntryPointKind::MainSysUnscheduled));
+                }
             }
             _ => panic!(),
         }
@@ -73,7 +87,9 @@ impl Visitor for EntryPoint {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EntryPointKind {
     MainFn,
-    MainSys,
+    MainSysUnscheduled,
+    MainSysOnce,
+    MainSysLoop,
 }
 
 #[derive(Debug)]
