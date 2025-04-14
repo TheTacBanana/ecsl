@@ -77,7 +77,12 @@ impl Visitor for EntryPoint {
                         .push((tyid, EntryPointKind::MainSysUnscheduled));
                 }
             }
-            _ => panic!(),
+            (EntryPointKind::MainSysLoop, ecsl_ty::FnDef { ret, .. }) => {
+                err_if!(ret.ty != schedule_tyid, EntryPointError::WrongReturnType);
+
+                todo!();
+            }
+            (EntryPointKind::MainSysUnscheduled, _) => unreachable!(),
         }
 
         VisitorCF::Continue

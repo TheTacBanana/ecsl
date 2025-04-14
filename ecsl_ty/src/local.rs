@@ -257,7 +257,6 @@ impl LocalTyCtxt {
                     params: Vec::new()
                 }
             )),
-            TyKind::Array(ty, span) => from_tyir!(TyIr::Array(self.get_tyid(ty, scope)?, *span)),
             TyKind::Ptr(mutable, ty) => from_tyir!(TyIr::Ref(
                 *mutable,
                 FieldDef {
@@ -267,9 +266,9 @@ impl LocalTyCtxt {
                 }
             )),
             TyKind::Entity(_, _) => from_tyir!(TyIr::Entity),
-            e => todo!("{:?}", e),
-            // TyKind::ArrayRef(mutable, ty) => todo!(),
-            // TyKind::Schedule => todo!(),
+            TyKind::Schedule => from_tyir!(TyIr::Schedule),
+            TyKind::Array(ty, span) => from_tyir!(TyIr::Array(self.get_tyid(ty, scope)?, *span)),
+            TyKind::ArrayRef(_, _) => todo!(),
         }
     }
 
