@@ -327,11 +327,7 @@ pub fn walk_expr<V: Visitor>(v: &mut V, expr: &Expr) -> VisitorCF {
         }
         ExprKind::Query(q) => visit!(v.visit_query(q)),
         ExprKind::Schedule(s) => visit!(v.visit_schedule(s)),
-        ExprKind::Lit(_)
-        | ExprKind::Ident(_)
-        | ExprKind::MethodSelf(_)
-        | ExprKind::Entity
-        | ExprKind::Resource => (),
+        ExprKind::Lit(_) | ExprKind::Ident(_) | ExprKind::MethodSelf(_) => (),
     }
     VisitorCF::Continue
 }

@@ -42,6 +42,7 @@ pub enum ExprKind {
     /// `foo` `bar`
     Ident(SymbolID),
     /// Self in method
+    ///
     /// `self`
     MethodSelf(SymbolID),
     /// Literal value
@@ -74,10 +75,6 @@ pub enum ExprKind {
     StaticFunction(SymbolID, SymbolID, ConcreteGenerics, Vec<Expr>), //TODO: Kinda bad I dont like this
 
     // ECS Features
-    /// Use of the Entity Keyword to create new Entities
-    Entity,
-    /// Use of the Resource Keyword to access resources
-    Resource,
     /// Query the world to get an iterator of components
     Query(P<QueryExpr>),
     /// Define a order for a series of system

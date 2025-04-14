@@ -996,7 +996,15 @@ Expr -> Result<Expr, ()>:
             $4?,
             $5?,
         )))
-    }    
+    }
+    | 'RESOURCE' 'ARROW' 'IDENT' FnConcreteGenerics FnArgExpr {
+        Ok(Expr::new($span, ExprKind::StaticFunction(
+            table.usage($1.map_err(|_| ())?.span(), SymbolKind::FunctionUsage),
+            table.usage($3.map_err(|_| ())?.span(), SymbolKind::FunctionUsage),
+            $4?,
+            $5?,
+        )))
+    }
     | Expr 'DOT' 'IDENT' FnConcreteGenerics FnArgExpr {
         Ok(Expr::new($span, ExprKind::Function(
             Some(P::new($1?)),
@@ -1022,13 +1030,6 @@ Expr -> Result<Expr, ()>:
                 )
             ),
         )))
-    }
-
-    | 'ENTITY' {
-        Ok(Expr::new($span, ExprKind::Entity))
-    }
-    | 'RESOURCE' {
-        Ok(Expr::new($span, ExprKind::Entity))
     }
     | 'SCHEDULE' ScheduleExpr {
         Ok(Expr::new($span, ExprKind::Schedule(P::new($2?))))
