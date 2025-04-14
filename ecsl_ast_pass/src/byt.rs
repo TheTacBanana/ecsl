@@ -1,5 +1,5 @@
 use ecsl_ast::{
-    parse::Opcode,
+    parse::{BuiltinOp, Immediate, Opcode},
     stmt::{Stmt, StmtKind},
     visit::{Visitor, VisitorCF},
 };
@@ -40,6 +40,19 @@ impl<'a> Visitor for BytecodeValidator<'a> {
                     }
                 }
 
+                for bytecode in byt {
+                    if bytecode
+                        .ins
+                        .operand
+                        .iter()
+                        .any(|op| matches!(op, Immediate::Builtin(BuiltinOp::Unknown, _)))
+                    {
+                        self.diag.push_error(
+                            EcslError::new(ErrorLevel::Error, BytecodeError::Unknown)
+                                .with_span(|_| bytecode.span),
+                        );
+                    }
+                }
                 VisitorCF::Continue
             }
             _ => VisitorCF::Continue,

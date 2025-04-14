@@ -192,9 +192,13 @@ impl<'a> CodeGen<'a> {
                     StmtKind::BYT(byt) => {
                         let mut byt = byt.clone();
                         for imm in byt.operand.iter_mut() {
-                            if let Immediate::LocalOf(local_id) = imm {
-                                let offset = self.offsets.get(&local_id).unwrap();
-                                *imm = Immediate::Long(offset.offset)
+                            match imm {
+                                Immediate::LocalOf(local_id) => {
+                                    let offset = self.offsets.get(&local_id).unwrap();
+                                    *imm = Immediate::Long(offset.offset)
+                                }
+                                // Immediate::Builtin(builtin_op, symbol_id) => ,
+                                _ => (),
                             }
                         }
                         instrs.push(byt)

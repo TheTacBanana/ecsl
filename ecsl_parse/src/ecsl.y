@@ -703,17 +703,7 @@ ImmediateList -> Result<Vec<Immediate>, ()>:
     ;
 
 Immediate -> Result<Immediate, ()>:
-    'HASH' 'IDENT' {
-        Ok(Immediate::SymbolOf(
-            table.usage($2.map_err(|_| ())?.span(), SymbolKind::Local)
-        ))
-    }
-    | 'HASH' 'SELF' {
-        Ok(Immediate::SymbolOf(
-            table.usage($2.map_err(|_| ())?.span(), SymbolKind::Local)
-        ))
-    }
-    | 'HASH' 'INT' 'INTKIND' {
+    'HASH' 'INT' 'INTKIND' {
         let num = table.string($2.map_err(|_| ())?.span());
         let num_kind = table.string($3.map_err(|_| ())?.span());
         let kind = IntKind::from_str(num_kind.as_str());
@@ -725,6 +715,27 @@ Immediate -> Result<Immediate, ()>:
             IntKind::Byte => todo!(),
             IntKind::UByte => Immediate::UByte(num.parse().unwrap()),
         })
+    }
+    | 'HASH' 'RETURN' {
+        Ok(Immediate::LocalOf(LocalID::ZERO))
+    }
+    | 'HASH' 'IDENT' {
+        Ok(Immediate::SymbolOf(
+            table.usage($2.map_err(|_| ())?.span(), SymbolKind::Local)
+        ))
+    }
+    | 'HASH' 'SELF' {
+        Ok(Immediate::SymbolOf(
+            table.usage($2.map_err(|_| ())?.span(), SymbolKind::Local)
+        ))
+    }
+    | 'HASH' 'IDENT' 'DOT' 'IDENT' {
+        let s = table.string($2.map_err(|_| ())?.span());
+        let kind = BuiltinOp::from_str(s.as_str());
+        Ok(Immediate::Builtin(
+            kind,
+            table.usage($4.map_err(|_| ())?.span(), SymbolKind::Local)
+        ))
     }
     ;
 

@@ -24,6 +24,7 @@ pub mod parse {
     pub use crate::ty::*;
     pub use crate::*;
     pub use ecsl_bytecode::*;
+    pub use ecsl_index::*;
 }
 
 pub type P<T> = Box<T>;

@@ -1,5 +1,6 @@
 use crate::{linker::FunctionLinker, GIRPass};
 use cfgrammar::Span;
+use ecsl_bytecode::Immediate;
 use ecsl_gir::{
     expr::Expr,
     stmt::{Stmt, StmtKind},
@@ -106,6 +107,15 @@ impl<'a> VisitorMut for MonomorphizeFn<'a> {
     fn visit_stmt_mut(&mut self, s: &mut Stmt) -> VisitorCF {
         match &mut s.kind {
             StmtKind::AllocReturn(ty_id) => self.replace_tyid(ty_id, s.span),
+            StmtKind::BYT(byt) => {
+                for op in byt.operand.iter_mut() {
+                    match op {
+                        Immediate::ComponentOf(tyid) => self.replace_tyid(tyid, s.span),
+                        Immediate::SizeOf(tyid) => self.replace_tyid(tyid, s.span),
+                        _ => (),
+                    }
+                }
+            }
             _ => (),
         }
         walk_stmt_mut(self, s)

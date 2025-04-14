@@ -53,6 +53,10 @@ pub enum Immediate {
     LabelOf(BlockID),
     LocalOf(LocalID),
     SymbolOf(SymbolID),
+    ComponentOf(TyID),
+    SizeOf(TyID),
+
+    Builtin(BuiltinOp, SymbolID),
 
     Bool(bool),
     UByte(u8),
@@ -72,13 +76,15 @@ impl Immediate {
             Immediate::LocalOf(_) => 8,
             Immediate::SymbolOf(_) => 8,
             Immediate::ConstAddressOf(_) => 8,
-
             Immediate::Bool(_) => 1,
             Immediate::UByte(_) => 1,
             Immediate::Int(_) => 4,
             Immediate::Float(_) => 4,
             Immediate::Long(_) => 8,
             Immediate::ULong(_) => 8,
+            Immediate::ComponentOf(_) => 4,
+            Immediate::SizeOf(_) => 1,
+            Immediate::Builtin(_, _) => panic!(),
         }
     }
 
@@ -115,6 +121,31 @@ impl Immediate {
         match self {
             Immediate::Long(v) => Some(v),
             _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BuiltinOp {
+    CID,
+    Size,
+    Unknown,
+}
+
+impl BuiltinOp {
+    pub fn from_str(s: &str) -> BuiltinOp {
+        match s.to_uppercase().as_str() {
+            "CID" => BuiltinOp::CID,
+            "SIZE" => BuiltinOp::Size,
+            _ => BuiltinOp::Unknown,
+        }
+    }
+
+    pub fn size_of(&self) -> usize {
+        match self {
+            BuiltinOp::CID => 4,
+            BuiltinOp::Size => 1,
+            BuiltinOp::Unknown => 0,
         }
     }
 }

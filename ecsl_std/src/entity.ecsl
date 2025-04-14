@@ -8,12 +8,14 @@ impl Entity {
     sys new() Entity {
         byt {
             NENT;
+            STR #8UB #return;
             RET;
         }
     }
 
     sys destroy(self) {
         byt {
+            PBP;
             LDR #8UB #self;
             RENT;
         }

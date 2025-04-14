@@ -11,6 +11,7 @@ use ecsl_ast::{
     stmt::{Block, Stmt, StmtKind},
     visit::{walk_block, Visitor, VisitorCF},
 };
+use ecsl_bytecode::BuiltinOp;
 use ecsl_error::{ext::EcslErrorExt, EcslError, ErrorLevel};
 use ecsl_gir::cons::Constant;
 use ecsl_gir::expr::{BinOp, Operand, OperandKind, UnOp};
@@ -736,6 +737,22 @@ impl Visitor for TyCheck {
                             }
 
                             *i = Immediate::LocalOf(found.unwrap().local);
+                        } else if let Immediate::Builtin(op, symbol) = i {
+                            use ecsl_ast::ty::*;
+                            let tyid = catch_unknown!(self.get_tyid((
+                                &Ty::new(
+                                    *span,
+                                    TyKind::Ident(*symbol),
+                                    ConcreteGenerics::empty(*span)
+                                ),
+                                &self.generic_scope
+                            )));
+
+                            *i = match op {
+                                BuiltinOp::CID => Immediate::ComponentOf(tyid),
+                                BuiltinOp::Size => Immediate::SizeOf(tyid),
+                                _ => panic!(),
+                            }
                         }
                     }
 
