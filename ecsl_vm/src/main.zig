@@ -2,6 +2,7 @@ const std = @import("std");
 const builtin = @import("builtin");
 const header = @import("header.zig");
 const vm = @import("vm.zig");
+const world = @import("ecs/world.zig");
 
 pub const std_options: std.Options = .{
     .log_level = switch (builtin.mode) {
@@ -57,11 +58,11 @@ pub fn customLog(
 }
 
 pub fn main() anyerror!void {
-    const allocator = std.heap.page_allocator;
+    const alloc = std.heap.page_allocator;
 
     // Allocate args
-    const args = try std.process.argsAlloc(allocator);
-    defer std.process.argsFree(allocator, args);
+    const args = try std.process.argsAlloc(alloc);
+    defer std.process.argsFree(alloc, args);
 
     // Switch on arguments
     if (args.len <= 1) {
@@ -87,7 +88,7 @@ pub fn main() anyerror!void {
     defer file.close();
 
     // Read Program Header
-    const program_header = header.read_program_header(&file) catch |e| {
+    const program_header = header.ProgramHeader.read(&file) catch |e| {
         switch (e) {
             error.FileError => std.log.err("A File Error occured", .{}),
             error.MagicBytesMissing => std.log.err("Magic Bytes Missing, likely incorrect file type", .{}),
@@ -106,7 +107,7 @@ pub fn main() anyerror!void {
     }
 
     // Read Section Header
-    const section_header = header.read_section_header(allocator, &file, &program_header) catch |e| {
+    const section_header = header.SectionHeader.read(alloc, &file, &program_header) catch |e| {
         switch (e) {
             error.AllocError => std.log.err("An Allocation Error occured", .{}),
             error.FileError => std.log.err("A File Error occured", .{}),
@@ -115,25 +116,18 @@ pub fn main() anyerror!void {
         return;
     };
 
-    // Create Thread Safe Allocator
-    var ts_allocator = std.heap.ThreadSafeAllocator{
-        .child_allocator = allocator,
-    };
-
-    const vm_allocator = ts_allocator.allocator();
+    const world_config = world.WorldConfig.DEFAULT;
 
     // Complete Header and Initialize the VM
     const file_header = header.Header{
         .program = program_header,
         .section = section_header,
     };
-    var ecsl_vm = vm.init_vm(vm_allocator, &file, file_header, 1000000) catch |e| {
-        switch (e) {
-            error.FileError => std.log.err("A File Error occured", .{}),
-            error.AllocError => std.log.err("An Allocation Error occured", .{}),
-        }
-        return;
-    };
+    var ecsl_vm = try vm.EcslVM.init(&file, file_header, world_config, alloc);
+    defer {
+        ecsl_vm.free();
+        alloc.destroy(ecsl_vm);
+    }
 
     // Create Initial Main Thread
     const thread_id = ecsl_vm.create_thread() catch |e| {

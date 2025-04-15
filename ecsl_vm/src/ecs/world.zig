@@ -1,16 +1,19 @@
 const std = @import("std");
+const vm = @import("../vm.zig");
+const header = @import("../header.zig");
 const entity = @import("entity.zig");
 const component = @import("component.zig");
 const storage = @import("storage.zig");
 
 pub const World = struct {
+    vm_ptr: *const vm.EcslVM,
     alloc: std.mem.Allocator,
     config: WorldConfig,
     entities: *entity.EntityCollection,
     components: *component.ComponentDefinitions,
     storage: *storage.Table,
 
-    pub fn new(config: WorldConfig, alloc: std.mem.Allocator) !*World {
+    pub fn new(config: WorldConfig, vm_ptr: *const vm.EcslVM, alloc: std.mem.Allocator) !*World {
         const config_ = config;
         const self = try alloc.create(World);
 
@@ -20,22 +23,35 @@ pub const World = struct {
             .entities = try alloc.create(entity.EntityCollection),
             .components = try alloc.create(component.ComponentDefinitions),
             .storage = try alloc.create(storage.Table),
+            .vm_ptr = vm_ptr,
         };
-
         self.entities.* = try entity.EntityCollection.new(&self.config, alloc);
         self.components.* = try component.ComponentDefinitions.new(&self.config, alloc);
-        _ = try self.components.add_def(component.ComponentDef{
-            .id = @enumFromInt(1),
-            .size = 4,
-        });
-        _ = try self.components.add_def(component.ComponentDef{
-            .id = @enumFromInt(2),
-            .size = 4,
-        });
-
-        self.storage.* = try storage.Table.new(self.components, self.entities, &self.config, alloc);
 
         return self;
+    }
+
+    pub fn init_world(self: *World) !void {
+        const section_pointer = self.vm_ptr.header.section.get_section(header.SectionHeader.SectionType.ComponentDefinitions).?;
+
+        const read = std.mem.readVarInt;
+        const big = std.builtin.Endian.big;
+
+        const section = self.vm_ptr.binary[section_pointer.address..];
+        const length = read(u32, section[0..4], big);
+        for (0..length) |i| {
+            const offset = 4 + i * 8;
+            const comp_id = read(u32, section[offset..(offset + 4)], big);
+            const comp_size = read(u32, section[(offset + 4)..(offset + 8)], big);
+
+            std.log.debug("New Component {d} {d}", .{ comp_id, comp_size });
+
+            try self.components.add_def(component.ComponentDef{
+                .id = @enumFromInt(comp_id),
+                .size = comp_size,
+            });
+        }
+        self.storage.* = try storage.Table.new(self.components, self.entities, &self.config, self.alloc);
     }
 
     pub fn free(this: *World) void {

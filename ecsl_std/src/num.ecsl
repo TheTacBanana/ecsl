@@ -117,6 +117,11 @@ impl float {
         return 0.0000000001;
     }
 
+    // Pi Value
+    fn pi() float {
+        return 3.14159265358979323846264338327950288;
+    }
+
     // Get NaN value
     fn nan() float {
         return 0.0 / 0.0;

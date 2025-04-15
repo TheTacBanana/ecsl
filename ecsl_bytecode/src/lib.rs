@@ -198,7 +198,7 @@ pub enum Bytecode {
     /// Return from Function
     RET = 12,
 
-    /// Panic with no message //TODO: Pointer to string
+    /// Panic with no message
     PANIC = 13,
 
     /// Push the byte immediate value

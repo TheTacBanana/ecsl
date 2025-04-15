@@ -167,12 +167,21 @@ impl Assembler<CompDefs> {
     /// Write the const data section
     pub fn write_comp_defs(
         mut self,
-        defs: Vec<ComponentDef>,
+        mut defs: Vec<ComponentDef>,
     ) -> std::io::Result<Assembler<Executable>> {
         let start_pos = self.offset_to_alignment()?;
 
         let mut buffer = Vec::new();
 
+        let defs = defs
+            .drain(..)
+            .filter(|def| def.id != ComponentID::ZERO)
+            .collect::<Vec<_>>();
+
+        // Write length of component defs
+        buffer.extend_from_slice(&(defs.len() as u32).to_be_bytes());
+
+        // Write each def
         for def in defs {
             buffer.extend_from_slice(&def.into_bytes());
         }
@@ -251,7 +260,7 @@ impl Assembler<Executable> {
 
             let mut bytecode_bin = Vec::new();
             for ins in byt.ins.iter() {
-                debug!("{:?} {:?}", start_pos + func_offset + temp_offset, ins);
+                debug!("{:?} {}", start_pos + func_offset + temp_offset, ins);
                 let bytes = &ins.clone().to_bytecode().unwrap().to_bytes();
                 temp_offset += bytes.len() as u64;
                 bytecode_bin.extend_from_slice(bytes);
@@ -296,7 +305,7 @@ impl Assembler<Out> {
     pub fn output(mut self) -> std::io::Result<PathBuf> {
         let start_pos = self.offset_to_alignment()?;
 
-        let len = self.sections.len() as u64;
+        let len = self.sections.len() as u32;
         self.file.write(&len.to_be_bytes())?;
 
         for SectionPointer {

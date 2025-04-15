@@ -80,6 +80,11 @@ pub const ProgramThread = struct {
         };
     }
 
+    pub fn free(self: *ProgramThread) void {
+        self.vm_ptr.allocator.free(self.stack);
+        self.vm_ptr.allocator.free(self.call_stack);
+    }
+
     pub fn unwrap_call_stack(self: *ProgramThread, err: (ProgramError || ProgramPanic)) ProgramUnwrap {
         // Check for catch_unwrap if possible
         if (@TypeOf(err) == ProgramError) {
