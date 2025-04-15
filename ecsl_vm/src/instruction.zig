@@ -196,6 +196,31 @@ pub inline fn geq_i(self: *ProgramThread) !void {
     try self.push_stack(u8, @constCast(&@as(u8, @intFromBool(pair.l >= pair.r))));
 }
 
+pub inline fn and_i(self: *ProgramThread) !void {
+    const pair = try self.pop_pair(u32);
+    try self.push_stack(u32, @constCast(&@as(u32, pair.l & pair.r)));
+}
+
+pub inline fn or_i(self: *ProgramThread) !void {
+    const pair = try self.pop_pair(u32);
+    try self.push_stack(u32, @constCast(&@as(u32, pair.l | pair.r)));
+}
+
+pub inline fn xor_i(self: *ProgramThread) !void {
+    const pair = try self.pop_pair(u32);
+    try self.push_stack(u32, @constCast(&@as(u32, pair.l ^ pair.r)));
+}
+
+pub inline fn shl_i(self: *ProgramThread) !void {
+    const pair = try self.pop_pair(u32);
+    try self.push_stack(u32, @constCast(&@as(u32, pair.l << @intCast(pair.r))));
+}
+
+pub inline fn shr_i(self: *ProgramThread) !void {
+    const pair = try self.pop_pair(u32);
+    try self.push_stack(u32, @constCast(&@as(u32, pair.l >> @intCast(pair.r))));
+}
+
 pub inline fn add_i(self: *ProgramThread) !void {
     const pair = try self.pop_pair(i32);
     try self.push_stack(i32, @constCast(&(pair.l + pair.r)));
@@ -215,6 +240,11 @@ pub inline fn mul_i(self: *ProgramThread) !void {
 pub inline fn div_i(self: *ProgramThread) !void {
     const pair = try self.pop_pair(i32);
     try self.push_stack(i32, @constCast(&@divTrunc(pair.l, pair.r)));
+}
+
+pub inline fn mod_i(self: *ProgramThread) !void {
+    const pair = try self.pop_pair(i32);
+    try self.push_stack(i32, @constCast(&(@mod(pair.l, pair.r))));
 }
 
 pub inline fn neg_i(self: *ProgramThread) !void {
@@ -271,6 +301,11 @@ pub inline fn mul_f(self: *ProgramThread) !void {
 pub inline fn div_f(self: *ProgramThread) !void {
     const pair = try self.pop_pair(f32);
     try self.push_stack(f32, @constCast(&(pair.l / pair.r)));
+}
+
+pub inline fn mod_f(self: *ProgramThread) !void {
+    const pair = try self.pop_pair(f32);
+    try self.push_stack(f32, @constCast(&(@mod(pair.l, pair.r))));
 }
 
 pub inline fn neg_f(self: *ProgramThread) !void {

@@ -144,14 +144,20 @@ pub enum BinOpKind {
     Sub,
     Mul,
     Div,
+    Mod,
     And,
     Or,
-    Eq,
-    Neq,
     Lt,
     Leq,
     Gt,
     Geq,
+    Eq,
+    Neq,
+    BAnd,
+    BOr,
+    BXor,
+    ShiftLeft,
+    ShiftRight,
 }
 
 impl std::fmt::Display for BinOpKind {
@@ -161,6 +167,7 @@ impl std::fmt::Display for BinOpKind {
             BinOpKind::Sub => write!(f, "-"),
             BinOpKind::Mul => write!(f, "*"),
             BinOpKind::Div => write!(f, "/"),
+            BinOpKind::Mod => write!(f, "%"),
             BinOpKind::And => write!(f, "&&"),
             BinOpKind::Or => write!(f, "||"),
             BinOpKind::Eq => write!(f, "=="),
@@ -169,17 +176,49 @@ impl std::fmt::Display for BinOpKind {
             BinOpKind::Leq => write!(f, "<="),
             BinOpKind::Gt => write!(f, ">"),
             BinOpKind::Geq => write!(f, ">="),
+            BinOpKind::BAnd => write!(f, "&"),
+            BinOpKind::BOr => write!(f, "|"),
+            BinOpKind::BXor => write!(f, "^"),
+            BinOpKind::ShiftLeft => write!(f, "<<"),
+            BinOpKind::ShiftRight => write!(f, ">>"),
         }
     }
 }
 
 impl BinOpKind {
-    pub fn operation(&self) -> bool {
+    pub fn int_operation(&self) -> bool {
         match self {
-            BinOpKind::Add | BinOpKind::Sub | BinOpKind::Mul | BinOpKind::Div => true,
+            BinOpKind::Add
+            | BinOpKind::Sub
+            | BinOpKind::Mul
+            | BinOpKind::Div
+            | BinOpKind::Mod
+            | BinOpKind::BAnd
+            | BinOpKind::BOr
+            | BinOpKind::BXor
+            | BinOpKind::ShiftLeft
+            | BinOpKind::ShiftRight => true,
             _ => false,
         }
     }
+
+    pub fn float_operation(&self) -> bool {
+        match self {
+            BinOpKind::Add | BinOpKind::Sub | BinOpKind::Mul | BinOpKind::Div | BinOpKind::Mod => {
+                true
+            }
+            _ => false,
+        }
+    }
+
+    // pub fn operation(&self) -> bool {
+    //     match self {
+    //         BinOpKind::Add | BinOpKind::Sub | BinOpKind::Mul | BinOpKind::Div | BinOpKind::Mod => {
+    //             true
+    //         }
+    //         _ => false,
+    //     }
+    // }
 
     pub fn comparsion(&self) -> bool {
         match self {

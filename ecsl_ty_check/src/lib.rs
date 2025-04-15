@@ -1625,12 +1625,13 @@ impl Visitor for TyCheck {
                 // Unify Types
                 unify!(lhs_ty, rhs_ty, TyCheckError::LHSMatchRHS(lhs_ty, rhs_ty));
 
-                let numeric = self.global().is_numeric(lhs_ty);
+                let int = self.get_tyid(TyIr::Int) == lhs_ty;
+                let float = self.get_tyid(TyIr::Float) == lhs_ty;
                 let boolean = self.get_tyid(TyIr::Bool) == lhs_ty;
 
-                let tyid = if op.operation() && numeric {
+                let tyid = if (op.int_operation() && int) || (op.float_operation() && float) {
                     lhs_ty
-                } else if op.comparsion() && (numeric || boolean) {
+                } else if op.comparsion() && (int || float || boolean) {
                     self.get_tyid(TyIr::Bool)
                 } else if op.boolean_logic() && boolean {
                     self.get_tyid(TyIr::Bool)
@@ -1642,6 +1643,7 @@ impl Visitor for TyCheck {
                         )
                         .with_span(|_| e.span),
                     );
+
                     return VisitorCF::Break;
                 };
 

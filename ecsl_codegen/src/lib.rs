@@ -125,6 +125,13 @@ impl<'a> CodeGen<'a> {
                                     BinOp(OpKind::Int, BinOpKind::Leq) => ins!(LEQ_I),
                                     BinOp(OpKind::Int, BinOpKind::Gt) => ins!(GT_I),
                                     BinOp(OpKind::Int, BinOpKind::Geq) => ins!(GEQ_I),
+                                    BinOp(OpKind::Int, BinOpKind::Mod) => ins!(MOD_I),
+
+                                    BinOp(OpKind::Int, BinOpKind::BAnd) => ins!(AND_I),
+                                    BinOp(OpKind::Int, BinOpKind::BOr) => ins!(OR_I),
+                                    BinOp(OpKind::Int, BinOpKind::BXor) => ins!(XOR_I),
+                                    BinOp(OpKind::Int, BinOpKind::ShiftLeft) => ins!(SHL_I),
+                                    BinOp(OpKind::Int, BinOpKind::ShiftRight) => ins!(SHR_I),
 
                                     BinOp(OpKind::Float, BinOpKind::Add) => ins!(ADD_F),
                                     BinOp(OpKind::Float, BinOpKind::Sub) => ins!(SUB_F),
@@ -136,6 +143,7 @@ impl<'a> CodeGen<'a> {
                                     BinOp(OpKind::Float, BinOpKind::Leq) => ins!(LEQ_F),
                                     BinOp(OpKind::Float, BinOpKind::Gt) => ins!(GT_F),
                                     BinOp(OpKind::Float, BinOpKind::Geq) => ins!(GEQ_F),
+                                    BinOp(OpKind::Float, BinOpKind::Mod) => ins!(MOD_F),
 
                                     BinOp(OperandKind::Bool, BinOpKind::Eq) => ins!(EQ_B),
                                     BinOp(OperandKind::Bool, BinOpKind::Neq) => ins!(NEQ_B),

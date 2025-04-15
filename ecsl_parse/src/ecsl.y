@@ -26,6 +26,7 @@
 %epp 'MINUS' '-'
 %epp 'STAR' '*'
 %epp 'FSLASH' '/'
+%epp 'MOD' '%'
 
 %epp 'LEQ'  '<='
 %epp 'LT' '<'
@@ -96,10 +97,13 @@
 %left 'DOTDOT' 'DOTDOTEQ'
 %left 'OR'
 %left 'AND'
+%left 'PIPE'
+%left 'CARAT'
 %left 'EQEQ' 'NOTEQ'
 %left 'LT' 'LEQ' 'GT' 'GEQ'
+%left 'SLEFT' 'SRIGHT'
 %left 'PLUS' 'MINUS'
-%left 'STAR' 'FSLASH'
+%left 'STAR' 'FSLASH' 'MOD'
 %right 'NOT' 'AMPERSAND'
 %left 'DOT'
 %right 'AS'
@@ -890,6 +894,28 @@ Expr -> Result<Expr, ()>:
             P::new($3?),
         )))
     }
+    | Expr 'PIPE' Expr {
+        Ok(Expr::new($span, ExprKind::BinOp(
+            BinOpKind::BOr,
+            P::new($1?),
+            P::new($3?),
+        )))
+    }
+    | Expr 'CARAT' Expr {
+        Ok(Expr::new($span, ExprKind::BinOp(
+            BinOpKind::BXor,
+            P::new($1?),
+            P::new($3?),
+        )))
+    }
+    | Expr 'AMPERSAND' Expr {
+        Ok(Expr::new($span, ExprKind::BinOp(
+            BinOpKind::BAnd,
+            P::new($1?),
+            P::new($3?),
+        )))
+    }
+    
     | Expr 'EQEQ' Expr {
         Ok(Expr::new($span, ExprKind::BinOp(
             BinOpKind::Eq,
@@ -932,6 +958,20 @@ Expr -> Result<Expr, ()>:
             P::new($3?),
         )))
     }
+    | Expr 'SRIGHT' Expr {
+        Ok(Expr::new($span, ExprKind::BinOp(
+            BinOpKind::ShiftRight,
+            P::new($1?),
+            P::new($3?),
+        )))
+    }
+    | Expr 'SLEFT' Expr {
+        Ok(Expr::new($span, ExprKind::BinOp(
+            BinOpKind::ShiftLeft,
+            P::new($1?),
+            P::new($3?),
+        )))
+    }
     | Expr 'PLUS' Expr {
         Ok(Expr::new($span, ExprKind::BinOp(
             BinOpKind::Add,
@@ -942,6 +982,13 @@ Expr -> Result<Expr, ()>:
     | Expr 'MINUS' Expr {
         Ok(Expr::new($span, ExprKind::BinOp(
             BinOpKind::Sub,
+            P::new($1?),
+            P::new($3?),
+        )))
+    }
+    | Expr 'MOD' Expr {
+        Ok(Expr::new($span, ExprKind::BinOp(
+            BinOpKind::Mod,
             P::new($1?),
             P::new($3?),
         )))
