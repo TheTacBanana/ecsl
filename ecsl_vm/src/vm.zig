@@ -62,7 +62,7 @@ pub const EcslVM = struct {
 
     pub fn free(self: *EcslVM) void {
         self.world.free();
-        for (self.threads) |*elem| {
+        for (self.threads.items) |*elem| {
             elem.free();
         }
         self.threads.clearAndFree();

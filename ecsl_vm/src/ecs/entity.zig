@@ -99,7 +99,7 @@ pub const Entity = struct {
     }
 };
 
-pub const EntityId = struct {
+pub const EntityId = packed struct {
     id: u32,
     gen: u32,
 

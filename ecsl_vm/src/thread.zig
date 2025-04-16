@@ -85,7 +85,7 @@ pub const ProgramThread = struct {
         self.vm_ptr.allocator.free(self.call_stack);
     }
 
-    pub fn unwrap_call_stack(self: *ProgramThread, err: (ProgramError || ProgramPanic)) ProgramUnwrap {
+    pub fn unwrap_call_stack(self: *ProgramThread, err: anyerror) ProgramUnwrap {
         // Check for catch_unwrap if possible
         if (@TypeOf(err) == ProgramError) {
             var i: usize = self.call_stack_index;
@@ -255,15 +255,25 @@ pub const ProgramThread = struct {
         self: *ProgramThread,
         address: u64,
     ) ProgramError!*u8 {
-        // std.log.debug("Ptr to {d}", .{address});
+        // std.log.debug("{} {} {} : {}", .{ self.vm_ptr.binary.len, self.stack.len, self.vm_ptr.world.storage.data.len, address });
+
+        var t_address = address;
         const binary_len = self.vm_ptr.binary.len;
-        if (address < binary_len) {
-            return &self.vm_ptr.binary[address];
-        } else if (address < (binary_len + self.stack.len)) {
-            return &self.stack[address - binary_len];
-        } else {
-            return error.InvalidPointer;
+        if (t_address < binary_len) {
+            return &self.vm_ptr.binary[t_address];
         }
+        t_address -= binary_len;
+
+        if (t_address < self.stack.len) {
+            return &self.stack[t_address];
+        }
+        t_address -= self.stack.len;
+
+        if (t_address < self.vm_ptr.world.storage.data.len) {
+            return &self.vm_ptr.world.storage.data[t_address];
+        }
+
+        return error.InvalidPointer;
     }
 
     pub fn execute_from_address(self: *ProgramThread, from: u64) ProgramStatus {

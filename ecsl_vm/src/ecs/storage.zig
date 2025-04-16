@@ -16,7 +16,10 @@ pub const Table = struct {
 
     data: []u8,
 
+    ptr_offset: u64,
+
     pub fn new(
+        ptr_offset: u64,
         defs: *const component.ComponentDefinitions,
         entities: *const entity.EntityCollection,
         config: *const world.WorldConfig,
@@ -50,7 +53,7 @@ pub const Table = struct {
         iter = defs.components.iterator();
         while (iter.next()) |entry| {
             const address = start_positions.get(entry.key_ptr.*).?;
-            try columns.put(entry.key_ptr.*, Column.new(entry.value_ptr.*, data[address.s..address.e]));
+            try columns.put(entry.key_ptr.*, Column.new(entry.value_ptr.*, address.s, data[address.s..address.e]));
         }
 
         const table = Table{
@@ -61,6 +64,7 @@ pub const Table = struct {
             .entities = entities,
             .bitsets = bitsets,
             .data = data,
+            .ptr_offset = ptr_offset,
         };
 
         return table;
@@ -102,6 +106,19 @@ pub const Table = struct {
         }
     }
 
+    pub fn get_ptr(
+        this: *Table,
+        eid: entity.EntityId,
+        cid: component.ComponentID,
+    ) ?u64 {
+        if (this.get_bitset(eid).isSet(cid.to_int())) {
+            const ptr = this.ptr_offset + this.columns.getPtr(cid).?.get_ptr(eid);
+            return ptr;
+        } else {
+            return null;
+        }
+    }
+
     pub fn has(
         this: *Table,
         eid: entity.EntityId,
@@ -122,11 +139,13 @@ pub const Table = struct {
 const Column = struct {
     def: component.ComponentDef,
     data: []u8,
+    ptr_offset: u64,
 
-    pub fn new(def: component.ComponentDef, data: []u8) Column {
+    pub fn new(def: component.ComponentDef, ptr_offset: u64, data: []u8) Column {
         return Column{
             .def = def,
             .data = data,
+            .ptr_offset = ptr_offset,
         };
     }
 
@@ -143,6 +162,10 @@ const Column = struct {
 
     pub fn get(this: *Column, id: entity.EntityId) []u8 {
         return this.get_slice(id);
+    }
+
+    pub fn get_ptr(this: *Column, id: entity.EntityId) u64 {
+        return this.ptr_offset + this.def.size * id.id;
     }
 };
 

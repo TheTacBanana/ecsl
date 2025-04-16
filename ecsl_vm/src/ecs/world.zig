@@ -51,7 +51,16 @@ pub const World = struct {
                 .size = comp_size,
             });
         }
-        self.storage.* = try storage.Table.new(self.components, self.entities, &self.config, self.alloc);
+
+        const ptr_offset = self.vm_ptr.binary.len + self.vm_ptr.stack_size;
+
+        self.storage.* = try storage.Table.new(
+            ptr_offset,
+            self.components,
+            self.entities,
+            &self.config,
+            self.alloc,
+        );
     }
 
     pub fn free(this: *World) void {
