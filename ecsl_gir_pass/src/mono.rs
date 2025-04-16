@@ -9,7 +9,6 @@ use ecsl_gir::{
 };
 use ecsl_index::{LocalID, TyID};
 use ecsl_ty::{local::LocalTyCtxt, TyIr};
-use log::debug;
 use std::{collections::BTreeMap, sync::Arc};
 
 pub fn monomorphize(linker: &mut FunctionLinker, ctxt: &Arc<LocalTyCtxt>) {
@@ -19,8 +18,6 @@ pub fn monomorphize(linker: &mut FunctionLinker, ctxt: &Arc<LocalTyCtxt>) {
 
         for (v, generics) in variants {
             let mut new_gir = gir.clone();
-
-            debug!("{}", new_gir);
 
             let mapping = generics
                 .iter()

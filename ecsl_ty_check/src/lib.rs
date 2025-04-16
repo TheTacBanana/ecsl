@@ -257,13 +257,20 @@ impl TyCheck {
             panic!("Internal Compiler Error: Fn {} has not been defined", tyid);
         };
 
+        // debug!("{fn_tyir:?}");
+        // debug!("{:?}", self.ty_ctxt.global.get_tyir(TyID::new(7)));
+        // debug!("{:?}", self.ty_ctxt.global.get_tyir(TyID::new(17)));
+        // debug!("{:?}", self.ty_ctxt.global.get_tyir(TyID::new(15)));
+
         self.cur_gir = Some(GIR::new(tyid, fn_tyir.kind, self.ty_ctxt.file, f.span));
 
         // Insert Return Type as Local
         self.new_local(Local::new(
             f.ret_span(),
             Mutable::Mut,
-            fn_tyir.ret.ty,
+            self.ty_ctxt
+                .get_mono_variant(fn_tyir.ret.ty, &fn_tyir.ret.params, f.span)
+                .unwrap(),
             LocalKind::Ret,
         ));
 

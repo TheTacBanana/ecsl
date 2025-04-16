@@ -296,7 +296,7 @@ impl Driver {
 
         debug!("Write component defs");
         let assembler = assembler
-            .write_comp_defs(comp_defs.take_components())
+            .write_comp_defs(comp_defs.clone_components())
             .unwrap();
 
         let _ = (&context, assoc).par_map_assoc(

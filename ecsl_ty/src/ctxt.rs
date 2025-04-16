@@ -71,6 +71,11 @@ impl TyCtxt {
         spans.insert(id, (span, fid));
     }
 
+    pub fn insert_span_file(&self, id: TyID, span: Span, fid: SourceFileID) {
+        let mut spans = self.spans.write().unwrap();
+        spans.insert(id, (span, fid));
+    }
+
     pub fn get_or_create_tyid(&self, id: GlobalID) -> TyID {
         let mut lock = self.mappings.write().unwrap();
         if !lock.contains_left(&id) {

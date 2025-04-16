@@ -321,6 +321,7 @@ impl LocalTyCtxt {
 
             match &mut tyir {
                 TyIr::ADT(adt_tyir) => {
+                    // debug!("{:?}", adt_tyir);
                     if params.len() != generic_count {
                         self.diag.push_error(
                             EcslError::new(ErrorLevel::Error, "Mismatched generics")
@@ -333,6 +334,9 @@ impl LocalTyCtxt {
 
                     let new_tyid = self.global.tyid_from_tyir(tyir);
                     self.global.monos.insert_mapping(key, new_tyid);
+
+                    let (span, fid) = self.global.get_span(id).unwrap();
+                    self.global.insert_span_file(new_tyid, span, fid);
 
                     Some(new_tyid)
                 }
@@ -367,7 +371,8 @@ impl LocalTyCtxt {
                 | TyIr::Int
                 | TyIr::Float
                 | TyIr::Str
-                | TyIr::Entity => Some(id),
+                | TyIr::Entity
+                | TyIr::Bottom => Some(id),
                 e => {
                     error!("{:?}", e);
                     None

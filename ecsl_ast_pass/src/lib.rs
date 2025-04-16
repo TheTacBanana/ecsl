@@ -22,6 +22,7 @@ use ecsl_ty::{
 use entry_point::{EntryPoint, EntryPointError, EntryPointKind};
 use fn_validator::FnValidator;
 use import_collector::ImportCollector;
+use log::debug;
 use prelude::{rewrite_use_path, Prelude};
 use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
 
@@ -466,6 +467,7 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                     return;
                 };
                 let impl_tyir = ty_ctxt.global.get_tyir(impl_id);
+                debug!("{:?}", impl_tyir);
 
                 let Some(fn_scope) = ty.into_scope() else {
                     ty_ctxt.diag.push_error(
@@ -496,8 +498,11 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                     | TyIr::Str
                     | TyIr::ADT(_) => {
                         let Some((_, file)) = ty_ctxt.global.get_span(impl_id) else {
-                            todo!();
-                            // return;
+                            ty_ctxt.diag.push_error(
+                                EcslError::new(ErrorLevel::Error, "Cannot impl for type")
+                                    .with_span(|_| ty.span),
+                            );
+                            return;
                         };
 
                         if file != ty_ctxt.file {

@@ -1,6 +1,7 @@
 use ecsl_assembler::ComponentDef;
 use ecsl_index::{ComponentID, TyID};
 use ecsl_ty::ctxt::TyCtxt;
+use log::debug;
 use std::{
     collections::BTreeMap,
     sync::{Arc, RwLock},
@@ -50,8 +51,8 @@ impl ComponentDefinitions {
         self.definitions.read().unwrap().get(&tyid).unwrap().id
     }
 
-    pub fn take_components(&self) -> Vec<ComponentDef> {
-        let mut definitions = self.definitions.write().unwrap();
-        std::mem::take(&mut *definitions).into_values().collect()
+    pub fn clone_components(&self) -> Vec<ComponentDef> {
+        let definitions = self.definitions.read().unwrap();
+        definitions.clone().into_values().collect()
     }
 }

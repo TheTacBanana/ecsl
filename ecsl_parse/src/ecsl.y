@@ -314,13 +314,13 @@ StructConcreteGenerics -> Result<ConcreteGenerics, ()>:
     ;
 
 FnConcreteGenerics -> Result<ConcreteGenerics, ()>:
-    'PATH' 'LT' TyList TrailingComma 'GT' 'PATH' {
+    'PATH' 'LT' TyList TrailingComma 'GT' {
         Ok(ConcreteGenerics {
             span: $span,
             params: $3?,
         })
     }
-    | 'PATH' 'LT' 'GT' 'PATH' {
+    | 'PATH' 'LT' 'GT' {
         Ok(ConcreteGenerics {
             span: $span,
             params: Vec::new(),
