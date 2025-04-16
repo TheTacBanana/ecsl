@@ -1,7 +1,7 @@
 use anyhow::Result;
 use ecsl_assembler::Assembler;
 use ecsl_ast_pass::*;
-use ecsl_codegen::CodeGen;
+use ecsl_codegen::{bp_promotion::BpPromotion, noop::NoOp, pass::CodegenPass, CodeGen};
 use ecsl_context::{Context, MapAssocExt};
 use ecsl_diagnostics::{Diagnostics, DiagnosticsExt};
 use ecsl_error::{ext::EcslErrorExt, EcslError};
@@ -303,8 +303,10 @@ impl Driver {
             |_, _, (local_ctxt, mut linker, gir_consts)| {
                 for (id, gir) in linker.fn_gir.iter_mut() {
                     let consts = gir_consts.get(id).unwrap();
-                    let bytecode =
+                    let mut bytecode =
                         CodeGen::apply_pass(gir, (local_ctxt.clone(), comp_defs.clone(), consts));
+                    BpPromotion::apply_pass(&mut bytecode, ());
+                    NoOp::apply_pass(&mut bytecode, ());
 
                     assembler.include_function(bytecode);
                 }
