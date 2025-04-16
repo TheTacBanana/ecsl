@@ -1,6 +1,8 @@
 const std = @import("std");
 const vm = @import("vm.zig");
 const thread = @import("thread.zig");
+const entity = @import("ecs/entity.zig");
+
 const ProgramThread = thread.ProgramThread;
 const StackFrame = ProgramThread.StackFrame;
 
@@ -46,6 +48,7 @@ pub fn ldr(self: *ProgramThread, size: u8, offset: i64) !void {
     const stack_slice = self.stack[self.sp..][0..size];
     const cast_ptr: [*]u8 = @ptrCast(ptr);
     @memcpy(stack_slice, cast_ptr[0..size]);
+    // std.log.debug("LDR {any}", .{stack_slice});
 
     self.sp = new_sp;
 }
@@ -64,6 +67,9 @@ pub fn str(self: *ProgramThread, size: u8, offset: i64) !void {
 
     // Get slice of stack
     const from_slice = self.stack[self.sp..][0..size];
+
+    // std.log.debug("STR {any}", .{from_slice});
+
     const cast_ptr: [*]u8 = @ptrCast(ptr);
 
     @memcpy(cast_ptr[0..size], from_slice);
@@ -373,6 +379,48 @@ pub fn print_b(self: *ProgramThread) !void {
     }
 }
 
-pub fn nent(_: *ProgramThread) !void {}
+pub fn nent(self: *ProgramThread) !void {
+    const new_id = try self.vm_ptr.world.entities.create();
+    try self.push_stack(entity.EntityId, @constCast(&new_id));
+}
 
-pub fn rent(_: *ProgramThread) !void {}
+pub fn rent(self: *ProgramThread) !void {
+    const id = try self.pop_stack(entity.EntityId);
+    self.vm_ptr.world.entities.remove_entity(id.*);
+}
+
+pub fn incomp(self: *ProgramThread, comp_id: u32) !void {
+    const eid = try self.pop_stack(entity.EntityId);
+    const def = self.vm_ptr.world.components.get_def(@enumFromInt(comp_id)).?;
+
+    // Check for type larger than stack
+    if (def.size > self.sp) {
+        return error.EmptyStack;
+    }
+    // Decrement Stack
+    self.sp -= def.size;
+
+    // Get slice of stack
+    const from_slice = self.stack[self.sp..][0..def.size];
+    self.vm_ptr.world.storage.insert(eid.*, def.id, from_slice);
+}
+
+pub fn gecomp(self: *ProgramThread, comp_id: u32) !void {
+    const eid = try self.pop_stack(entity.EntityId);
+    const def = self.vm_ptr.world.components.get_def(@enumFromInt(comp_id)).?;
+    const data_ptr = self.vm_ptr.world.storage.get_ptr(eid.*, def.id);
+
+    // std.log.debug("Ge {?}", .{data_ptr});
+
+    if (data_ptr) |ptr| {
+        try self.push_stack(u8, @constCast(&@as(u8, 1)));
+        try self.push_stack(u64, @constCast(&ptr));
+    } else {
+        try self.push_stack([9]u8, @constCast(&[_]u8{0} ** 9));
+    }
+}
+
+pub fn recomp(self: *ProgramThread, comp_id: u32) !void {
+    _ = self; // autofix
+    _ = comp_id; // autofix
+}

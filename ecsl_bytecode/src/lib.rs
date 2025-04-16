@@ -309,9 +309,19 @@ pub enum Bytecode {
     PRINT_F = 57,
     /// Pop bool from stack and print to stdout
     PRINT_B = 58,
+
     // ECS Instructions
     /// Create a new entity and push the entity id to the stack
     NENT = 59,
     /// Pop the entity id from the stack and remove it
     RENT = 60,
+    /// Using the component ID, pop the component from the stack and
+    /// the entity from the stack and insert into storage
+    INCOMP(u32),
+    /// Using the component ID, the entity from the stack and insert
+    /// into storage
+    GECOMP(u32),
+    /// Using the component ID, pop the component from the stack and
+    /// the entity from the stack and insert into storage
+    RECOMP(u32),
 }
