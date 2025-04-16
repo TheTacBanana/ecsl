@@ -1,4 +1,4 @@
-use crate::pass::CodegenPass;
+use crate::CodegenPass;
 use ecsl_bytecode::{function::FunctionBytecode, BytecodeInstruction, Opcode};
 
 type BI = BytecodeInstruction;
