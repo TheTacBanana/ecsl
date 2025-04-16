@@ -1,7 +1,13 @@
 use anyhow::Result;
 use ecsl_assembler::Assembler;
 use ecsl_ast_pass::*;
-use ecsl_codegen::{bp_promotion::BpPromotion, noop::NoOp, pass::CodegenPass, CodeGen};
+use ecsl_codegen::{
+    bp_promotion::BpPromotion,
+    codegen::CodeGen,
+    inline::{CanInline, Inline, InlineableFunctions},
+    noop::NoOp,
+    CodegenPass,
+};
 use ecsl_context::{Context, MapAssocExt};
 use ecsl_diagnostics::{Diagnostics, DiagnosticsExt};
 use ecsl_error::{ext::EcslErrorExt, EcslError};
@@ -299,16 +305,34 @@ impl Driver {
             .write_comp_defs(comp_defs.clone_components())
             .unwrap();
 
-        let _ = (&context, assoc).par_map_assoc(
+        let inlineable = InlineableFunctions::new();
+        let assoc = (&context, assoc).par_map_assoc(
             |_, _, (local_ctxt, mut linker, gir_consts)| {
+                let mut bytecode_out = BTreeMap::new();
                 for (id, gir) in linker.fn_gir.iter_mut() {
                     let consts = gir_consts.get(id).unwrap();
                     let mut bytecode =
                         CodeGen::apply_pass(gir, (local_ctxt.clone(), comp_defs.clone(), consts));
                     BpPromotion::apply_pass(&mut bytecode, ());
                     NoOp::apply_pass(&mut bytecode, ());
+                    CanInline::apply_pass(&mut bytecode, &inlineable);
 
-                    assembler.include_function(bytecode);
+                    bytecode_out.insert(*id, bytecode);
+                }
+                Some(bytecode_out)
+            },
+            || diag.finish_stage(finish_stage),
+        )?;
+
+        let _ = (&context, assoc).par_map_assoc(
+            |_, _, bytecode| {
+                for mut byt in bytecode.into_values() {
+                    if inlineable.inlined(byt.tyid) {
+                        continue;
+                    }
+                    Inline::apply_pass(&mut byt, &inlineable);
+
+                    assembler.include_function(byt);
                 }
                 Some(())
             },

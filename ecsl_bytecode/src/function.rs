@@ -1,4 +1,4 @@
-use crate::{ext::BytecodeExt, BytecodeInstruction};
+use crate::{ext::BytecodeExt, BytecodeInstruction, Opcode};
 use ecsl_index::{BlockID, TyID};
 use std::collections::BTreeMap;
 
@@ -34,10 +34,27 @@ impl FunctionBytecode {
         (ins, offsets)
     }
 
+    pub fn map(&mut self, f: impl Copy + Fn(&mut BytecodeInstruction)) {
+        self.blocks.iter_mut().for_each(|(_, block)| {
+            _ = block
+                .iter_mut()
+                .map(|byt| {
+                    f(byt);
+                })
+                .collect::<Vec<_>>();
+        });
+    }
+
     pub fn retain(&mut self, f: impl Copy + Fn(&BytecodeInstruction) -> bool) {
         self.blocks
             .iter_mut()
             .for_each(|(_, block)| block.retain(f));
+    }
+
+    pub fn contains(&self, op: Opcode) -> bool {
+        self.blocks
+            .iter()
+            .any(|(_, block)| block.iter().any(|byt| byt.op == op))
     }
 }
 

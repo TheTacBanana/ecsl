@@ -119,6 +119,13 @@ impl Immediate {
             _ => None,
         }
     }
+
+    pub fn to_tyid(self) -> Option<TyID> {
+        match self {
+            Immediate::AddressOf(tyid) => Some(tyid),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
