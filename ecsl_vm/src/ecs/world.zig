@@ -44,8 +44,6 @@ pub const World = struct {
             const comp_id = read(u32, section[offset..(offset + 4)], big);
             const comp_size = read(u32, section[(offset + 4)..(offset + 8)], big);
 
-            std.log.debug("New Component {d} {d}", .{ comp_id, comp_size });
-
             try self.components.add_def(component.ComponentDef{
                 .id = @enumFromInt(comp_id),
                 .size = comp_size,

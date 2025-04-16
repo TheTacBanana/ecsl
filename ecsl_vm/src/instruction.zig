@@ -35,7 +35,15 @@ pub inline fn pbp(self: *ProgramThread) !void {
 
 pub fn ldr(self: *ProgramThread, size: u8, offset: i64) !void {
     const address = try self.pop_stack(u64);
-    const inter = u64_plus_i64(address.*, offset);
+    try ldr_impl(self, size, offset, address.*);
+}
+
+pub fn bpldr(self: *ProgramThread, size: u8, offset: i64) !void {
+    try ldr_impl(self, size, offset, self.get_bp());
+}
+
+pub fn ldr_impl(self: *ProgramThread, size: u8, offset: i64, address: u64) !void {
+    const inter = u64_plus_i64(address, offset);
     const ptr = try self.get_ptr(inter);
 
     // Guard against stack overflow
@@ -55,7 +63,15 @@ pub fn ldr(self: *ProgramThread, size: u8, offset: i64) !void {
 
 pub fn str(self: *ProgramThread, size: u8, offset: i64) !void {
     const address = try self.pop_stack(u64);
-    const inter = u64_plus_i64(address.*, offset);
+    try str_impl(self, size, offset, address.*);
+}
+
+pub fn bpstr(self: *ProgramThread, size: u8, offset: i64) !void {
+    try str_impl(self, size, offset, self.get_bp());
+}
+
+pub fn str_impl(self: *ProgramThread, size: u8, offset: i64, address: u64) !void {
+    const inter = u64_plus_i64(address, offset);
     const ptr = try self.get_ptr(inter);
 
     // Check for type larger than stack
