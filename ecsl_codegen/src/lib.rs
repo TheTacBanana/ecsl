@@ -1,5 +1,5 @@
 use ecsl_bytecode::{
-    ext::BytecodeExt, ins, BytecodeInstruction, FunctionBytecode, Immediate, Opcode,
+    ext::BytecodeExt, function::FunctionBytecode, ins, BytecodeInstruction, Immediate, Opcode,
 };
 use ecsl_gir::{
     expr::{BinOp, BinOpKind, ExprKind, Operand, OperandKind, UnOp, UnOpKind},
@@ -13,6 +13,10 @@ use ecsl_ty::{local::LocalTyCtxt, TyIr};
 use log::debug;
 use petgraph::visit::{Bfs, Dfs};
 use std::{collections::BTreeMap, sync::Arc};
+
+pub mod bp_promotion;
+pub mod noop;
+pub mod pass;
 
 pub struct CodeGen<'a> {
     pub ty_ctxt: Arc<LocalTyCtxt>,
@@ -37,7 +41,7 @@ impl<'b> GIRPass for CodeGen<'b> {
         gir: &mut GIR,
         (ty_ctxt, components, const_map): Self::PassInput<'a>,
     ) -> Self::PassResult {
-        let mut c = CodeGen {
+        let c = CodeGen {
             ty_ctxt,
             components,
             offsets: Default::default(),
@@ -50,7 +54,7 @@ impl<'b> GIRPass for CodeGen<'b> {
 }
 
 impl<'a> CodeGen<'a> {
-    pub fn generate_code(&mut self, gir: &GIR) -> FunctionBytecode {
+    pub fn generate_code(mut self, gir: &GIR) -> FunctionBytecode {
         debug!("Codegen {:?}", gir.fn_id);
         let mut locals = gir.locals().collect::<Vec<_>>();
         let first_non_arg = locals
@@ -283,51 +287,24 @@ impl<'a> CodeGen<'a> {
         }
         assert!(visit_order.first().is_none_or(|s| *s == BlockID::ZERO));
 
-        // Remove all No Ops
-        for (_, block) in self.blocks.iter_mut() {
-            block.retain(|i| i.op != Opcode::NOP);
-        }
-
-        // Instructions
-        let mut ins = Vec::new();
-
         if gir.fn_id == self.ty_ctxt.global.entry_point() {
             post_offset += 8;
         }
 
         // Set the SP offset
         if post_offset > 0 {
-            ins.push(BytecodeInstruction::new(
-                Opcode::SETSP,
-                [Immediate::ULong(post_offset as u64)],
-            ));
-        }
-
-        // Calculate sizes and offsets
-        let sizes = self
-            .blocks
-            .iter()
-            .map(|(i, b)| (*i, b.bytecode_size()))
-            .collect::<BTreeMap<_, _>>();
-        let mut offsets = BTreeMap::new();
-        visit_order
-            .iter()
-            .fold(ins.bytecode_size(), |cur_offset, block_id| {
-                offsets.insert(*block_id, cur_offset);
-                cur_offset + sizes.get(block_id).unwrap()
-            });
-
-        // Concat blocks into sequence
-        for block_id in &visit_order {
-            let block = self.blocks.remove(block_id).unwrap();
-            ins.extend_from_slice(&block);
+            if let Some(block) = self.blocks.get_mut(&BlockID::ZERO) {
+                block.insert(
+                    0,
+                    BytecodeInstruction::new(Opcode::SETSP, [Immediate::ULong(post_offset as u64)]),
+                );
+            }
         }
 
         FunctionBytecode {
             tyid: gir.fn_id,
-            total_size: ins.bytecode_size(),
-            block_offsets: offsets,
-            ins,
+            visit_order,
+            blocks: self.blocks,
         }
     }
 

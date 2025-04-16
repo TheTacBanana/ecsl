@@ -1,13 +1,7 @@
-use crate::{BytecodeInstruction, FunctionBytecode};
+use crate::BytecodeInstruction;
 
 pub trait BytecodeExt {
     fn bytecode_size(&self) -> usize;
-}
-
-impl BytecodeExt for FunctionBytecode {
-    fn bytecode_size(&self) -> usize {
-        self.ins.iter().fold(0, |l, r| l + r.bytecode_size())
-    }
 }
 
 impl BytecodeExt for BytecodeInstruction {

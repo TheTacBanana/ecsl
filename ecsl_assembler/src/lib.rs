@@ -1,4 +1,6 @@
-use ecsl_bytecode::{FunctionBytecode, Immediate};
+use ecsl_bytecode::ext::BytecodeExt;
+use ecsl_bytecode::function::FunctionBytecode;
+use ecsl_bytecode::Immediate;
 use ecsl_index::{AssemblerConstID, ComponentID, TyID};
 use header::{FileType, SectionPointer, SectionType};
 use log::debug;
@@ -210,17 +212,25 @@ impl Assembler<Executable> {
         let start_pos = self.offset_to_alignment()?;
 
         let functions = self.functions.get_mut().unwrap();
+        let functions = std::mem::take(functions);
+
         let mut function_offsets = BTreeMap::new();
         let mut total_offset = 0;
         for (fid, byt) in functions.iter() {
             function_offsets.insert(*fid, total_offset);
-            total_offset = (total_offset + byt.total_size as u64).next_multiple_of(8);
+            total_offset = (total_offset + byt.bytecode_size() as u64).next_multiple_of(8);
+        }
+
+        let mut bytecode_offsets = BTreeMap::new();
+        for (_, byt) in functions.into_iter() {
+            bytecode_offsets.insert(byt.tyid, byt.into_instructions());
         }
 
         // Rewrite Jumps
-        for (fid, byt) in functions.iter_mut() {
+        for (fid, (bytecode, block_offsets)) in bytecode_offsets.iter_mut() {
             let func_offset = function_offsets.get(&fid).unwrap();
-            for ins in byt.ins.iter_mut() {
+
+            for ins in bytecode.iter_mut() {
                 for op in ins.operand.iter_mut() {
                     match op {
                         Immediate::AddressOf(ty_id) => {
@@ -236,7 +246,7 @@ impl Assembler<Executable> {
                             *op = Immediate::ULong(
                                 start_pos
                                     + *func_offset
-                                    + *byt.block_offsets.get(block_id).unwrap() as u64,
+                                    + *block_offsets.get(block_id).unwrap() as u64,
                             );
                         }
                         Immediate::ConstAddressOf(const_id) => {
@@ -252,14 +262,15 @@ impl Assembler<Executable> {
         let mut buffer = vec![0_u8; total_offset as usize];
 
         // TODO: Remove cloning
-        for (fid, byt) in functions {
-            let func_offset = function_offsets.get(fid).unwrap();
+        for (fid, (bytecode, _)) in bytecode_offsets {
+            let func_offset = function_offsets.get(&fid).unwrap();
             debug!("{:?} at offset {}", fid, start_pos + func_offset);
 
             let mut temp_offset = 0;
 
             let mut bytecode_bin = Vec::new();
-            for ins in byt.ins.iter() {
+
+            for ins in bytecode.iter() {
                 debug!("{:?} {}", start_pos + func_offset + temp_offset, ins);
                 let bytes = &ins.clone().to_bytecode().unwrap().to_bytes();
                 temp_offset += bytes.len() as u64;

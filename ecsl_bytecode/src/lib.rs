@@ -2,17 +2,10 @@
 
 use ecsl_bytecode_derive::Bytecode;
 use ecsl_index::{AssemblerConstID, BlockID, LocalID, SymbolID, TyID};
-use std::{collections::BTreeMap, usize};
+use std::usize;
 
 pub mod ext;
-
-#[derive(Debug)]
-pub struct FunctionBytecode {
-    pub tyid: TyID,
-    pub total_size: usize,
-    pub block_offsets: BTreeMap<BlockID, usize>,
-    pub ins: Vec<BytecodeInstruction>,
-}
+pub mod function;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct BytecodeInstruction {
@@ -157,164 +150,168 @@ impl BuiltinOp {
 #[repr(u8)]
 pub enum Bytecode {
     /// Undefined instruction
-    UNDF = 0,
+    UNDF,
     /// No Op
     #[execute("{}")]
-    NOP = 1,
+    NOP,
     /// Halt the program
-    HALT = 2,
+    HALT,
 
     /// Pop the N bytes of the stack
-    POP(u8) = 3,
+    POP(u8),
 
     /// Push the BP address to the stack
-    PBP = 4,
+    PBP,
 
     /// Pop the address from the top of the stack and and push the N bytes
     /// from the [address + offset] and push to the top of the stack
     /// Most LDRs will have a PBP before
-    LDR(u8, i64) = 5,
+    LDR(u8, i64),
+    /// LDR but always relative to the BP
+    BPLDR(u8, i64),
     /// Pop the address from the top of the stack and and pop the N bytes
     /// from the top of the stack to the [address + offset]
     /// Most STRs will have a PBP before
-    STR(u8, i64) = 6,
+    STR(u8, i64),
+    /// STR but always relative to the BP
+    BPSTR(u8, i64),
     /// Pop the address from the top of the stack and push [address + offset]
     /// to the top of the stack
     /// Aka: Create a reference
-    PSHR(i64) = 7,
+    PSHR(i64),
 
     /// Set the SP to the [BP + offset]
-    SETSP(u64) = 8,
+    SETSP(u64),
     /// Set the SP to [SP + offset]
-    SETSPR(i64) = 9,
+    SETSPR(i64),
 
     /// Push the PC (8 bytes) to the stack and jump to the address
     /// Arguments should be pushed in Left-to-Right before the return address
     /// Restoring the arguments from the stack is the callee's responsibility
-    CALL(u64) = 10,
+    CALL(u64),
     /// CALL but provided with an address to jump to when a panic is caught
     /// Catch jump should be within the same function
-    CALLCU(u64, u64) = 11,
+    CALLCU(u64, u64),
     /// Return from Function
-    RET = 12,
+    RET,
 
     /// Panic with no message
-    PANIC = 13,
+    PANIC,
 
     /// Push the byte immediate value
-    PSHI_B(u8) = 14,
+    PSHI_B(u8),
     /// Push the immediate value
-    PSHI(u32) = 15,
+    PSHI(u32),
     /// Push the long immediate value
-    PSHI_L(u64) = 16,
+    PSHI_L(u64),
 
     // General jumps
     /// Unconditional Jump
-    JMP(u64) = 17,
+    JMP(u64),
     /// Jump if true
-    JMPT(u64) = 18,
+    JMPT(u64),
 
     // Boolean Operations
     /// Compare 2 bools
-    EQ_B = 19,
+    EQ_B,
     /// Compare 2 bools
-    NEQ_B = 20,
+    NEQ_B,
     /// AND operations on two bools
-    AND_B = 21,
+    AND_B,
     /// OR operation on two bools
-    OR_B = 22,
+    OR_B,
     /// NOT operation on a bool
-    NOT_B = 23,
+    NOT_B,
 
     // Int operations
     /// Compare 2 ints equality and push bool to stack
-    EQ_I = 24,
+    EQ_I,
     /// Compare 2 ints and push bool to stack
-    NEQ_I = 25,
+    NEQ_I,
     /// Compare 2 ints and push bool to stack
-    LT_I = 26,
+    LT_I,
     /// Compare 2 ints and push bool to stack
-    LEQ_I = 27,
+    LEQ_I,
     /// Compare 2 ints and push bool to stack
-    GT_I = 28,
+    GT_I,
     /// Compare 2 ints and push bool to stack
-    GEQ_I = 29,
+    GEQ_I,
 
     // Bitwise Int Operations
     /// Bitwise AND on top 2 integers of the stack and push the result
-    AND_I = 30,
+    AND_I,
     /// Bitwise OR on top 2 integers of the stack and push the result
-    OR_I = 31,
+    OR_I,
     /// Bitwise XOR on top 2 integers of the stack and push the result
-    XOR_I = 32,
+    XOR_I,
     /// Bitwise shift left on top 2 integers of the stack and push the result
-    SHL_I = 33,
+    SHL_I,
     /// Bitwise shift right on top 2 integers of the stack and push the result
-    SHR_I = 34,
+    SHR_I,
 
     // Float operations
     /// Compare 2 ints equality and push bool to stack
-    EQ_F = 35,
+    EQ_F,
     /// Compare 2 ints and push bool to stack
-    NEQ_F = 36,
+    NEQ_F,
     /// Compare 2 ints and push bool to stack
-    LT_F = 37,
+    LT_F,
     /// Compare 2 ints and push bool to stack
-    LEQ_F = 38,
+    LEQ_F,
     /// Compare 2 ints and push bool to stack
-    GT_F = 39,
+    GT_F,
     /// Compare 2 ints and push bool to stack
-    GEQ_F = 40,
+    GEQ_F,
 
     // Integer numeric instructions
     /// Add the top 2 integers of the stack and push the result
-    ADD_I = 41,
+    ADD_I,
     /// Sub the top 2 integers of the stack and push the result
-    SUB_I = 42,
+    SUB_I,
     /// Mul the top 2 integers of the stack and push the result
-    MUL_I = 43,
+    MUL_I,
     /// Div the top 2 integers of the stack and push the result
-    DIV_I = 44,
+    DIV_I,
     /// Mod the top 2 integers of the stack and push the results
-    MOD_I = 45,
+    MOD_I,
     /// Negate the top integer of the stack and push the result
-    NEG_I = 46,
+    NEG_I,
 
     // Float numeric instructions
     /// Add the top 2 floats of the stack and push the result
-    ADD_F = 47,
+    ADD_F,
     /// Sub the top 2 floats of the stack and push the result
-    SUB_F = 48,
+    SUB_F,
     /// Mul the top 2 floats of the stack and push the result
-    MUL_F = 49,
+    MUL_F,
     /// Div the top 2 floats of the stack and push the result
-    DIV_F = 50,
+    DIV_F,
     /// Mod the top 2 floats of the stack and push the results
-    MOD_F = 51,
+    MOD_F,
     /// Negate the top float of the stack and push the result
-    NEG_F = 52,
+    NEG_F,
 
     // Cast instructions
     /// Cast integer to float
-    ITF = 53,
+    ITF,
     /// Cast float to integer
-    FTI = 54,
+    FTI,
 
     // Print instructions
     /// Pop a char pointer and print the string to stdout
-    PRINT_S = 55,
+    PRINT_S,
     /// Pop integer from stack and print to stdout
-    PRINT_I = 56,
+    PRINT_I,
     /// Pop float from stack and print to stdout
-    PRINT_F = 57,
+    PRINT_F,
     /// Pop bool from stack and print to stdout
-    PRINT_B = 58,
+    PRINT_B,
 
     // ECS Instructions
     /// Create a new entity and push the entity id to the stack
-    NENT = 59,
+    NENT,
     /// Pop the entity id from the stack and remove it
-    RENT = 60,
+    RENT,
     /// Using the component ID, pop the component from the stack and
     /// the entity from the stack and insert into storage
     INCOMP(u32),
