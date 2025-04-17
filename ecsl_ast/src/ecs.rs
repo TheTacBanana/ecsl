@@ -24,20 +24,21 @@ pub struct QueryExpr {
 pub struct QueryFilter {
     pub span: Span,
     pub kind: FilterKind,
+    pub items: Vec<Ty>,
 }
 
 impl QueryFilter {
-    pub fn new(span: Span, kind: FilterKind) -> Self {
-        Self { span, kind }
+    pub fn new(span: Span, kind: FilterKind, items: Vec<Ty>) -> Self {
+        Self { span, kind, items }
     }
 }
 
 #[derive(Debug, Clone, AST)]
 pub enum FilterKind {
-    With(Vec<Ty>),
-    Without(Vec<Ty>),
-    Added(Vec<Ty>),
-    Removed(Vec<Ty>),
+    With,
+    Without,
+    Added,
+    Removed,
 }
 
 #[derive(Debug, Clone, AST)]

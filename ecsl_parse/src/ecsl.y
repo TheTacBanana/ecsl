@@ -1230,28 +1230,28 @@ QueryFilterList -> Result<Vec<QueryFilter>, ()>:
 
 QueryFilter -> Result<QueryFilter, ()>:
     'WITH' 'LT' TyList TrailingComma 'GT' {
-        Ok(QueryFilter::new($span, FilterKind::With($3?)))
+        Ok(QueryFilter::new($span, FilterKind::With, $3?))
     }
     | 'WITH' 'LT' 'GT' {
-        Ok(QueryFilter::new($span, FilterKind::With(Vec::new())))
+        Ok(QueryFilter::new($span, FilterKind::With, Vec::new()))
     }
     | 'WITHOUT' 'LT' TyList  TrailingComma 'GT' {
-        Ok(QueryFilter::new($span, FilterKind::Without($3?)))
+        Ok(QueryFilter::new($span, FilterKind::Without, $3?))
     }
     | 'WITHOUT' 'LT' 'GT' {
-        Ok(QueryFilter::new($span, FilterKind::Without(Vec::new())))
+        Ok(QueryFilter::new($span, FilterKind::Without, Vec::new()))
     }
     | 'ADDED' 'LT' TyList TrailingComma 'GT' {
-        Ok(QueryFilter::new($span, FilterKind::Added($3?)))
+        Ok(QueryFilter::new($span, FilterKind::Added, $3?))
     }
     | 'ADDED' 'LT' 'GT' {
-        Ok(QueryFilter::new($span, FilterKind::Added(Vec::new())))
+        Ok(QueryFilter::new($span, FilterKind::Added, Vec::new()))
     }
     | 'REMOVED' 'LT' TyList TrailingComma 'GT'{
-        Ok(QueryFilter::new($span, FilterKind::Removed($3?)))
+        Ok(QueryFilter::new($span, FilterKind::Removed, $3?))
     }
     | 'REMOVED' 'LT' 'GT' {
-        Ok(QueryFilter::new($span, FilterKind::Added(Vec::new())))
+        Ok(QueryFilter::new($span, FilterKind::Removed, Vec::new()))
     }
     ;
 

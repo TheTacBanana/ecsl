@@ -1,4 +1,5 @@
 #![feature(if_let_guard)]
+use ecsl_ast::ecs::FilterKind;
 use ecsl_ast::expr::{BinOpKind, RangeType, UnOpKind};
 use ecsl_ast::item::{ImplBlock, Item, ItemKind};
 use ecsl_ast::parse::{AttributeMarker, Immediate, ParamKind};
@@ -1365,7 +1366,7 @@ impl Visitor for TyCheck {
                         for tyid in params.iter() {
                             err_if!(
                                 !self.ty_ctxt.global.is_comp(*tyid),
-                                TyCheckError::RequiresCompGenerics(*tyid),
+                                TyCheckError::RequiresComp(*tyid),
                                 e.span
                             );
 
@@ -1504,7 +1505,7 @@ impl Visitor for TyCheck {
                         for tyid in params.iter() {
                             err_if!(
                                 !self.ty_ctxt.global.is_comp(*tyid),
-                                TyCheckError::RequiresCompGenerics(*tyid),
+                                TyCheckError::RequiresComp(*tyid),
                                 e.span
                             );
 
@@ -2081,11 +2082,59 @@ impl Visitor for TyCheck {
 
                 out
             }
+            ExprKind::Query(query) => {
+                let mut with = BTreeSet::new();
+                let mut without = BTreeSet::new();
+
+                for filter in query.filters.iter() {
+                    for ty in filter.items.iter() {
+                        let filter_tyid = catch_unknown!(
+                            self.get_tyid((ty, &self.generic_scope)),
+                            TyCheckError::UnknownTy
+                        );
+
+                        err_if!(
+                            !self.ty_ctxt.global.is_comp(filter_tyid),
+                            TyCheckError::RequiresComp(filter_tyid),
+                            e.span
+                        );
+
+                        self.cur_gir_mut().require_component(filter_tyid);
+
+                        match filter.kind {
+                            FilterKind::With => {
+                                err_if!(
+                                    !with.insert(filter_tyid),
+                                    TyCheckError::DuplicateFilter(filter_tyid),
+                                    filter.span
+                                );
+                                err_if!(
+                                    without.contains(&filter_tyid),
+                                    TyCheckError::ConflictingFilter(filter_tyid),
+                                    filter.span
+                                )
+                            }
+                            FilterKind::Without => {
+                                err_if!(
+                                    !without.insert(filter_tyid),
+                                    TyCheckError::DuplicateFilter(filter_tyid),
+                                    filter.span
+                                );
+                                err_if!(
+                                    with.contains(&filter_tyid),
+                                    TyCheckError::ConflictingFilter(filter_tyid),
+                                    filter.span
+                                )
+                            }
+                            _ => err!(TyCheckError::UnsupportedFilterKind, filter.span),
+                        }
+                    }
+                }
+
+                todo!();
+            }
             e => panic!("{:?}", e),
             // ExprKind::Array(exprs) => todo!(),
-            // ExprKind::Entity => todo!(),
-            // ExprKind::Resource => todo!(),
-            // ExprKind::Query(query_expr) => todo!(),
             // ExprKind::Schedule(schedule) => todo!(),
         };
 
@@ -2152,7 +2201,7 @@ pub enum TyCheckError {
 
     DotSyntaxOnConst,
 
-    RequiresCompGenerics(TyID),
+    RequiresComp(TyID),
 
     // Enum related errors
     TypeCannotBeMatched(TyID),
@@ -2175,6 +2224,10 @@ pub enum TyCheckError {
     NoBreak,
     NoContinue,
     UnknownBuiltinOp,
+
+    UnsupportedFilterKind,
+    DuplicateFilter(TyID),
+    ConflictingFilter(TyID),
 }
 
 impl std::fmt::Display for TyCheckError {
@@ -2245,8 +2298,11 @@ impl std::fmt::Display for TyCheckError {
             TypeHasNoFields(tyid) => &format!("Type '{}' has no fields", tyid),
             NoBreak => "Break outside of breakable context",
             NoContinue => "Continue outside of continuable context",
-            RequiresCompGenerics(tyid) => &format!("Type '{}' is not a component", tyid),
+            RequiresComp(tyid) => &format!("Type '{}' is not a component", tyid),
             UnknownBuiltinOp => "Unknown builtin bytecode op",
+            UnsupportedFilterKind => "Unsupported filter kind",
+            DuplicateFilter(tyid) => &format!("Filter for Type '{}' already present", tyid),
+            ConflictingFilter(tyid) => &format!("Conflicting for Type '{}' already present", tyid),
         };
         write!(f, "{}", s)
     }
