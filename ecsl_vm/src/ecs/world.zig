@@ -4,6 +4,7 @@ const header = @import("../header.zig");
 const entity = @import("entity.zig");
 const component = @import("component.zig");
 const storage = @import("storage.zig");
+const query = @import("query.zig");
 
 pub const World = struct {
     vm_ptr: *const vm.EcslVM,
@@ -12,6 +13,7 @@ pub const World = struct {
     entities: *entity.EntityCollection,
     components: *component.ComponentDefinitions,
     storage: *storage.Table,
+    query_tracker: *query.QueryTracker,
 
     pub fn new(config: WorldConfig, vm_ptr: *const vm.EcslVM, alloc: std.mem.Allocator) !*World {
         const config_ = config;
@@ -19,14 +21,16 @@ pub const World = struct {
 
         self.* = World{
             .alloc = alloc,
+            .vm_ptr = vm_ptr,
             .config = config_,
             .entities = try alloc.create(entity.EntityCollection),
             .components = try alloc.create(component.ComponentDefinitions),
             .storage = try alloc.create(storage.Table),
-            .vm_ptr = vm_ptr,
+            .query_tracker = try alloc.create(query.QueryTracker),
         };
         self.entities.* = try entity.EntityCollection.new(&self.config, alloc);
         self.components.* = try component.ComponentDefinitions.new(&self.config, alloc);
+        self.query_tracker.* = query.QueryTracker.new(self, alloc);
 
         return self;
     }
