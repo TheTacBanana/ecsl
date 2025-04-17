@@ -22,7 +22,7 @@ pub struct Assembler<T> {
 
     file_type: FileType,
 
-    const_data: RwLock<BTreeMap<AssemblerConstID, Vec<u8>>>,
+    const_data: RwLock<BTreeMap<Vec<u8>, AssemblerConstID>>,
     const_data_offsets: BTreeMap<AssemblerConstID, u64>,
 
     functions: RwLock<BTreeMap<TyID, FunctionBytecode>>,
@@ -38,7 +38,7 @@ pub struct Out;
 
 impl<T> Assembler<T> {
     pub const MAGIC_BYTES: &[u8] = &[0x45, 0x43, 0x53, 0x4C];
-    pub const ALIGNMENT: u64 = 32;
+    pub const ALIGNMENT: u64 = 8;
     pub const MAJOR_VERSION: u32 = 1;
     pub const MINOR_VERSION: u32 = 0;
 
@@ -114,9 +114,13 @@ impl Assembler<Pre> {
 impl Assembler<ConstData> {
     pub fn add_const_data(&self, bytes: Vec<u8>) -> AssemblerConstID {
         let mut const_data = self.const_data.write().unwrap();
-        let next_id = AssemblerConstID::new(const_data.len());
-        const_data.insert(next_id, bytes);
-        next_id
+        if let Some(id) = const_data.get(&bytes) {
+            *id
+        } else {
+            let next_id = AssemblerConstID::new(const_data.len());
+            const_data.insert(bytes, next_id);
+            next_id
+        }
     }
 
     /// Write the const data section
@@ -128,12 +132,12 @@ impl Assembler<ConstData> {
 
         {
             let const_data = self.const_data.read().unwrap();
-            for (id, cons) in const_data.iter() {
+            for (data, id) in const_data.iter() {
                 self.const_data_offsets
                     .insert(*id, start_pos + current_offset);
-                current_offset += cons.len() as u64;
+                current_offset += data.len() as u64;
 
-                buffer.extend_from_slice(cons);
+                buffer.extend_from_slice(data);
             }
         }
 
