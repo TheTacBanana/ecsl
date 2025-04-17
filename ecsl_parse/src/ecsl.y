@@ -150,6 +150,16 @@ Item -> Result<Item, ()>:
             fields: $6?,
         }))))
     }
+    | Attributes 'STRUCT' Component 'QUERY' Generics FieldDefs {
+        Ok(Item::new($span, ItemKind::Struct(P::new(StructDef {
+            span: $4.map_err(|_| ())?.span(),
+            kind: $3?,
+            ident: table.definition($4.map_err(|_| ())?.span(), SymbolKind::Struct($3?)),
+            attributes: $1?,
+            generics: $5?,
+            fields: $6?,
+        }))))
+    }
     | Attributes 'STRUCT' Component 'IDENT' Generics FieldDefs {
         Ok(Item::new($span, ItemKind::Struct(P::new(StructDef {
             span: $4.map_err(|_| ())?.span(),
@@ -497,6 +507,12 @@ UsePath -> Result<UsePath, ()>:
             table.definition($1.map_err(|_| ())?.span(), SymbolKind::ImportItem),
         ))
     }
+    | 'QUERY' {
+        Ok(UsePath::Item(
+            $span,
+            table.definition($1.map_err(|_| ())?.span(), SymbolKind::ImportItem),
+        ))
+    }
     | 'SUPER' 'PATH' UsePath {
         Ok(UsePath::Super(
             $1.map_err(|_| ())?.span(),
@@ -542,6 +558,9 @@ Ty -> Result<Ty, ()>:
     }
     | EntityTy {
         Ok(Ty::new($span, TyKind::Entity(table.create_entry("Entity".to_string()), $1?), ConcreteGenerics::empty($span)))
+    }
+    | 'QUERY' {
+        Ok(Ty::new($span, TyKind::Query(table.create_entry("Query".to_string())), ConcreteGenerics::empty($span)))
     }
     | 'SCHEDULE' {
         Ok(Ty::new($span, TyKind::Schedule, ConcreteGenerics::empty($span)))

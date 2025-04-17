@@ -25,7 +25,7 @@ pub struct Assembler<T> {
     const_data: RwLock<BTreeMap<Vec<u8>, AssemblerConstID>>,
     const_data_offsets: BTreeMap<AssemblerConstID, u64>,
 
-    functions: RwLock<BTreeMap<TyID, FunctionBytecode>>,
+    functions: RwLock<BTreeMap<TyID, FunctionBytecode>>, // Reduce duplication
 
     sections: Vec<SectionPointer>,
 }

@@ -199,6 +199,7 @@ pub fn generate_pre_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                         "char" => Some(TyIr::Char),
                         "str" => Some(TyIr::Str),
                         "Entity" => Some(TyIr::Entity),
+                        "Query" => Some(TyIr::Query),
                         _ => None,
                     };
 
@@ -490,8 +491,9 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                         );
                         return;
                     }
-                    TyIr::Entity => (),
-                    TyIr::Bool
+                    TyIr::Entity
+                    | TyIr::Query
+                    | TyIr::Bool
                     | TyIr::Char
                     | TyIr::Int
                     | TyIr::Float
