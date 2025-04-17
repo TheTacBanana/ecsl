@@ -1,9 +1,6 @@
 use cfgrammar::Span;
 use cons::Constant;
-use ecsl_ast::{
-    parse::FnKind,
-    ty::{Mutable, TyKind},
-};
+use ecsl_ast::{parse::FnKind, ty::Mutable};
 use ecsl_index::{BlockID, ConstID, FieldID, LocalID, SourceFileID, TyID, VariantID};
 use petgraph::prelude::DiGraphMap;
 use std::collections::{BTreeMap, BTreeSet};

@@ -1,7 +1,6 @@
 use ecsl_assembler::ComponentDef;
 use ecsl_index::{ComponentID, TyID};
 use ecsl_ty::ctxt::TyCtxt;
-use log::debug;
 use std::{
     collections::BTreeMap,
     sync::{Arc, RwLock},

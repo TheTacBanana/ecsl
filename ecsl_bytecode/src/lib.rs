@@ -47,7 +47,7 @@ pub enum Immediate {
     LocalOf(LocalID),
     SymbolOf(SymbolID),
     ComponentOf(TyID),
-    SizeOf(TyID),
+    SizeOf(TyID, i32),
 
     Builtin(BuiltinOp, SymbolID),
 
@@ -78,7 +78,7 @@ impl Immediate {
             Immediate::Long(_) => 8,
             Immediate::ULong(_) => 8,
             Immediate::ComponentOf(_) => 4,
-            Immediate::SizeOf(_) => 1,
+            Immediate::SizeOf(_, _) => 1,
             Immediate::Builtin(_, _) => panic!(),
         }
     }
@@ -132,6 +132,7 @@ impl Immediate {
 pub enum BuiltinOp {
     CID,
     Size,
+    SizeAdd1,
     Unknown,
 }
 
@@ -140,6 +141,7 @@ impl BuiltinOp {
         match s.to_uppercase().as_str() {
             "CID" => BuiltinOp::CID,
             "SIZE" => BuiltinOp::Size,
+            "SIZE_ADD_1" => BuiltinOp::SizeAdd1,
             _ => BuiltinOp::Unknown,
         }
     }
@@ -148,6 +150,7 @@ impl BuiltinOp {
         match self {
             BuiltinOp::CID => 4,
             BuiltinOp::Size => 1,
+            BuiltinOp::SizeAdd1 => 1,
             BuiltinOp::Unknown => 0,
         }
     }
@@ -314,18 +317,24 @@ pub enum Bytecode {
     /// Pop bool from stack and print to stdout
     PRINT_B,
 
-    // ECS Instructions
+    // Entity Instructions
     /// Create a new entity and push the entity id to the stack
     NENT,
     /// Pop the entity id from the stack and remove it
     RENT,
+
+    // Component Instructions
     /// Using the component ID, pop the component from the stack and
     /// the entity from the stack and insert into storage
     INCOMP(u32),
-    /// Using the component ID, the entity from the stack and insert
-    /// into storage
+    /// Using the component ID amd the entity from the stack, get the address
+    /// of the component from storage and push as an optional
     GECOMP(u32),
-    /// Using the component ID, pop the component from the stack and
-    /// the entity from the stack and insert into storage
+    /// Using the component ID, pop the entity from the stack and remove
+    /// the component from storage (if it exists) and place onto the stack
+    /// as an optional
     RECOMP(u32),
+    /// Using the component ID and the entity from the stack, check if the
+    /// component is present and push a 1 byte bool
+    HACOMP(u32),
 }

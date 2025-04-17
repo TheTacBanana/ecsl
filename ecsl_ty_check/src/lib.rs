@@ -757,8 +757,18 @@ impl Visitor for TyCheck {
 
                             *i = match op {
                                 BuiltinOp::CID => Immediate::ComponentOf(tyid),
-                                BuiltinOp::Size => Immediate::SizeOf(tyid),
-                                _ => panic!(),
+                                BuiltinOp::Size => Immediate::SizeOf(tyid, 0),
+                                BuiltinOp::SizeAdd1 => Immediate::SizeOf(tyid, 1),
+                                _ => {
+                                    self.ty_ctxt.diag.push_error(
+                                        EcslError::new(
+                                            ErrorLevel::Error,
+                                            TyCheckError::UnknownBuiltinOp,
+                                        )
+                                        .with_span(|_| *span),
+                                    );
+                                    return VisitorCF::Break;
+                                }
                             }
                         }
                     }
@@ -2164,6 +2174,7 @@ pub enum TyCheckError {
 
     NoBreak,
     NoContinue,
+    UnknownBuiltinOp,
 }
 
 impl std::fmt::Display for TyCheckError {
@@ -2235,6 +2246,7 @@ impl std::fmt::Display for TyCheckError {
             NoBreak => "Break outside of breakable context",
             NoContinue => "Continue outside of continuable context",
             RequiresCompGenerics(tyid) => &format!("Type '{}' is not a component", tyid),
+            UnknownBuiltinOp => "Unknown builtin bytecode op",
         };
         write!(f, "{}", s)
     }

@@ -14,7 +14,6 @@ use ecsl_gir::{
 };
 use ecsl_index::{SourceFileID, TyID};
 use ecsl_ty::ctxt::TyCtxt;
-use log::debug;
 use petgraph::{prelude::DiGraphMap, visit::Bfs};
 
 use crate::GIRPass;

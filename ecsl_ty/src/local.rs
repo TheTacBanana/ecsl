@@ -11,7 +11,7 @@ use ecsl_diagnostics::DiagConn;
 use ecsl_error::{ext::EcslErrorExt, EcslError, ErrorLevel};
 use ecsl_index::{FieldID, GlobalID, SourceFileID, SymbolID, TyID};
 use ecsl_parse::table::SymbolTable;
-use log::{debug, error};
+use log::error;
 use std::{
     collections::{btree_map::Entry, BTreeMap},
     sync::{Arc, RwLock},

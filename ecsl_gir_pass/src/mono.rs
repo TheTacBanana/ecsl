@@ -108,7 +108,7 @@ impl<'a> VisitorMut for MonomorphizeFn<'a> {
                 for op in byt.operand.iter_mut() {
                     match op {
                         Immediate::ComponentOf(tyid) => self.replace_tyid(tyid, s.span),
-                        Immediate::SizeOf(tyid) => self.replace_tyid(tyid, s.span),
+                        Immediate::SizeOf(tyid, _) => self.replace_tyid(tyid, s.span),
                         _ => (),
                     }
                 }

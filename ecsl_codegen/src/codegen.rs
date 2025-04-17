@@ -207,9 +207,12 @@ impl<'a> CodeGen<'a> {
                                         self.components.get_component(*tyid).inner() as u32,
                                     )
                                 }
-                                Immediate::SizeOf(tyid) => {
+                                Immediate::SizeOf(tyid, offset) => {
                                     *imm = Immediate::UByte(
-                                        self.ty_ctxt.global.get_size(*tyid).unwrap() as u8,
+                                        (self.ty_ctxt.global.get_size(*tyid).unwrap() as i32
+                                            + *offset)
+                                            .try_into()
+                                            .unwrap(),
                                     )
                                 }
                                 _ => (),

@@ -426,8 +426,6 @@ pub fn gecomp(self: *ProgramThread, comp_id: u32) !void {
     const def = self.vm_ptr.world.components.get_def(@enumFromInt(comp_id)).?;
     const data_ptr = self.vm_ptr.world.storage.get_ptr(eid.*, def.id);
 
-    // std.log.debug("Ge {?}", .{data_ptr});
-
     if (data_ptr) |ptr| {
         try self.push_stack(u8, @constCast(&@as(u8, 1)));
         try self.push_stack(u64, @constCast(&ptr));
@@ -437,6 +435,36 @@ pub fn gecomp(self: *ProgramThread, comp_id: u32) !void {
 }
 
 pub fn recomp(self: *ProgramThread, comp_id: u32) !void {
-    _ = self; // autofix
-    _ = comp_id; // autofix
+    const eid = (try self.pop_stack(entity.EntityId)).*;
+    const def = self.vm_ptr.world.components.get_def(@enumFromInt(comp_id)).?;
+    const data = self.vm_ptr.world.storage.get(eid, def.id);
+
+    std.log.debug("{any}", .{data});
+    // Push Discriminant
+    if (data) |_| {
+        try self.push_stack_const(u8, @as(u8, 1));
+    } else {
+        try self.push_stack_const(u8, @as(u8, 0));
+    }
+
+    const new_sp = self.sp + def.size;
+    if (new_sp >= self.stack.len) {
+        return error.StackOverflow;
+    }
+
+    if (data) |ptr| {
+        const stack_slice = self.stack[self.sp..][0..def.size];
+        const cast_ptr: [*]u8 = @ptrCast(ptr);
+        @memcpy(stack_slice, cast_ptr[0..def.size]);
+    }
+
+    self.sp = new_sp;
+
+    self.vm_ptr.world.storage.remove(eid, def.id);
+}
+
+pub fn hacomp(self: *ProgramThread, comp_id: u32) !void {
+    const eid = try self.pop_stack(entity.EntityId);
+    const has = self.vm_ptr.world.storage.has(eid.*, @enumFromInt(comp_id));
+    try self.push_stack_const(u8, @intFromBool(has));
 }

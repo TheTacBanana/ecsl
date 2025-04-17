@@ -161,6 +161,20 @@ pub const ProgramThread = struct {
         self.sp = new_sp;
     }
 
+    // Push comptime type to stack
+    pub fn push_stack_const(self: *ProgramThread, comptime T: type, val: T) ProgramError!void {
+        // Guard against stack overflow
+        const new_sp = self.sp + @sizeOf(T);
+        if (new_sp >= self.stack.len) {
+            return error.StackOverflow;
+        }
+
+        const stack_slice = self.stack[self.sp..][0..@sizeOf(T)];
+        stack_slice.* = @bitCast(val);
+
+        self.sp = new_sp;
+    }
+
     // pub fn push_stack_from_ptr(self: *ProgramThread, ptr: *u8, size: u8) ProgramError!void {
     //     // Guard against stack overflow
     //     const new_sp = self.sp + size;

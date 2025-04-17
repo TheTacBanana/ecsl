@@ -8,16 +8,14 @@ impl Entity {
     sys new() Entity {
         byt {
             NENT;
-            PBP;
-            STR #8UB #return;
+            BPSTR #8UB #return;
             RET;
         }
     }
 
     sys destroy(self) {
         byt {
-            PBP;
-            LDR #8UB #self;
+            BPLDR #8UB #self;
             RENT;
             RET;
         }
@@ -27,10 +25,8 @@ impl Entity {
     [require_comp_generics]
     sys insert<T>(self, t: T) {
         byt {
-            PBP;
-            LDR #size.T #t;
-            PBP;
-            LDR #8UB #self;
+            BPLDR #size.T #t;
+            BPLDR #8UB #self;
             INCOMP #cid.T;
             RET;
         }
@@ -39,22 +35,30 @@ impl Entity {
     [require_comp_generics]
     sys get<T>(self) Option<&T> {
         byt {
-            PBP;
-            LDR #8UB #self;
+            BPLDR #8UB #self;
             GECOMP #cid.T;
-            PBP;
-            STR #9UB #return;
+            BPSTR #9UB #return;
             RET;
         }
     }
 
-    // [require_comp_generics]
-    // sys has<T>(&self) bool {
-    //     return true;
-    // }
+    [require_comp_generics]
+    sys has<T>(self) bool {
+        byt {
+            BPLDR #8UB #self;
+            HACOMP #cid.T;
+            BPSTR #1UB #return;
+            RET;
+        }
+    }
 
-    // [require_comp_generics]
-    // sys remove<T>(&self) bool {
-    //     return true;
-    // }
+    [require_comp_generics]
+    sys remove<T>(self) Option<T> {
+        byt {
+            BPLDR #8UB #self;
+            RECOMP #cid.T;
+            BPSTR #size_add_1.T #return;
+            RET;
+        }
+    }
 }

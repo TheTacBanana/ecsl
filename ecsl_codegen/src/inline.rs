@@ -53,13 +53,11 @@ impl CodegenPass for CanInline {
 
         let mut block = bytecode.blocks.get(&BlockID::ZERO).unwrap().clone();
 
-        let Some(last) = block.last_chunk::<2>() else {
-            return;
-        };
-
-        if last[0].op == Opcode::BPSTR && last[1].op == Opcode::RET {
-            block.pop();
-            block.pop();
+        if let Some([l, r]) = block.last_chunk::<2>() {
+            if l.op == Opcode::BPSTR && r.op == Opcode::RET {
+                block.pop();
+                block.pop();
+            }
         }
 
         let mut inline = inline.bytecode.write().unwrap();
