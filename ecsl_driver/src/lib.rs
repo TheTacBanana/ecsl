@@ -39,11 +39,12 @@ impl Driver {
         let path = Driver::inner(std_path, diag.clone());
         diag.finish_stage(|_| ())?;
 
-        if path.is_ok() {
-            info!("Finished in {:?}", start_time.elapsed());
-        } else {
-            info!("Exited in {:?}", start_time.elapsed());
-        }
+        let elapsed = start_time.elapsed().as_secs_f32();
+        info!(
+            "{} in {:.3}s",
+            ["Exited", "Finished"][path.is_ok() as usize],
+            elapsed
+        );
 
         Ok(path?)
     }
@@ -324,6 +325,7 @@ impl Driver {
             || diag.finish_stage(finish_stage),
         )?;
 
+        debug!("Function inlining");
         let _ = (&context, assoc).par_map_assoc(
             |_, _, bytecode| {
                 for mut byt in bytecode.into_values() {
