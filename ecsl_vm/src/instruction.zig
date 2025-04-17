@@ -471,8 +471,7 @@ pub fn stqry(self: *ProgramThread) !void {
     const query_ptr = try self.pop_stack(u64);
     const tracker = self.vm_ptr.world.query_tracker;
     const active_query_id = try tracker.query_from_ptr(query_ptr.*);
-    _ = active_query_id;
-    // try self.push_stack_const(query.ActiveQueryID, active_query_id);
+    try self.push_stack_const(u32, @intFromEnum(active_query_id));
 }
 
 pub fn neqry(self: *ProgramThread) !void {
@@ -489,7 +488,12 @@ pub fn neqry(self: *ProgramThread) !void {
 }
 
 pub fn haqry(self: *ProgramThread) !void {
-    _ = self;
+    const eid = (try self.pop_stack(entity.EntityId)).*;
+    const query_ptr = (try self.pop_stack(u64)).*;
+    const tracker = self.vm_ptr.world.query_tracker;
+    const qry = (try tracker.create_query(query_ptr)).?;
+    const present = try qry.contains(eid, self.vm_ptr.world.storage);
+    try self.push_stack_const(u8, @intFromBool(present));
 }
 
 pub fn reqry(self: *ProgramThread) !void {

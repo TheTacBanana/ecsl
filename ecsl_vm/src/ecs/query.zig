@@ -37,7 +37,7 @@ pub const QueryTracker = struct {
         this.active_querys.clearAndFree();
     }
 
-    pub fn create_query(this: *QueryTracker, query_ptr: u64) ?*const Query {
+    pub fn create_query(this: *QueryTracker, query_ptr: u64) !?*const Query {
         if (!this.cached_querys.contains(query_ptr)) {
             // Aliases for clarity
             const read = std.mem.readVarInt;
@@ -81,7 +81,7 @@ pub const QueryTracker = struct {
     }
 
     pub fn query_from_ptr(this: *QueryTracker, query_ptr: u64) !ActiveQueryID {
-        const query = this.create_query(query_ptr).?;
+        const query = (try this.create_query(query_ptr)).?;
 
         const query_iterator = try this.alloc.create(QueryIterator);
         query_iterator.* = try query.iterator(this.world_ptr.storage);
@@ -184,16 +184,16 @@ pub const Query = struct {
         };
     }
 
-    pub fn contains(this: *const Query, eid: entity.EntityId, table: *const storage.Table) bool {
+    pub fn contains(this: *const Query, eid: entity.EntityId, table: *const storage.Table) !bool {
         const bitset = &table.bitsets[eid.id];
         if (eid.dead()) {
             return false;
         }
 
-        const temp = try std.DynamicBitSet.initEmpty(this.alloc, this.with.capacity());
+        var temp = try std.DynamicBitSet.initEmpty(this.alloc, this.with.capacity());
         defer temp.deinit();
 
-        const len = @max(1, this.query.with.capacity() / @sizeOf(usize));
+        const len = @max(1, this.with.capacity() / @sizeOf(usize));
         @memcpy(temp.unmanaged.masks[0..len], bitset.unmanaged.masks[0..len]);
         temp.setIntersection(this.with);
         if (!temp.eql(this.with)) {
