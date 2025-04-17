@@ -1,3 +1,5 @@
+use std::collections::BTreeSet;
+
 use crate::Place;
 use cfgrammar::Span;
 pub use ecsl_ast::expr::{BinOpKind, UnOpKind};
@@ -25,6 +27,7 @@ pub enum ExprKind {
     /// From To
     Cast(Operand, OperandKind, OperandKind),
     Call(TyID, Vec<Operand>),
+    Query(ConstID),
 }
 
 impl std::fmt::Display for ExprKind {
@@ -44,6 +47,7 @@ impl std::fmt::Display for ExprKind {
                 write!(f, ")")
             }
             ExprKind::Cast(operand, from, to) => write!(f, "{} -> {:?} as {:?}", operand, from, to),
+            ExprKind::Query(cons) => write!(f, "Query {}", cons),
         }
     }
 }
@@ -85,4 +89,34 @@ pub enum OperandKind {
     Bool,
     Int,
     Float,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Query {
+    pub with: Vec<TyID>,
+    pub without: Vec<TyID>,
+}
+
+impl std::fmt::Display for Query {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Query")?;
+
+        if !self.with.is_empty() {
+            write!(f, " With<")?;
+            for tyid in self.with.iter() {
+                write!(f, "{:?}, ", tyid)?;
+            }
+            write!(f, ">")?;
+        }
+
+        if !self.without.is_empty() {
+            write!(f, " Without<")?;
+            for tyid in self.without.iter() {
+                write!(f, "{:?}, ", tyid)?;
+            }
+            write!(f, ">")?;
+        }
+
+        Ok(())
+    }
 }

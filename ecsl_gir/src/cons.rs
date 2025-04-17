@@ -3,6 +3,8 @@ pub use ecsl_ast::expr::Literal;
 use ecsl_ast::parse::Immediate;
 use ecsl_index::TyID;
 
+use crate::expr::Query;
+
 #[derive(Debug, Clone)]
 pub enum Constant {
     Internal {
@@ -13,6 +15,10 @@ pub enum Constant {
         kind: Literal,
         tyid: TyID,
     },
+    Query {
+        span: Span,
+        query: Query,
+    },
 }
 
 impl std::fmt::Display for Constant {
@@ -20,6 +26,7 @@ impl std::fmt::Display for Constant {
         match self {
             Constant::Internal { imm } => write!(f, "{:?}", imm),
             Constant::External { kind, .. } => write!(f, "{:?}", kind),
+            Constant::Query { query, .. } => write!(f, "{}", query),
         }
     }
 }

@@ -184,6 +184,10 @@ impl<'a> CodeGen<'a> {
                                 nav.push(ins!(PSHR, Immediate::Long(offset.unwrap())));
                                 instrs.extend(nav);
                             }
+                            ExprKind::Query(query_const) => {
+                                let cons = self.const_map.get(&query_const).unwrap();
+                                instrs.push(ins!(PSHI_L, *cons));
+                            }
                         }
 
                         self.store_to_place(place, &mut instrs);

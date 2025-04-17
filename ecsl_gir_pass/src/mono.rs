@@ -2,12 +2,13 @@ use crate::{linker::FunctionLinker, GIRPass};
 use cfgrammar::Span;
 use ecsl_bytecode::Immediate;
 use ecsl_gir::{
-    expr::Expr,
+    cons::Constant,
+    expr::{Expr, ExprKind},
     stmt::{Stmt, StmtKind},
     visit::{walk_expr_mut, walk_stmt_mut, VisitorCF, VisitorMut},
     Local, Place, GIR,
 };
-use ecsl_index::{LocalID, TyID};
+use ecsl_index::{ConstID, LocalID, TyID};
 use ecsl_ty::{local::LocalTyCtxt, TyIr};
 use std::{collections::BTreeMap, sync::Arc};
 
@@ -99,6 +100,23 @@ impl<'a> VisitorMut for MonomorphizeFn<'a> {
     fn visit_local_mut(&mut self, _: LocalID, l: &mut Local) -> VisitorCF {
         self.replace_tyid(&mut l.tyid, l.span);
         VisitorCF::Continue
+    }
+
+    fn visit_const_mut(&mut self, _: ConstID, c: &mut Constant) -> VisitorCF {
+        match c {
+            Constant::Query { query, span } => {
+                query
+                    .with
+                    .iter_mut()
+                    .for_each(|tyid| self.replace_tyid(tyid, *span));
+                query
+                    .without
+                    .iter_mut()
+                    .for_each(|tyid| self.replace_tyid(tyid, *span));
+                VisitorCF::Continue
+            }
+            _ => VisitorCF::Continue,
+        }
     }
 
     fn visit_stmt_mut(&mut self, s: &mut Stmt) -> VisitorCF {

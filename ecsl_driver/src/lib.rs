@@ -292,7 +292,7 @@ impl Driver {
                 let lexer = lexers.get(&src.id).unwrap();
                 let mut gir_consts = BTreeMap::new();
                 for (id, gir) in linker.fn_gir.iter_mut() {
-                    let consts = ConstEval::apply_pass(gir, (lexer, &assembler));
+                    let consts = ConstEval::apply_pass(gir, (lexer, &comp_defs, &assembler));
                     gir_consts.insert(*id, consts);
                 }
                 Some((local_ctxt, linker, gir_consts))
