@@ -2,6 +2,7 @@ const std = @import("std");
 const vm = @import("vm.zig");
 const thread = @import("thread.zig");
 const entity = @import("ecs/entity.zig");
+const query = @import("ecs/query.zig");
 
 const ProgramThread = thread.ProgramThread;
 const StackFrame = ProgramThread.StackFrame;
@@ -425,8 +426,8 @@ pub fn gecomp(self: *ProgramThread, comp_id: u32) !void {
     const data_ptr = self.vm_ptr.world.storage.get_ptr(eid.*, def.id);
 
     if (data_ptr) |ptr| {
-        try self.push_stack(u8, @constCast(&@as(u8, 1)));
-        try self.push_stack(u64, @constCast(&ptr));
+        try self.push_stack_const(u8, 1);
+        try self.push_stack_const(u64, ptr);
     } else {
         try self.push_stack([9]u8, @constCast(&[_]u8{0} ** 9));
     }
@@ -464,4 +465,34 @@ pub fn hacomp(self: *ProgramThread, comp_id: u32) !void {
     const eid = try self.pop_stack(entity.EntityId);
     const has = self.vm_ptr.world.storage.has(eid.*, @enumFromInt(comp_id));
     try self.push_stack_const(u8, @intFromBool(has));
+}
+
+pub fn stqry(self: *ProgramThread) !void {
+    const query_ptr = try self.pop_stack(u64);
+    const tracker = self.vm_ptr.world.query_tracker;
+    const active_query_id = try tracker.query_from_ptr(query_ptr.*);
+    _ = active_query_id;
+    // try self.push_stack_const(query.ActiveQueryID, active_query_id);
+}
+
+pub fn neqry(self: *ProgramThread) !void {
+    const query_id = try self.pop_stack(query.ActiveQueryID);
+    const tracker = self.vm_ptr.world.query_tracker.get_iterator(query_id.*).?;
+
+    const eid = tracker.next();
+    if (eid) |val| {
+        try self.push_stack_const(u8, 1);
+        try self.push_stack_const(entity.EntityId, val);
+    } else {
+        try self.push_stack_const([9]u8, [_]u8{0} ** 9);
+    }
+}
+
+pub fn haqry(self: *ProgramThread) !void {
+    _ = self;
+}
+
+pub fn reqry(self: *ProgramThread) !void {
+    const query_id = try self.pop_stack(query.ActiveQueryID);
+    self.vm_ptr.world.query_tracker.end_iterator(query_id.*);
 }
