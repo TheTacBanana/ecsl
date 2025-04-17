@@ -128,7 +128,7 @@ impl Immediate {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BuiltinOp {
     CID,
     Size,
@@ -331,10 +331,24 @@ pub enum Bytecode {
     /// of the component from storage and push as an optional
     GECOMP(u32),
     /// Using the component ID, pop the entity from the stack and remove
-    /// the component from storage (if it exists) and place onto the stack
+    /// the component from storage (if it exists) and push onto the stack
     /// as an optional
     RECOMP(u32),
     /// Using the component ID and the entity from the stack, check if the
     /// component is present and push a 1 byte bool
     HACOMP(u32),
+
+    // Query Instructions
+    /// Pop a pointer to a query layout in const data and convert into an
+    /// Active Query ID, pushing it to the stack (4 bytes)
+    STQRY,
+    /// Pop the Active Query ID from the stack and get the next EntityID
+    /// push as an optional to the stack
+    NEQRY,
+    /// Using an EntityID and a pointer to a query layout in const data
+    /// from the stack, test if the query matches the entity, pushing a
+    /// one byte bool
+    HAQRY,
+    /// Pop the Active Query ID from the stack and end the query
+    REQRY,
 }

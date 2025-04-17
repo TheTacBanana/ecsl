@@ -10,6 +10,7 @@ use {
     std::option::Option,
     std::vec::Vec3,
     std::entity::Entity,
+    std::query::Query,
 };
 
 [terminator]
@@ -18,5 +19,3 @@ fn exit() {
         HALT;
     }
 }
-
-fn drop<T>(val: T) { }

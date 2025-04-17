@@ -1,0 +1,12 @@
+use entity::Entity;
+use bool::bool;
+
+[copy, builtin(8)]
+struct Query;
+
+impl Query {
+    fn contains(self, entity: Entity) bool {
+        return false;
+    }
+}
+

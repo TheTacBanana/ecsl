@@ -2131,7 +2131,37 @@ impl Visitor for TyCheck {
                     }
                 }
 
-                todo!();
+                let query_tyid = self.get_tyid(TyIr::Query);
+
+                let const_id = self.new_constant(Constant::Query {
+                    span: e.span,
+                    query: gir::Query {
+                        with: with.into_iter().collect(),
+                        without: without.into_iter().collect(),
+                    },
+                });
+
+                let local = self.new_local(Local::new(
+                    span,
+                    Mutable::Imm,
+                    query_tyid,
+                    LocalKind::Internal,
+                ));
+
+                let place = Place::from_local(local, span);
+
+                self.push_stmt_to_cur_block(gir::Stmt {
+                    span: e.span,
+                    kind: gir::StmtKind::Assign(
+                        place.clone(),
+                        gir::Expr {
+                            span: e.span,
+                            kind: gir::ExprKind::Query(const_id),
+                        },
+                    ),
+                });
+
+                Some((query_tyid, Operand::Copy(place)))
             }
             e => panic!("{:?}", e),
             // ExprKind::Array(exprs) => todo!(),
