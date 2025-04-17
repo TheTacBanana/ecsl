@@ -130,11 +130,6 @@ pub const ProgramThread = struct {
         return self.vm_ptr.binary.len + self.call_stack[self.call_stack_index].?.stack_frame_base;
     }
 
-    // pub inline fn offset_from_bp(self: *ProgramThread, offset: i64) u64 {
-    //     const bp: i64 = @intCast(self.get_bp());
-    //     return @intCast(bp + offset); // This might fail if your stack is 8192 Petabytes Big
-    // }
-
     pub fn next_immediate(self: *ProgramThread, comptime T: type) *align(1) const T {
         const temp_pc = self.pc;
         self.pc += @sizeOf(T);
@@ -175,21 +170,6 @@ pub const ProgramThread = struct {
         self.sp = new_sp;
     }
 
-    // pub fn push_stack_from_ptr(self: *ProgramThread, ptr: *u8, size: u8) ProgramError!void {
-    //     // Guard against stack overflow
-    //     const new_sp = self.sp + size;
-
-    //     if (new_sp >= self.stack.len) {
-    //         return error.StackOverflow;
-    //     }
-
-    //     const stack_slice = self.stack[self.sp..][0..size];
-    //     const cast_ptr: [*]u8 = @ptrCast(ptr);
-    //     @memcpy(stack_slice, cast_ptr);
-
-    //     self.sp = new_sp;
-    // }
-
     pub fn pop_pair(self: *ProgramThread, comptime T: type) ProgramPanic!struct { l: T, r: T } {
         const r = try self.pop_stack(T);
         const l = try self.pop_stack(T);
@@ -197,7 +177,7 @@ pub const ProgramThread = struct {
     }
 
     // Pop type of comptime size from stack
-    pub fn pop_stack(self: *ProgramThread, comptime T: type) ProgramPanic!*align(1) T {
+    pub fn pop_stack(self: *ProgramThread, comptime T: type) ProgramPanic!*align(1) const T {
         // Check for type larger than stack
         if (@sizeOf(T) > self.sp) {
             return error.EmptyStack;
@@ -212,41 +192,6 @@ pub const ProgramThread = struct {
         // std.log.debug("POP {d}", .{out.*});
         return out;
     }
-
-    // // Read type of comptime size from stack
-    // pub fn read_stack(self: *ProgramThread, comptime T: type) T {
-    //     // Pointer to bottom of value
-    //     const temp_sp = self.sp - @sizeOf(T);
-    //     // Get slice of stack
-    //     const stack_slice = self.stack[temp_sp..][0..@sizeOf(T)];
-    //     // Create copy destination
-    //     var val = [_]u8{0} ** @sizeOf(T);
-    //     // Copy slice
-    //     @memcpy(&val, stack_slice);
-    //     // Cast value
-    //     return @bitCast(val);
-    // }
-
-    // // Read type of comptime size from stack
-    // pub fn read_stack_at_offset(self: *ProgramThread, comptime T: type, offset: i64) *align(1) T {
-    //     // Get slice of stack
-    //     const stack_slice = &self.stack[self.offset_from_bp(offset)];
-
-    //     // Cast value
-    //     return @ptrCast(stack_slice);
-    // }
-
-    // pub fn write_stack_at_offset(self: *ProgramThread, comptime T: type, val: T, offset: i64) ProgramError!void {
-    //     // Guard against stack overflow
-    //     const temp_sp = self.offset_from_bp(offset);
-    //     if (temp_sp >= self.stack.len) {
-    //         return error.StackOverflow;
-    //     }
-
-    //     const bytes: [@sizeOf(T)]u8 = @bitCast(val);
-    //     const stack_slice = self.stack[temp_sp..][0..@sizeOf(T)];
-    //     @memcpy(stack_slice, &bytes);
-    // }
 
     pub inline fn clear_stack(self: *ProgramThread, new_sp: u64) void {
         // Ensure valid clear
@@ -269,8 +214,6 @@ pub const ProgramThread = struct {
         self: *ProgramThread,
         address: u64,
     ) ProgramError!*u8 {
-        // std.log.debug("{} {} {} : {}", .{ self.vm_ptr.binary.len, self.stack.len, self.vm_ptr.world.storage.data.len, address });
-
         var t_address = address;
         const binary_len = self.vm_ptr.binary.len;
         if (t_address < binary_len) {

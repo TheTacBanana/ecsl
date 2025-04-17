@@ -94,7 +94,7 @@ pub fn str_impl(self: *ProgramThread, size: u8, offset: i64, address: u64) !void
 pub inline fn pshr(self: *ProgramThread, offset: i64) !void {
     const address = try self.pop_stack(u64);
     const new_offset: u64 = u64_plus_i64(address.*, offset);
-    try self.push_stack(u64, @constCast(&new_offset));
+    try self.push_stack_const(u64, new_offset);
 }
 
 pub inline fn setsp(self: *ProgramThread, offset: u64) !void {
@@ -140,15 +140,15 @@ pub inline fn panic(_: *ProgramThread) !void {
 }
 
 pub inline fn pshi_b(self: *ProgramThread, a: u8) !void {
-    try self.push_stack(u8, @constCast(&a));
+    try self.push_stack_const(u8, a);
 }
 
 pub inline fn pshi(self: *ProgramThread, a: u32) !void {
-    try self.push_stack(u32, @constCast(&a));
+    try self.push_stack_const(u32, a);
 }
 
 pub inline fn pshi_l(self: *ProgramThread, a: u64) !void {
-    try self.push_stack(u64, @constCast(&a));
+    try self.push_stack_const(u64, a);
 }
 
 pub inline fn jmp(self: *ProgramThread, addr: u64) void {
@@ -163,186 +163,184 @@ pub fn jmpt(self: *ProgramThread, addr: u64) !void {
 
 pub inline fn eq_b(self: *ProgramThread) !void {
     const pair = try self.pop_pair(u8);
-    const res: u8 = @intFromBool(pair.l == pair.r);
-    try self.push_stack(u8, @constCast(&res));
+    try self.push_stack_const(u8, @intFromBool(pair.l == pair.r));
 }
 
 pub inline fn neq_b(self: *ProgramThread) !void {
     const pair = try self.pop_pair(u8);
-    const res: u8 = @intFromBool(pair.l != pair.r);
-    try self.push_stack(u8, @constCast(&res));
+    try self.push_stack_const(u8, @intFromBool(pair.l != pair.r));
 }
 
 pub inline fn and_b(self: *ProgramThread) !void {
     const pair = try self.pop_pair(u8);
-    try self.push_stack(u8, @constCast(&(pair.l & pair.r)));
+    try self.push_stack_const(u8, pair.l & pair.r);
 }
 
 pub inline fn or_b(self: *ProgramThread) !void {
     const pair = try self.pop_pair(u8);
-    try self.push_stack(u8, @constCast(&(pair.l | pair.r)));
+    try self.push_stack_const(u8, pair.l | pair.r);
 }
 
 pub inline fn not_b(self: *ProgramThread) !void {
     const a = try self.pop_stack(u8);
-    try self.push_stack(u8, @constCast(&(~a.*)));
+    try self.push_stack_const(u8, ~a.*);
 }
 
 pub inline fn eq_i(self: *ProgramThread) !void {
     const pair = try self.pop_pair(i32);
-    try self.push_stack(u8, @constCast(&@as(u8, @intFromBool(pair.l == pair.r))));
+    try self.push_stack_const(u8, @intFromBool(pair.l == pair.r));
 }
 
 pub inline fn neq_i(self: *ProgramThread) !void {
     const pair = try self.pop_pair(i32);
-    try self.push_stack(u8, @constCast(&@as(u8, @intFromBool(pair.l != pair.r))));
+    try self.push_stack_const(u8, @intFromBool(pair.l != pair.r));
 }
 
 pub inline fn lt_i(self: *ProgramThread) !void {
     const pair = try self.pop_pair(i32);
-    try self.push_stack(u8, @constCast(&@as(u8, @intFromBool(pair.l < pair.r))));
+    try self.push_stack_const(u8, @intFromBool(pair.l < pair.r));
 }
 
 pub inline fn leq_i(self: *ProgramThread) !void {
     const pair = try self.pop_pair(i32);
-    try self.push_stack(u8, @constCast(&@as(u8, @intFromBool(pair.l <= pair.r))));
+    try self.push_stack_const(u8, @intFromBool(pair.l <= pair.r));
 }
 
 pub inline fn gt_i(self: *ProgramThread) !void {
     const pair = try self.pop_pair(i32);
-    try self.push_stack(u8, @constCast(&@as(u8, @intFromBool(pair.l > pair.r))));
+    try self.push_stack_const(u8, @intFromBool(pair.l > pair.r));
 }
 
 pub inline fn geq_i(self: *ProgramThread) !void {
     const pair = try self.pop_pair(i32);
-    try self.push_stack(u8, @constCast(&@as(u8, @intFromBool(pair.l >= pair.r))));
+    try self.push_stack_const(u8, @intFromBool(pair.l >= pair.r));
 }
 
 pub inline fn and_i(self: *ProgramThread) !void {
     const pair = try self.pop_pair(u32);
-    try self.push_stack(u32, @constCast(&@as(u32, pair.l & pair.r)));
+    try self.push_stack_const(u32, pair.l & pair.r);
 }
 
 pub inline fn or_i(self: *ProgramThread) !void {
     const pair = try self.pop_pair(u32);
-    try self.push_stack(u32, @constCast(&@as(u32, pair.l | pair.r)));
+    try self.push_stack_const(u32, pair.l | pair.r);
 }
 
 pub inline fn xor_i(self: *ProgramThread) !void {
     const pair = try self.pop_pair(u32);
-    try self.push_stack(u32, @constCast(&@as(u32, pair.l ^ pair.r)));
+    try self.push_stack_const(u32, pair.l ^ pair.r);
 }
 
 pub inline fn shl_i(self: *ProgramThread) !void {
     const pair = try self.pop_pair(u32);
-    try self.push_stack(u32, @constCast(&@as(u32, pair.l << @intCast(pair.r))));
+    try self.push_stack_const(u32, pair.l << @intCast(pair.r));
 }
 
 pub inline fn shr_i(self: *ProgramThread) !void {
     const pair = try self.pop_pair(u32);
-    try self.push_stack(u32, @constCast(&@as(u32, pair.l >> @intCast(pair.r))));
+    try self.push_stack_const(u32, pair.l >> @intCast(pair.r));
 }
 
 pub inline fn add_i(self: *ProgramThread) !void {
     const pair = try self.pop_pair(i32);
-    try self.push_stack(i32, @constCast(&(pair.l + pair.r)));
+    try self.push_stack_const(i32, pair.l + pair.r);
 }
 
 pub inline fn sub_i(self: *ProgramThread) !void {
     const pair = try self.pop_pair(i32);
-    try self.push_stack(i32, @constCast(&(pair.l - pair.r)));
+    try self.push_stack_const(i32, pair.l - pair.r);
 }
 
 pub inline fn mul_i(self: *ProgramThread) !void {
     const pair = try self.pop_pair(i32);
-    try self.push_stack(i32, @constCast(&(pair.l * pair.r)));
+    try self.push_stack_const(i32, pair.l * pair.r);
 }
 
 //TODO: Divide by zero
 pub inline fn div_i(self: *ProgramThread) !void {
     const pair = try self.pop_pair(i32);
-    try self.push_stack(i32, @constCast(&@divTrunc(pair.l, pair.r)));
+    try self.push_stack_const(i32, @divTrunc(pair.l, pair.r));
 }
 
 pub inline fn mod_i(self: *ProgramThread) !void {
     const pair = try self.pop_pair(i32);
-    try self.push_stack(i32, @constCast(&(@mod(pair.l, pair.r))));
+    try self.push_stack_const(i32, @mod(pair.l, pair.r));
 }
 
 pub inline fn neg_i(self: *ProgramThread) !void {
     const a = try self.pop_stack(i32);
-    try self.push_stack(i32, @constCast(&(-a.*)));
+    try self.push_stack_const(i32, -a.*);
 }
 
 pub inline fn eq_f(self: *ProgramThread) !void {
     const pair = try self.pop_pair(f32);
-    try self.push_stack(u8, @constCast(&@as(u8, @intFromBool(pair.l == pair.r))));
+    try self.push_stack_const(u8, @intFromBool(pair.l == pair.r));
 }
 
 pub inline fn neq_f(self: *ProgramThread) !void {
     const pair = try self.pop_pair(f32);
-    try self.push_stack(u8, @constCast(&@as(u8, @intFromBool(pair.l != pair.r))));
+    try self.push_stack_const(u8, @intFromBool(pair.l != pair.r));
 }
 
 pub inline fn lt_f(self: *ProgramThread) !void {
     const pair = try self.pop_pair(f32);
-    try self.push_stack(u8, @constCast(&@as(u8, @intFromBool(pair.l < pair.r))));
+    try self.push_stack_const(u8, @intFromBool(pair.l < pair.r));
 }
 
 pub inline fn leq_f(self: *ProgramThread) !void {
     const pair = try self.pop_pair(f32);
-    try self.push_stack(u8, @constCast(&@as(u8, @intFromBool(pair.l <= pair.r))));
+    try self.push_stack_const(u8, @intFromBool(pair.l <= pair.r));
 }
 
 pub inline fn gt_f(self: *ProgramThread) !void {
     const pair = try self.pop_pair(f32);
-    try self.push_stack(u8, @constCast(&@as(u8, @intFromBool(pair.l > pair.r))));
+    try self.push_stack_const(u8, @intFromBool(pair.l > pair.r));
 }
 
 pub inline fn geq_f(self: *ProgramThread) !void {
     const pair = try self.pop_pair(f32);
-    try self.push_stack(u8, @constCast(&@as(u8, @intFromBool(pair.l >= pair.r))));
+    try self.push_stack_const(u8, @intFromBool(pair.l >= pair.r));
 }
 
 pub inline fn add_f(self: *ProgramThread) !void {
     const pair = try self.pop_pair(f32);
-    try self.push_stack(f32, @constCast(&(pair.l + pair.r)));
+    try self.push_stack_const(f32, pair.l + pair.r);
 }
 
 pub inline fn sub_f(self: *ProgramThread) !void {
     const pair = try self.pop_pair(f32);
-    try self.push_stack(f32, @constCast(&(pair.l - pair.r)));
+    try self.push_stack_const(f32, pair.l - pair.r);
 }
 
 pub inline fn mul_f(self: *ProgramThread) !void {
     const pair = try self.pop_pair(f32);
-    try self.push_stack(f32, @constCast(&(pair.l * pair.r)));
+    try self.push_stack_const(f32, pair.l * pair.r);
 }
 
 //TODO: Divide by zero
 pub inline fn div_f(self: *ProgramThread) !void {
     const pair = try self.pop_pair(f32);
-    try self.push_stack(f32, @constCast(&(pair.l / pair.r)));
+    try self.push_stack_const(f32, pair.l / pair.r);
 }
 
 pub inline fn mod_f(self: *ProgramThread) !void {
     const pair = try self.pop_pair(f32);
-    try self.push_stack(f32, @constCast(&(@mod(pair.l, pair.r))));
+    try self.push_stack_const(f32, @mod(pair.l, pair.r));
 }
 
 pub inline fn neg_f(self: *ProgramThread) !void {
     const a = try self.pop_stack(f32);
-    try self.push_stack(f32, @constCast(&(-a.*)));
+    try self.push_stack_const(f32, -a.*);
 }
 
 pub inline fn itf(self: *ProgramThread) !void {
     const a = try self.pop_stack(i32);
-    try self.push_stack(f32, @constCast(&@as(f32, @floatFromInt(a.*))));
+    try self.push_stack_const(f32, @floatFromInt(a.*));
 }
 
 pub inline fn fti(self: *ProgramThread) !void {
     const a = try self.pop_stack(f32);
-    try self.push_stack(i32, @constCast(&@as(i32, @intFromFloat(a.*))));
+    try self.push_stack_const(i32, @intFromFloat(a.*));
 }
 
 pub fn print_s(self: *ProgramThread) !void {
@@ -439,7 +437,6 @@ pub fn recomp(self: *ProgramThread, comp_id: u32) !void {
     const def = self.vm_ptr.world.components.get_def(@enumFromInt(comp_id)).?;
     const data = self.vm_ptr.world.storage.get(eid, def.id);
 
-    std.log.debug("{any}", .{data});
     // Push Discriminant
     if (data) |_| {
         try self.push_stack_const(u8, @as(u8, 1));
