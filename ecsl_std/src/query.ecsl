@@ -6,7 +6,13 @@ struct Query;
 
 impl Query {
     fn contains(self, entity: Entity) bool {
-        return false;
+        byt {
+            BPLDR #8UB #self;
+            BPLDR #8UB #entity;
+            HAQRY;
+            BPSTR #1UB #return;
+            RET;
+        }
     }
 }
 
