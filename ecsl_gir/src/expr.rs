@@ -25,7 +25,7 @@ pub enum ExprKind {
     /// From To
     Cast(Operand, OperandKind, OperandKind),
     Call(TyID, Vec<Operand>),
-    Query(ConstID),
+    Query(QueryOpKind, Operand),
 }
 
 impl std::fmt::Display for ExprKind {
@@ -45,7 +45,7 @@ impl std::fmt::Display for ExprKind {
                 write!(f, ")")
             }
             ExprKind::Cast(operand, from, to) => write!(f, "{} -> {:?} as {:?}", operand, from, to),
-            ExprKind::Query(cons) => write!(f, "Query {}", cons),
+            ExprKind::Query(kind, operand) => write!(f, "{:?} Query {}", kind, operand),
         }
     }
 }
@@ -87,6 +87,13 @@ pub enum OperandKind {
     Bool,
     Int,
     Float,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum QueryOpKind {
+    Start,
+    Next,
+    Take,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

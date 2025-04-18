@@ -477,13 +477,18 @@ pub fn stqry(self: *ProgramThread) !void {
 pub fn neqry(self: *ProgramThread) !void {
     const query_id = try self.pop_stack(query.ActiveQueryID);
     const tracker = self.vm_ptr.world.query_tracker.get_iterator(query_id.*).?;
+    const status = tracker.next();
+    try self.push_stack_const(u8, @intFromBool(status));
+}
 
-    const eid = tracker.next();
-    if (eid) |val| {
-        try self.push_stack_const(u8, 1);
+pub fn taqry(self: *ProgramThread) !void {
+    const query_id = try self.pop_stack(query.ActiveQueryID);
+    const tracker = self.vm_ptr.world.query_tracker.get_iterator(query_id.*).?;
+
+    if (tracker.take()) |val| {
         try self.push_stack_const(entity.EntityId, val);
     } else {
-        try self.push_stack_const([9]u8, [_]u8{0} ** 9);
+        return error.EmptyQuery;
     }
 }
 

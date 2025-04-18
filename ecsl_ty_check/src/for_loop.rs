@@ -14,6 +14,7 @@ use ecsl_gir::expr::BinOp;
 use ecsl_gir::expr::Expr;
 use ecsl_gir::expr::ExprKind;
 use ecsl_gir::expr::OperandKind;
+use ecsl_gir::expr::QueryOpKind;
 use ecsl_gir::stmt::Stmt;
 use ecsl_gir::stmt::StmtKind;
 use ecsl_gir::term::SwitchCase;
@@ -41,6 +42,7 @@ pub enum ForLoopKind {
         entity_tyid: TyID,
         query: Operand,
         span: Span,
+        active_query_id: Option<LocalID>,
     },
 }
 
@@ -114,6 +116,7 @@ impl ForLoopKind {
                     entity_tyid,
                     query: op,
                     span: expr.span,
+                    active_query_id: None,
                 })
             }
             ExprKindAST::Ident(ident) => {
@@ -138,6 +141,7 @@ impl ForLoopKind {
                     entity_tyid,
                     query: Operand::Move(found),
                     span: expr.span,
+                    active_query_id: None,
                 })
             }
             _ => {
@@ -217,18 +221,42 @@ impl ForLoopKind {
         iterator_local_id
     }
 
-    fn create_query_local(&self, ty_check: &mut TyCheck, span: Span) -> LocalID {
+    fn create_query_local(&mut self, ty_check: &mut TyCheck, span: Span) -> LocalID {
         let ForLoopKind::Query {
             entity_tyid: entity_ty,
+            query,
+            active_query_id,
             ..
         } = self
         else {
             panic!()
         };
 
-        // Create local ID
+        // Create local ID for entity_ty
+        let query_id = ty_check.new_local(Local::new(
+            span,
+            Mutable::Mut,
+            ty_check.get_tyid(TyIr::Int), // Type here does not matter just needs to be the correct size (4)
+            LocalKind::Let,
+        ));
+
+        // Create Assignment Stmt
+        ty_check.push_stmt_to_cur_block(Stmt {
+            span,
+            kind: StmtKind::Assign(
+                Place::from_local(query_id, span),
+                Expr {
+                    span,
+                    kind: ExprKind::Query(QueryOpKind::Start, query.clone()),
+                },
+            ),
+        });
+
+        // Create local ID for entity
         let iterator_local_id =
             ty_check.new_local(Local::new(span, Mutable::Mut, *entity_ty, LocalKind::Let));
+
+        *active_query_id = Some(query_id);
 
         iterator_local_id
     }
@@ -256,10 +284,9 @@ impl ForLoopKind {
         span: Span,
     ) -> BlockID {
         let ForLoopKind::Range {
-            int_ty,
             range_type,
             span: range_span,
-            internal_max,
+            internal_max: Some(internal_max),
             ..
         } = self
         else {
@@ -269,7 +296,7 @@ impl ForLoopKind {
         let comparison = ty_check.new_local(Local::new(
             *range_span,
             Mutable::Imm,
-            *int_ty,
+            ty_check.get_tyid(TyIr::Bool),
             LocalKind::Temp,
         ));
 
@@ -288,7 +315,7 @@ impl ForLoopKind {
                             },
                         ),
                         Operand::Copy(Place::from_local(iterator_local_id, span)),
-                        Operand::Copy(Place::from_local(internal_max.unwrap(), span)),
+                        Operand::Copy(Place::from_local(*internal_max, span)),
                     ),
                 },
             ),
@@ -319,14 +346,63 @@ impl ForLoopKind {
         span: Span,
     ) -> BlockID {
         let ForLoopKind::Query {
-            entity_tyid: entity_ty,
+            active_query_id: Some(active_query_id),
             ..
         } = self
         else {
             panic!()
         };
 
-        todo!()
+        let comparison = ty_check.new_local(Local::new(
+            span,
+            Mutable::Imm,
+            ty_check.get_tyid(TyIr::Bool),
+            LocalKind::Temp,
+        ));
+
+        ty_check.push_stmt_to_cur_block(Stmt {
+            span,
+            kind: StmtKind::Assign(
+                Place::from_local(comparison, span),
+                Expr {
+                    span,
+                    kind: ExprKind::Query(
+                        QueryOpKind::Next,
+                        Operand::Copy(Place::from_local(*active_query_id, span)),
+                    ),
+                },
+            ),
+        });
+
+        let leave_block = ty_check.new_block_without_stack();
+
+        ty_check.terminate_with_new_block(TerminationKind::Higher, |block, next| {
+            block.terminate(Terminator {
+                kind: TerminatorKind::Switch(
+                    Operand::Move(Place::from_local(comparison, span)),
+                    vec![
+                        SwitchCase::Value(Immediate::Bool(true), next),
+                        SwitchCase::Default(leave_block),
+                    ],
+                ),
+            });
+        });
+
+        ty_check.push_stmt_to_cur_block(Stmt {
+            span,
+            kind: StmtKind::Assign(
+                Place::from_local(iterator_local_id, span),
+                Expr {
+                    span,
+                    kind: ExprKind::Query(
+                        QueryOpKind::Take,
+                        Operand::Copy(Place::from_local(*active_query_id, span)),
+                    ),
+                },
+            ),
+        });
+
+        leave_block
     }
 
     pub fn create_increment(
@@ -389,9 +465,18 @@ impl ForLoopKind {
     fn create_query_increment(
         &self,
         ty_check: &mut TyCheck,
-        iterator_local_id: LocalID,
+        _: LocalID,
         condition_block: BlockID,
-        span: Span,
+        _: Span,
     ) {
+        ty_check.terminate_with_existing_block(
+            TerminationKind::Lower,
+            condition_block,
+            |block, next| {
+                block.terminate(Terminator {
+                    kind: TerminatorKind::Jump(next),
+                });
+            },
+        );
     }
 }

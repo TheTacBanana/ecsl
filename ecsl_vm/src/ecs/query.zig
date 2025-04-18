@@ -59,14 +59,14 @@ pub const QueryTracker = struct {
 
             // Read With
             for (0..with_length) |i| {
-                const offset = i * 4;
+                const offset = 4 + i * 4;
                 const comp_id = read(u32, section[offset..(offset + 4)], big);
                 with_array[i] = @enumFromInt(comp_id);
             }
 
             // Read without
             for (with_length..(with_length + without_length)) |i| {
-                const offset = i * 4;
+                const offset = 4 + i * 4;
                 const comp_id = read(u32, section[offset..(offset + 4)], big);
                 without_array[i] = @enumFromInt(comp_id);
             }
@@ -118,18 +118,20 @@ pub const QueryIterator = struct {
     storage: *const storage.Table,
     cur: u32,
     temp: std.DynamicBitSet,
+    can_take: bool,
 
     pub fn free(this: *QueryIterator) void {
         this.temp.deinit();
     }
 
-    pub fn next(this: *QueryIterator) ?entity.EntityId {
+    pub fn next(this: *QueryIterator) bool {
         const len = @max(1, this.query.with.capacity() / @sizeOf(usize));
         while (true) {
             this.cur += 1;
             if (!(this.cur < this.storage.config.entity_limit)) {
                 this.temp.deinit();
-                return null;
+                this.can_take = false;
+                return false;
             }
 
             const bitset = &this.storage.bitsets[this.cur];
@@ -151,7 +153,16 @@ pub const QueryIterator = struct {
                 continue;
             }
 
-            return ent_id;
+            this.can_take = true;
+            return true;
+        }
+    }
+
+    pub fn take(this: *QueryIterator) ?entity.EntityId {
+        if (this.can_take) {
+            return this.storage.entities.entities[this.cur].id;
+        } else {
+            return null;
         }
     }
 };
@@ -215,6 +226,7 @@ pub const Query = struct {
             .storage = table,
             .cur = 0,
             .temp = try std.DynamicBitSet.initEmpty(this.alloc, this.with.capacity()),
+            .can_take = false,
         };
     }
 

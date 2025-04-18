@@ -816,7 +816,7 @@ impl Visitor for TyCheck {
                     s.span,
                 )?;
 
-                // Create the comparison block returning the leave block
+                // Create the condition block returning the leave block
                 let leave_block = for_loop_kind.create_comparison(self, iterator_local_id, s.span);
 
                 // Creat the increment block
@@ -2034,7 +2034,7 @@ impl Visitor for TyCheck {
                         place.clone(),
                         gir::Expr {
                             span: e.span,
-                            kind: gir::ExprKind::Query(const_id),
+                            kind: gir::ExprKind::Value(Operand::Constant(const_id)),
                         },
                     ),
                 });

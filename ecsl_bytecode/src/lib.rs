@@ -342,9 +342,12 @@ pub enum Bytecode {
     /// Pop a pointer to a query layout in const data and convert into an
     /// Active Query ID, pushing it to the stack (4 bytes)
     STQRY,
-    /// Pop the Active Query ID from the stack and get the next EntityID
-    /// push as an optional to the stack
+    /// Pop the Active Query ID from the stack and test if the next entity
+    /// exists, pushing a one byte bool
     NEQRY,
+    /// Pop the Active Query ID from the stack and get the next EntityID
+    /// push to the stack, will panic if there is no entity availabe
+    TAQRY,
     /// Using an EntityID and a pointer to a query layout in const data
     /// from the stack, test if the query matches the entity, pushing a
     /// one byte bool

@@ -1,6 +1,6 @@
 use ecsl_bytecode::{function::FunctionBytecode, ins, BytecodeInstruction, Immediate, Opcode};
 use ecsl_gir::{
-    expr::{BinOp, BinOpKind, ExprKind, Operand, OperandKind, UnOp, UnOpKind},
+    expr::{BinOp, BinOpKind, ExprKind, Operand, OperandKind, QueryOpKind, UnOp, UnOpKind},
     stmt::StmtKind,
     term::{SwitchCase, TerminatorKind},
     LocalKind, Place, Projection, GIR,
@@ -184,9 +184,14 @@ impl<'a> CodeGen<'a> {
                                 nav.push(ins!(PSHR, Immediate::Long(offset.unwrap())));
                                 instrs.extend(nav);
                             }
-                            ExprKind::Query(query_const) => {
-                                let cons = self.const_map.get(&query_const).unwrap();
-                                instrs.push(ins!(PSHI_L, *cons));
+                            ExprKind::Query(kind, operand) => {
+                                self.load_operand(operand, &mut instrs);
+
+                                instrs.push(match kind {
+                                    QueryOpKind::Start => ins!(STQRY),
+                                    QueryOpKind::Next => ins!(NEQRY),
+                                    QueryOpKind::Take => ins!(TAQRY),
+                                });
                             }
                         }
 

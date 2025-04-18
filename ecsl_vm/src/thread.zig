@@ -28,6 +28,7 @@ pub const ProgramThread = struct {
 
     /// Program panicking
     pub const ProgramError = error{
+        /// A panic occured and no message was provided
         PanicNoMessage,
         /// Stack has exceeded its limits
         StackOverflow,
@@ -45,6 +46,8 @@ pub const ProgramThread = struct {
         InvalidInstruction,
         /// Trying to pop from the stack when the stack is empty
         EmptyStack,
+        /// Tried to take from query when nothing remains
+        EmptyQuery,
     };
 
     /// External stack frame representation
