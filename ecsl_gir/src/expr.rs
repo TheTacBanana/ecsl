@@ -1,5 +1,3 @@
-use std::collections::BTreeSet;
-
 use crate::Place;
 use cfgrammar::Span;
 pub use ecsl_ast::expr::{BinOpKind, UnOpKind};

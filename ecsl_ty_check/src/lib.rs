@@ -1,6 +1,6 @@
 #![feature(if_let_guard)]
 use ecsl_ast::ecs::FilterKind;
-use ecsl_ast::expr::{BinOpKind, RangeType, UnOpKind};
+use ecsl_ast::expr::{BinOpKind, UnOpKind};
 use ecsl_ast::item::{ImplBlock, Item, ItemKind};
 use ecsl_ast::parse::{AttributeMarker, Immediate, ParamKind};
 use ecsl_ast::stmt::InlineBytecode;
@@ -24,6 +24,7 @@ use ecsl_ty::ctxt::TyCtxt;
 use ecsl_ty::local::LocalTyCtxt;
 use ecsl_ty::{ADTDef, FieldDef, FnParent, GenericsScope, TyIr};
 use ext::IntoTyID;
+use for_loop::ForLoopKind;
 use log::debug;
 use lrpar::Span;
 use std::collections::{BTreeMap, BTreeSet};
@@ -38,6 +39,7 @@ mod gir {
 }
 
 pub mod ext;
+pub mod for_loop;
 
 pub fn ty_check(
     ast: &SourceAST,
@@ -231,6 +233,21 @@ impl TyCheck {
         return found;
     }
 
+    pub fn insert_symbol(&mut self, symbol_id: SymbolID, place: Place, span: Span) -> VisitorCF {
+        if let Some(_) = self.symbols.last_mut().unwrap().insert(symbol_id, place) {
+            self.ty_ctxt.diag.push_error(
+                EcslError::new(ErrorLevel::Error, TyCheckError::SymbolRedefined)
+                    .with_span(|_| span),
+            );
+            return VisitorCF::Break;
+        }
+        return VisitorCF::Continue;
+    }
+
+    pub fn add_break(&mut self, br: BreakContinue) {
+        self.break_continue_stack.push(br);
+    }
+
     /// Get the current break point
     pub fn break_point(&self) -> Option<BlockID> {
         self.break_continue_stack.last().map(|s| s.br)
@@ -257,11 +274,6 @@ impl TyCheck {
         let TyIr::Fn(fn_tyir) = self.get_tyir((scope, f.ident)) else {
             panic!("Internal Compiler Error: Fn {} has not been defined", tyid);
         };
-
-        // debug!("{fn_tyir:?}");
-        // debug!("{:?}", self.ty_ctxt.global.get_tyir(TyID::new(7)));
-        // debug!("{:?}", self.ty_ctxt.global.get_tyir(TyID::new(17)));
-        // debug!("{:?}", self.ty_ctxt.global.get_tyir(TyID::new(15)));
 
         self.cur_gir = Some(GIR::new(tyid, fn_tyir.kind, self.ty_ctxt.file, f.span));
 
@@ -299,13 +311,7 @@ impl TyCheck {
 
             let place = Place::from_local(local_id, param.span);
 
-            if let Some(_) = self.symbols.last_mut().unwrap().insert(ident, place) {
-                self.ty_ctxt.diag.push_error(
-                    EcslError::new(ErrorLevel::Error, TyCheckError::SymbolRedefined)
-                        .with_span(|_| param.span),
-                );
-                return VisitorCF::Break;
-            }
+            self.insert_symbol(ident, place, param.span);
         }
 
         // Make block and iter
@@ -478,12 +484,12 @@ impl Visitor for TyCheck {
         }
 
         macro_rules! err {
-            ($e:expr,$s:expr) => {
+            ($e:expr,$s:expr) => {{
                 self.ty_ctxt
                     .diag
                     .push_error(EcslError::new(ErrorLevel::Error, $e).with_span(|_| $s));
                 return VisitorCF::Break;
-            };
+            }};
         }
 
         if self.block(self.cur_block()).terminated() {
@@ -569,19 +575,8 @@ impl Visitor for TyCheck {
                     }
                 };
 
-                // Insert Ident into local Mapping
-                if let Some(_) = self
-                    .symbols
-                    .last_mut()
-                    .unwrap()
-                    .insert(*symbol_id, Place::from_local(local_id, *span))
-                {
-                    self.ty_ctxt.diag.push_error(
-                        EcslError::new(ErrorLevel::Error, TyCheckError::SymbolRedefined)
-                            .with_span(|_| s.span),
-                    );
-                    return VisitorCF::Break;
-                }
+                // Insert Symbol
+                self.insert_symbol(*symbol_id, Place::from_local(local_id, *span), s.span)?;
             }
             StmtKind::ElseIf(_, _, _) | StmtKind::Else(_) => panic!("If statement in wrong place"),
             StmtKind::If(expr, block, stmt) => {
@@ -781,20 +776,10 @@ impl Visitor for TyCheck {
                 }
             }
             StmtKind::For(symbol_id, ty, expr, block) => {
-                let ExprKind::Range(lhs, rhs, range_type) = &expr.kind else {
-                    panic!()
-                };
-
-                // Visit LHS
-                self.visit_expr(lhs.as_ref())?;
-                let (lhs_ty, lhs_op) = self.pop();
-
-                // Visit RHS
-                self.visit_expr(rhs.as_ref())?;
-                let (rhs_ty, rhs_op) = self.pop();
-
-                // Unify Types
-                unify!(lhs_ty, rhs_ty, TyCheckError::LHSMatchRHS(lhs_ty, rhs_ty));
+                // Create for loop kind
+                let mut for_loop_kind_opt = None;
+                ForLoopKind::from_expr(self, expr, &mut for_loop_kind_opt)?;
+                let mut for_loop_kind = for_loop_kind_opt.unwrap();
 
                 // Get For loop iterator Ty
                 if let Some(ty) = ty {
@@ -802,121 +787,48 @@ impl Visitor for TyCheck {
                         catch_unknown!(self.get_tyid((ty.as_ref(), &self.generic_scope)));
                     unify!(
                         iterator_tyid,
-                        lhs_ty,
+                        for_loop_kind.get_iterator_type(),
                         TyCheckError::ForLoopIterator {
                             index: iterator_tyid,
-                            range: lhs_ty
+                            range: for_loop_kind.get_iterator_type()
                         }
                     );
                 }
 
+                // Store symbols len for assert
                 let symbols_len = self.symbols.len();
 
-                // Create local ID
-                let iterator_local_id =
-                    self.new_local(Local::new(s.span, Mutable::Mut, lhs_ty, LocalKind::Let));
-
-                // Create Assignment Stmt
-                self.push_stmt_to_cur_block(gir::Stmt {
-                    span: s.span,
-                    kind: gir::StmtKind::Assign(
-                        Place::from_local(iterator_local_id, span),
-                        gir::Expr {
-                            span: expr.span, //TODO: Replace Span
-                            kind: gir::ExprKind::Value(lhs_op),
-                        },
-                    ),
-                });
-
-                let internal_max = self.new_local(Local::new(
-                    rhs.span,
-                    Mutable::Imm,
-                    rhs_ty,
-                    LocalKind::Internal,
-                ));
-
-                // Create Max Value
-                self.push_stmt_to_cur_block(gir::Stmt {
-                    span: s.span,
-                    kind: gir::StmtKind::Assign(
-                        Place::from_local(internal_max, span),
-                        gir::Expr {
-                            span: expr.span, //TODO: Replace Span
-                            kind: gir::ExprKind::Value(rhs_op),
-                        },
-                    ),
-                });
+                // Setup initial things
+                let iterator_local_id = for_loop_kind.create_iterator_local(self, s.span);
 
                 // Jump to next block
-                let cond_block =
+                let condition_block =
                     self.terminate_with_new_block(TerminationKind::Higher, |block, next| {
                         block.terminate(Terminator {
                             kind: TerminatorKind::Jump(next),
                         })
                     });
 
-                // Insert Ident into local Mapping
-                if let Some(_) = self
-                    .symbols
-                    .last_mut()
-                    .unwrap()
-                    .insert(*symbol_id, Place::from_local(iterator_local_id, span))
-                {
-                    self.ty_ctxt.diag.push_error(
-                        EcslError::new(ErrorLevel::Error, TyCheckError::SymbolRedefined)
-                            .with_span(|_| s.span),
-                    );
-                    return VisitorCF::Break;
-                }
+                // Insert Symbol
+                self.insert_symbol(
+                    *symbol_id,
+                    Place::from_local(iterator_local_id, span),
+                    s.span,
+                )?;
 
-                let comparison =
-                    self.new_local(Local::new(expr.span, Mutable::Imm, lhs_ty, LocalKind::Temp));
+                // Create the comparison block returning the leave block
+                let leave_block = for_loop_kind.create_comparison(self, iterator_local_id, s.span);
 
-                self.push_stmt_to_cur_block(gir::Stmt {
-                    span: s.span,
-                    kind: gir::StmtKind::Assign(
-                        Place::from_local(comparison, span),
-                        gir::Expr {
-                            span: expr.span,
-                            kind: gir::ExprKind::BinOp(
-                                BinOp(
-                                    OperandKind::Int,
-                                    match range_type {
-                                        RangeType::Exclusive => BinOpKind::Lt,
-                                        RangeType::Inclusive => BinOpKind::Leq,
-                                    },
-                                ),
-                                Operand::Copy(Place::from_local(iterator_local_id, span)),
-                                Operand::Copy(Place::from_local(internal_max, span)),
-                            ),
-                        },
-                    ),
-                });
-
-                let leave_block = self.new_block_without_stack();
-
-                let _start_of_block =
-                    self.terminate_with_new_block(TerminationKind::Higher, |block, next| {
-                        block.terminate(Terminator {
-                            kind: TerminatorKind::Switch(
-                                Operand::Move(Place::from_local(comparison, span)),
-                                vec![
-                                    SwitchCase::Value(Immediate::Bool(true), next),
-                                    SwitchCase::Default(leave_block),
-                                ],
-                            ),
-                        });
-                    });
-
+                // Creat the increment block
                 let increment_block = self.new_block_without_stack();
 
-                self.break_continue_stack.push(BreakContinue {
+                self.add_break(BreakContinue {
                     br: leave_block,
                     co: Some(increment_block),
                 });
 
+                // Walk the loop block and terminate with the increment block
                 walk_block(self, block)?;
-
                 self.terminate_with_existing_block(
                     TerminationKind::Lower,
                     increment_block,
@@ -927,33 +839,9 @@ impl Visitor for TyCheck {
                     },
                 );
 
-                let one_const = self.new_constant(Constant::Internal {
-                    imm: Immediate::Int(1),
-                });
-                self.push_stmt_to_cur_block(gir::Stmt {
-                    span: s.span,
-                    kind: gir::StmtKind::Assign(
-                        Place::from_local(iterator_local_id, span),
-                        gir::Expr {
-                            span: expr.span,
-                            kind: gir::ExprKind::BinOp(
-                                BinOp(OperandKind::Int, BinOpKind::Add),
-                                Operand::Copy(Place::from_local(iterator_local_id, span)),
-                                Operand::Constant(one_const),
-                            ),
-                        },
-                    ),
-                });
+                // Fill out the increment block
+                for_loop_kind.create_increment(self, iterator_local_id, condition_block, span);
 
-                self.terminate_with_existing_block(
-                    TerminationKind::Lower,
-                    cond_block,
-                    |block, next| {
-                        block.terminate(Terminator {
-                            kind: TerminatorKind::Jump(next),
-                        });
-                    },
-                );
                 self.block_stack.push(leave_block);
 
                 self.break_continue_stack.pop();
@@ -1058,22 +946,15 @@ impl Visitor for TyCheck {
                             let field_def = var.field_tys.get(field_id).unwrap();
 
                             // Insert Ident into local Mapping
-                            err_if!(
-                                self.symbols
-                                    .last_mut()
-                                    .unwrap()
-                                    .insert(
-                                        field.ident,
-                                        place.clone().with_projection(Projection::Field {
-                                            ty,
-                                            vid: *var_id,
-                                            fid: *field_id,
-                                            new_ty: field_def.ty
-                                        })
-                                    )
-                                    .is_some(),
-                                TyCheckError::DuplicateMember,
-                                arm.span
+                            self.insert_symbol(
+                                field.ident,
+                                place.clone().with_projection(Projection::Field {
+                                    ty,
+                                    vid: *var_id,
+                                    fid: *field_id,
+                                    new_ty: field_def.ty,
+                                }),
+                                arm.span,
                             );
                         }
 
@@ -1259,11 +1140,8 @@ impl Visitor for TyCheck {
         let ret_ty = match &e.kind {
             ExprKind::Assign(lhs, span, rhs) => {
                 // Visit lhs
-                let temp_block = self.new_block();
                 self.visit_expr(lhs)?;
                 let (_, lhs_op) = self.pop();
-                self.pop_block();
-                self.cur_gir_mut().remove_block(temp_block);
 
                 let lhs_place = match lhs_op {
                     Operand::Copy(place) | Operand::Move(place) => place,
@@ -1277,7 +1155,7 @@ impl Visitor for TyCheck {
                     LocalKind::Temp => false,
                     LocalKind::Let => true,
                     LocalKind::Arg => true,
-                    LocalKind::Internal => false,
+                    LocalKind::Internal => true,
                     LocalKind::Ret => panic!("Internal Compiler Error"),
                 };
                 err_if!(!can_assign, TyCheckError::CannotAssignToLHS, lhs.span);
@@ -2232,6 +2110,7 @@ pub enum TyCheckError {
     DotSyntaxOnConst,
 
     RequiresComp(TyID),
+    RequiresQuery(TyID),
 
     // Enum related errors
     TypeCannotBeMatched(TyID),
@@ -2333,6 +2212,7 @@ impl std::fmt::Display for TyCheckError {
             UnsupportedFilterKind => "Unsupported filter kind",
             DuplicateFilter(tyid) => &format!("Filter for Type '{}' already present", tyid),
             ConflictingFilter(tyid) => &format!("Conflicting for Type '{}' already present", tyid),
+            RequiresQuery(tyid) => &format!("Expected Query found Type '{}'", tyid),
         };
         write!(f, "{}", s)
     }
