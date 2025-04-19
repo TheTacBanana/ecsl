@@ -1,8 +1,9 @@
 #![feature(if_let_guard)]
-use ecsl_ast::ecs::FilterKind;
+#![feature(macro_metavar_expr_concat)]
+use ecsl_ast::ecs::{FilterKind, Schedule, ScheduleKind};
 use ecsl_ast::expr::{BinOpKind, UnOpKind};
 use ecsl_ast::item::{ImplBlock, Item, ItemKind};
-use ecsl_ast::parse::{AttributeMarker, Immediate, ParamKind};
+use ecsl_ast::parse::{AttributeMarker, FnKind, Immediate, ParamKind};
 use ecsl_ast::stmt::InlineBytecode;
 use ecsl_ast::ty::Mutable;
 use ecsl_ast::SourceAST;
@@ -444,53 +445,7 @@ impl Visitor for TyCheck {
     }
 
     fn visit_stmt(&mut self, s: &Stmt) -> VisitorCF {
-        macro_rules! catch_unknown {
-            ($i:expr) => {{
-                if $i == TyID::UNKNOWN {
-                    return VisitorCF::Break;
-                }
-                $i
-            }};
-        }
-
-        macro_rules! unify {
-            ($l:expr, $r:expr, $err:expr) => {
-                if $l == TyID::UNKNOWN || $r == TyID::UNKNOWN || $l != $r {
-                    self.ty_ctxt
-                        .diag
-                        .push_error(EcslError::new(ErrorLevel::Error, $err).with_span(|_| s.span));
-                    return VisitorCF::Break;
-                }
-            };
-            ($l:expr, $r:expr, $err:expr, $span:expr) => {
-                if $l == TyID::UNKNOWN || $r == TyID::UNKNOWN || $l != $r {
-                    self.ty_ctxt
-                        .diag
-                        .push_error(EcslError::new(ErrorLevel::Error, $err).with_span(|_| $span));
-                    return VisitorCF::Break;
-                }
-            };
-        }
-
-        macro_rules! err_if {
-            ($c:expr, $e:expr, $s:expr) => {
-                if $c {
-                    self.ty_ctxt
-                        .diag
-                        .push_error(EcslError::new(ErrorLevel::Error, $e).with_span(|_| $s));
-                    return VisitorCF::Break;
-                }
-            };
-        }
-
-        macro_rules! err {
-            ($e:expr,$s:expr) => {{
-                self.ty_ctxt
-                    .diag
-                    .push_error(EcslError::new(ErrorLevel::Error, $e).with_span(|_| $s));
-                return VisitorCF::Break;
-            }};
-        }
+        err_macros!(self.ty_ctxt, s.span);
 
         if self.block(self.cur_block()).terminated() {
             self.ty_ctxt.diag.push_error(
@@ -510,11 +465,14 @@ impl Visitor for TyCheck {
                 // Visit expression
                 self.visit_expr(expr)?;
                 let (rhs_ty, rhs_op) = self.pop();
-                catch_unknown!(rhs_ty);
+                catch_unknown!(rhs_ty, TyCheckError::UnknownTy);
 
                 // Unify Types
                 if let Some(ty) = ty {
-                    let let_ty = catch_unknown!(self.get_tyid((ty.as_ref(), &self.generic_scope)));
+                    let let_ty = catch_unknown!(
+                        self.get_tyid((ty.as_ref(), &self.generic_scope)),
+                        TyCheckError::UnknownTy
+                    );
                     unify!(
                         let_ty,
                         rhs_ty,
@@ -742,14 +700,17 @@ impl Visitor for TyCheck {
                             *i = Immediate::LocalOf(found.unwrap().local);
                         } else if let Immediate::Builtin(op, symbol) = i {
                             use ecsl_ast::ty::*;
-                            let tyid = catch_unknown!(self.get_tyid((
-                                &Ty::new(
-                                    *span,
-                                    TyKind::Ident(*symbol),
-                                    ConcreteGenerics::empty(*span)
-                                ),
-                                &self.generic_scope
-                            )));
+                            let tyid = catch_unknown!(
+                                self.get_tyid((
+                                    &Ty::new(
+                                        *span,
+                                        TyKind::Ident(*symbol),
+                                        ConcreteGenerics::empty(*span)
+                                    ),
+                                    &self.generic_scope
+                                )),
+                                TyCheckError::UnknownTy
+                            );
 
                             *i = match op {
                                 BuiltinOp::CID => Immediate::ComponentOf(tyid),
@@ -783,8 +744,10 @@ impl Visitor for TyCheck {
 
                 // Get For loop iterator Ty
                 if let Some(ty) = ty {
-                    let iterator_tyid =
-                        catch_unknown!(self.get_tyid((ty.as_ref(), &self.generic_scope)));
+                    let iterator_tyid = catch_unknown!(
+                        self.get_tyid((ty.as_ref(), &self.generic_scope)),
+                        TyCheckError::UnknownTy
+                    );
                     unify!(
                         iterator_tyid,
                         for_loop_kind.get_iterator_type(),
@@ -1084,57 +1047,7 @@ impl Visitor for TyCheck {
     }
 
     fn visit_expr(&mut self, e: &Expr) -> VisitorCF {
-        macro_rules! catch_unknown {
-            ($i:expr,$err:expr) => {{
-                if $i == TyID::UNKNOWN {
-                    self.ty_ctxt
-                        .diag
-                        .push_error(EcslError::new(ErrorLevel::Error, $err).with_span(|_| e.span));
-
-                    return VisitorCF::Break;
-                }
-                $i
-            }};
-        }
-
-        macro_rules! unify {
-            ($l:expr, $r:expr, $err:expr) => {
-                if $l == TyID::UNKNOWN || $r == TyID::UNKNOWN || $l != $r {
-                    self.ty_ctxt
-                        .diag
-                        .push_error(EcslError::new(ErrorLevel::Error, $err).with_span(|_| e.span));
-                    return VisitorCF::Break;
-                }
-            };
-            ($l:expr, $r:expr, $err:expr, $span:expr) => {
-                if $l == TyID::UNKNOWN || $r == TyID::UNKNOWN || $l != $r {
-                    self.ty_ctxt
-                        .diag
-                        .push_error(EcslError::new(ErrorLevel::Error, $err).with_span(|_| $span));
-                    return VisitorCF::Break;
-                }
-            };
-        }
-
-        macro_rules! err_if {
-            ($c:expr, $e:expr, $s:expr) => {
-                if $c {
-                    self.ty_ctxt
-                        .diag
-                        .push_error(EcslError::new(ErrorLevel::Error, $e).with_span(|_| $s));
-                    return VisitorCF::Break;
-                }
-            };
-        }
-
-        macro_rules! err {
-            ($e:expr,$s:expr) => {{
-                self.ty_ctxt
-                    .diag
-                    .push_error(EcslError::new(ErrorLevel::Error, $e).with_span(|_| $s));
-                return VisitorCF::Break;
-            }};
-        }
+        err_macros!(self.ty_ctxt, e.span);
 
         let span = e.span;
         let ret_ty = match &e.kind {
@@ -1880,7 +1793,10 @@ impl Visitor for TyCheck {
                         err!(TyCheckError::TooManyVariants(enum_tyid), e.span);
                     }
                 };
-                let disc_const = self.new_constant(Constant::Internal { imm: disc_const });
+                let disc_const = self.new_constant(Constant::Internal {
+                    span: ty.span,
+                    imm: disc_const,
+                });
 
                 self.push_stmt_to_cur_block(gir::Stmt {
                     span: e.span,
@@ -2041,9 +1957,82 @@ impl Visitor for TyCheck {
 
                 Some((query_tyid, Operand::Copy(place)))
             }
+            ExprKind::Schedule(schedule) => {
+                fn process_schedule(
+                    schedule: &Schedule,
+                    ty_check: &mut TyCheck,
+                    out: &mut Option<ConstID>,
+                ) -> VisitorCF {
+                    err_macros!(ty_check.ty_ctxt, schedule.span, sch_);
+
+                    match &schedule.kind {
+                        ScheduleKind::Sys(scope, symbol) => {
+                            let fn_tyid = sch_catch_unknown!(
+                                ty_check.get_tyid((*scope, *symbol)),
+                                TyCheckError::FunctionDoesntExist
+                            );
+
+                            let Some(fn_tyir) = ty_check.get_tyir(fn_tyid).into_fn() else {
+                                sch_err!(TyCheckError::FunctionDoesntExist, schedule.span);
+                            };
+
+                            sch_err_if!(fn_tyir.kind == FnKind::Fn, TyCheckError::FnInSchedule);
+                            sch_err_if!(
+                                fn_tyir.params.len() > 0,
+                                TyCheckError::ScheduleSysNoArguments
+                            );
+
+                            let ptr = ty_check.new_constant(Constant::Internal {
+                                span: schedule.span,
+                                imm: Immediate::AddressOf(fn_tyid),
+                            });
+                            *out = Some(ptr);
+                        }
+                        ScheduleKind::Ordered(schedules) => {
+                            sch_err_if!(schedules.is_empty(), TyCheckError::EmptySchedule);
+
+                            let mut ordered_out =
+                                schedules.iter().map(|_| None).collect::<Vec<_>>();
+                            for (i, s) in schedules.iter().enumerate() {
+                                process_schedule(s, ty_check, &mut ordered_out[i])?;
+                            }
+
+                            let ptr = ty_check.new_constant(Constant::Schedule {
+                                kind: gir::ScheduleKind::Ordered,
+                                contents: ordered_out.drain(..).map(|opt| opt.unwrap()).collect(),
+                            });
+
+                            *out = Some(ptr);
+                        }
+                        ScheduleKind::Unordered(schedules) => {
+                            sch_err_if!(schedules.is_empty(), TyCheckError::EmptySchedule);
+
+                            let mut unordered_out =
+                                schedules.iter().map(|_| None).collect::<Vec<_>>();
+                            for (i, s) in schedules.iter().enumerate() {
+                                process_schedule(s, ty_check, &mut unordered_out[i])?;
+                            }
+
+                            let ptr = ty_check.new_constant(Constant::Schedule {
+                                kind: gir::ScheduleKind::Unordered,
+                                contents: unordered_out.drain(..).map(|opt| opt.unwrap()).collect(),
+                            });
+
+                            *out = Some(ptr);
+                        }
+                    }
+                    VisitorCF::Continue
+                }
+
+                let mut out = None;
+                process_schedule(schedule, self, &mut out)?;
+
+                let schedule_tyid = self.get_tyid(TyIr::Schedule);
+
+                Some((schedule_tyid, Operand::Constant(out.unwrap())))
+            }
             e => panic!("{:?}", e),
             // ExprKind::Array(exprs) => todo!(),
-            // ExprKind::Schedule(schedule) => todo!(),
         };
 
         if let Some((ty, op)) = ret_ty {
@@ -2137,6 +2126,10 @@ pub enum TyCheckError {
     UnsupportedFilterKind,
     DuplicateFilter(TyID),
     ConflictingFilter(TyID),
+
+    EmptySchedule,
+    FnInSchedule,
+    ScheduleSysNoArguments,
 }
 
 impl std::fmt::Display for TyCheckError {
@@ -2213,6 +2206,9 @@ impl std::fmt::Display for TyCheckError {
             DuplicateFilter(tyid) => &format!("Filter for Type '{}' already present", tyid),
             ConflictingFilter(tyid) => &format!("Conflicting for Type '{}' already present", tyid),
             RequiresQuery(tyid) => &format!("Expected Query found Type '{}'", tyid),
+            EmptySchedule => "Schedule is empty",
+            FnInSchedule => "Fn must be Sys to be used in schedule",
+            ScheduleSysNoArguments => "System in a schedule must have no arguments",
         };
         write!(f, "{}", s)
     }
