@@ -11,11 +11,13 @@ fn u64_plus_i64(u: u64, i: i64) u64 {
     return @intCast(@as(i64, @intCast(u)) + i);
 }
 
-pub inline fn undf(_: *ProgramThread) !void {
+pub fn undf(_: *ProgramThread) !void {
     return ProgramThread.ProgramPanic.UndefinedInstruction;
 }
 
-pub inline fn halt(t: *ProgramThread) void {
+pub fn nop(_: *ProgramThread) !void {}
+
+pub fn halt(t: *ProgramThread) !void {
     t.state.status = ProgramThread.ProgramStatus.HaltProgram;
 }
 
@@ -29,7 +31,7 @@ pub fn pop(self: *ProgramThread, size: u8) !void {
     self.sp -= size;
 }
 
-pub inline fn pbp(self: *ProgramThread) !void {
+pub fn pbp(self: *ProgramThread) !void {
     const bp = self.get_bp();
     try self.push_stack(u64, @constCast(&bp));
 }
@@ -85,25 +87,23 @@ pub fn str_impl(self: *ProgramThread, size: u8, offset: i64, address: u64) !void
     // Get slice of stack
     const from_slice = self.stack[self.sp..][0..size];
 
-    // std.log.debug("STR {any}", .{from_slice});
-
     const cast_ptr: [*]u8 = @ptrCast(ptr);
 
     @memcpy(cast_ptr[0..size], from_slice);
 }
 
-pub inline fn pshr(self: *ProgramThread, offset: i64) !void {
+pub fn pshr(self: *ProgramThread, offset: i64) !void {
     const address = try self.pop_stack(u64);
     const new_offset: u64 = u64_plus_i64(address.*, offset);
     try self.push_stack_const(u64, new_offset);
 }
 
-pub inline fn setsp(self: *ProgramThread, offset: u64) !void {
+pub fn setsp(self: *ProgramThread, offset: u64) !void {
     self.sp = self.get_bp() + offset;
 }
 
-pub inline fn setspr(self: *ProgramThread, offset: i64) !void {
-    self.sp = @intCast(@as(i64, @intCast(self.sp)) + offset);
+pub fn setspr(self: *ProgramThread, offset: i64) !void {
+    self.sp = u64_plus_i64(self.sp, offset);
 }
 
 pub fn call(self: *ProgramThread, addr: u64) !void {
@@ -136,23 +136,23 @@ pub fn ret(self: *ProgramThread) !void {
     self.pc = ret_address.*;
 }
 
-pub inline fn panic(_: *ProgramThread) !void {
+pub fn panic(_: *ProgramThread) !void {
     return ProgramThread.ProgramError.PanicNoMessage;
 }
 
-pub inline fn pshi_b(self: *ProgramThread, a: u8) !void {
+pub fn pshi_b(self: *ProgramThread, a: u8) !void {
     try self.push_stack_const(u8, a);
 }
 
-pub inline fn pshi(self: *ProgramThread, a: u32) !void {
+pub fn pshi(self: *ProgramThread, a: u32) !void {
     try self.push_stack_const(u32, a);
 }
 
-pub inline fn pshi_l(self: *ProgramThread, a: u64) !void {
+pub fn pshi_l(self: *ProgramThread, a: u64) !void {
     try self.push_stack_const(u64, a);
 }
 
-pub inline fn jmp(self: *ProgramThread, addr: u64) void {
+pub fn jmp(self: *ProgramThread, addr: u64) !void {
     self.pc = addr;
 }
 
@@ -162,184 +162,184 @@ pub fn jmpt(self: *ProgramThread, addr: u64) !void {
     }
 }
 
-pub inline fn eq_b(self: *ProgramThread) !void {
+pub fn eq_b(self: *ProgramThread) !void {
     const pair = try self.pop_pair(u8);
     try self.push_stack_const(u8, @intFromBool(pair.l == pair.r));
 }
 
-pub inline fn neq_b(self: *ProgramThread) !void {
+pub fn neq_b(self: *ProgramThread) !void {
     const pair = try self.pop_pair(u8);
     try self.push_stack_const(u8, @intFromBool(pair.l != pair.r));
 }
 
-pub inline fn and_b(self: *ProgramThread) !void {
+pub fn and_b(self: *ProgramThread) !void {
     const pair = try self.pop_pair(u8);
     try self.push_stack_const(u8, pair.l & pair.r);
 }
 
-pub inline fn or_b(self: *ProgramThread) !void {
+pub fn or_b(self: *ProgramThread) !void {
     const pair = try self.pop_pair(u8);
     try self.push_stack_const(u8, pair.l | pair.r);
 }
 
-pub inline fn not_b(self: *ProgramThread) !void {
+pub fn not_b(self: *ProgramThread) !void {
     const a = try self.pop_stack(u8);
     try self.push_stack_const(u8, ~a.*);
 }
 
-pub inline fn eq_i(self: *ProgramThread) !void {
+pub fn eq_i(self: *ProgramThread) !void {
     const pair = try self.pop_pair(i32);
     try self.push_stack_const(u8, @intFromBool(pair.l == pair.r));
 }
 
-pub inline fn neq_i(self: *ProgramThread) !void {
+pub fn neq_i(self: *ProgramThread) !void {
     const pair = try self.pop_pair(i32);
     try self.push_stack_const(u8, @intFromBool(pair.l != pair.r));
 }
 
-pub inline fn lt_i(self: *ProgramThread) !void {
+pub fn lt_i(self: *ProgramThread) !void {
     const pair = try self.pop_pair(i32);
     try self.push_stack_const(u8, @intFromBool(pair.l < pair.r));
 }
 
-pub inline fn leq_i(self: *ProgramThread) !void {
+pub fn leq_i(self: *ProgramThread) !void {
     const pair = try self.pop_pair(i32);
     try self.push_stack_const(u8, @intFromBool(pair.l <= pair.r));
 }
 
-pub inline fn gt_i(self: *ProgramThread) !void {
+pub fn gt_i(self: *ProgramThread) !void {
     const pair = try self.pop_pair(i32);
     try self.push_stack_const(u8, @intFromBool(pair.l > pair.r));
 }
 
-pub inline fn geq_i(self: *ProgramThread) !void {
+pub fn geq_i(self: *ProgramThread) !void {
     const pair = try self.pop_pair(i32);
     try self.push_stack_const(u8, @intFromBool(pair.l >= pair.r));
 }
 
-pub inline fn and_i(self: *ProgramThread) !void {
+pub fn and_i(self: *ProgramThread) !void {
     const pair = try self.pop_pair(u32);
     try self.push_stack_const(u32, pair.l & pair.r);
 }
 
-pub inline fn or_i(self: *ProgramThread) !void {
+pub fn or_i(self: *ProgramThread) !void {
     const pair = try self.pop_pair(u32);
     try self.push_stack_const(u32, pair.l | pair.r);
 }
 
-pub inline fn xor_i(self: *ProgramThread) !void {
+pub fn xor_i(self: *ProgramThread) !void {
     const pair = try self.pop_pair(u32);
     try self.push_stack_const(u32, pair.l ^ pair.r);
 }
 
-pub inline fn shl_i(self: *ProgramThread) !void {
+pub fn shl_i(self: *ProgramThread) !void {
     const pair = try self.pop_pair(u32);
     try self.push_stack_const(u32, pair.l << @intCast(pair.r));
 }
 
-pub inline fn shr_i(self: *ProgramThread) !void {
+pub fn shr_i(self: *ProgramThread) !void {
     const pair = try self.pop_pair(u32);
     try self.push_stack_const(u32, pair.l >> @intCast(pair.r));
 }
 
-pub inline fn add_i(self: *ProgramThread) !void {
+pub fn add_i(self: *ProgramThread) !void {
     const pair = try self.pop_pair(i32);
     try self.push_stack_const(i32, pair.l + pair.r);
 }
 
-pub inline fn sub_i(self: *ProgramThread) !void {
+pub fn sub_i(self: *ProgramThread) !void {
     const pair = try self.pop_pair(i32);
     try self.push_stack_const(i32, pair.l - pair.r);
 }
 
-pub inline fn mul_i(self: *ProgramThread) !void {
+pub fn mul_i(self: *ProgramThread) !void {
     const pair = try self.pop_pair(i32);
     try self.push_stack_const(i32, pair.l * pair.r);
 }
 
 //TODO: Divide by zero
-pub inline fn div_i(self: *ProgramThread) !void {
+pub fn div_i(self: *ProgramThread) !void {
     const pair = try self.pop_pair(i32);
     try self.push_stack_const(i32, @divTrunc(pair.l, pair.r));
 }
 
-pub inline fn mod_i(self: *ProgramThread) !void {
+pub fn mod_i(self: *ProgramThread) !void {
     const pair = try self.pop_pair(i32);
     try self.push_stack_const(i32, @mod(pair.l, pair.r));
 }
 
-pub inline fn neg_i(self: *ProgramThread) !void {
+pub fn neg_i(self: *ProgramThread) !void {
     const a = try self.pop_stack(i32);
     try self.push_stack_const(i32, -a.*);
 }
 
-pub inline fn eq_f(self: *ProgramThread) !void {
+pub fn eq_f(self: *ProgramThread) !void {
     const pair = try self.pop_pair(f32);
     try self.push_stack_const(u8, @intFromBool(pair.l == pair.r));
 }
 
-pub inline fn neq_f(self: *ProgramThread) !void {
+pub fn neq_f(self: *ProgramThread) !void {
     const pair = try self.pop_pair(f32);
     try self.push_stack_const(u8, @intFromBool(pair.l != pair.r));
 }
 
-pub inline fn lt_f(self: *ProgramThread) !void {
+pub fn lt_f(self: *ProgramThread) !void {
     const pair = try self.pop_pair(f32);
     try self.push_stack_const(u8, @intFromBool(pair.l < pair.r));
 }
 
-pub inline fn leq_f(self: *ProgramThread) !void {
+pub fn leq_f(self: *ProgramThread) !void {
     const pair = try self.pop_pair(f32);
     try self.push_stack_const(u8, @intFromBool(pair.l <= pair.r));
 }
 
-pub inline fn gt_f(self: *ProgramThread) !void {
+pub fn gt_f(self: *ProgramThread) !void {
     const pair = try self.pop_pair(f32);
     try self.push_stack_const(u8, @intFromBool(pair.l > pair.r));
 }
 
-pub inline fn geq_f(self: *ProgramThread) !void {
+pub fn geq_f(self: *ProgramThread) !void {
     const pair = try self.pop_pair(f32);
     try self.push_stack_const(u8, @intFromBool(pair.l >= pair.r));
 }
 
-pub inline fn add_f(self: *ProgramThread) !void {
+pub fn add_f(self: *ProgramThread) !void {
     const pair = try self.pop_pair(f32);
     try self.push_stack_const(f32, pair.l + pair.r);
 }
 
-pub inline fn sub_f(self: *ProgramThread) !void {
+pub fn sub_f(self: *ProgramThread) !void {
     const pair = try self.pop_pair(f32);
     try self.push_stack_const(f32, pair.l - pair.r);
 }
 
-pub inline fn mul_f(self: *ProgramThread) !void {
+pub fn mul_f(self: *ProgramThread) !void {
     const pair = try self.pop_pair(f32);
     try self.push_stack_const(f32, pair.l * pair.r);
 }
 
 //TODO: Divide by zero
-pub inline fn div_f(self: *ProgramThread) !void {
+pub fn div_f(self: *ProgramThread) !void {
     const pair = try self.pop_pair(f32);
     try self.push_stack_const(f32, pair.l / pair.r);
 }
 
-pub inline fn mod_f(self: *ProgramThread) !void {
+pub fn mod_f(self: *ProgramThread) !void {
     const pair = try self.pop_pair(f32);
     try self.push_stack_const(f32, @mod(pair.l, pair.r));
 }
 
-pub inline fn neg_f(self: *ProgramThread) !void {
+pub fn neg_f(self: *ProgramThread) !void {
     const a = try self.pop_stack(f32);
     try self.push_stack_const(f32, -a.*);
 }
 
-pub inline fn itf(self: *ProgramThread) !void {
+pub fn itf(self: *ProgramThread) !void {
     const a = try self.pop_stack(i32);
     try self.push_stack_const(f32, @floatFromInt(a.*));
 }
 
-pub inline fn fti(self: *ProgramThread) !void {
+pub fn fti(self: *ProgramThread) !void {
     const a = try self.pop_stack(f32);
     try self.push_stack_const(i32, @intFromFloat(a.*));
 }

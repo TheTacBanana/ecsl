@@ -162,7 +162,6 @@ pub enum Bytecode {
     /// Undefined instruction
     UNDF,
     /// No Op
-    #[execute("{}")]
     NOP,
     /// Halt the program
     HALT,
