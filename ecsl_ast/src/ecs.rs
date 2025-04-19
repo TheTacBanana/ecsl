@@ -1,4 +1,4 @@
-use crate::{expr::Expr, ty::Ty, P};
+use crate::{ty::Ty, P};
 use cfgrammar::Span;
 use ecsl_ast_derive::AST;
 use ecsl_index::SymbolID;
@@ -51,13 +51,22 @@ impl Schedule {
     pub fn new(span: Span, kind: ScheduleKind) -> Self {
         Self { span, kind }
     }
+
+    pub fn is_empty(&self) -> bool {
+        match &self.kind {
+            ScheduleKind::Sys(_, _) => false,
+            ScheduleKind::Ordered(schedules) => schedules.iter().all(|s| s.is_empty()),
+            ScheduleKind::Unordered(schedules) => schedules.iter().all(|s| s.is_empty()),
+        }
+    }
 }
 
 #[derive(Debug, Clone, AST)]
 pub enum ScheduleKind {
-    /// An expr which returns a schedule or system
-    /// `foo` `bar.get_schedule()`
-    Expr(P<Expr>),
+    /// A plain system
+    /// `foo` 'Bar->foo'
+    Sys(Option<SymbolID>, SymbolID),
+
     /// A schedule which must be executed in order
     /// `[ foo, bar ]`
     Ordered(Vec<Schedule>),

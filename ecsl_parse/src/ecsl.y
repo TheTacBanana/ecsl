@@ -1109,7 +1109,7 @@ Expr -> Result<Expr, ()>:
         )))
     }
     | 'SCHEDULE' ScheduleExpr {
-        Ok(Expr::new($span, ExprKind::Schedule(P::new($2?))))
+        Ok(Expr::new($1.map_err(|_| ())?.span(), ExprKind::Schedule(P::new($2?))))
     }
     | 'QUERY' 'LBRACKET' 'RBRACKET' {
         Ok(Expr::new($span, ExprKind::Query(P::new(
@@ -1203,32 +1203,39 @@ PrecedingSchedule -> ():
 
 ScheduleExpr -> Result<Schedule, ()>:
     PrecedingSchedule 'LSQUARE' ScheduleList TrailingComma 'RSQUARE' {
-        Ok(Schedule::new($span,
+        Ok(Schedule::new($2.map_err(|_| ())?.span(),
             ScheduleKind::Ordered($3?)
         ))
     }
     | PrecedingSchedule 'LSQUARE' 'RSQUARE' {
-        Ok(Schedule::new($span,
+        Ok(Schedule::new($2.map_err(|_| ())?.span(), 
             ScheduleKind::Ordered(Vec::new())
         ))
     }
     | PrecedingSchedule 'LCURLY' ScheduleList TrailingComma 'RCURLY' {
-        Ok(Schedule::new($span,
+        Ok(Schedule::new($2.map_err(|_| ())?.span(),
             ScheduleKind::Unordered($3?)
         ))
     }
     | PrecedingSchedule 'LCURLY' 'RCURLY' {
-        Ok(Schedule::new($span,
+        Ok(Schedule::new($2.map_err(|_| ())?.span(),
             ScheduleKind::Unordered(Vec::new())
+        ))
+    }
+    | 'IDENT' 'ARROW' 'IDENT' {
+        Ok(Schedule::new($span,
+            ScheduleKind::Sys(
+                Some(table.usage($1.map_err(|_| ())?.span(), SymbolKind::FunctionUsage)),
+                table.usage($3.map_err(|_| ())?.span(), SymbolKind::FunctionUsage),
+            )
         ))
     }
     | 'IDENT' {
         Ok(Schedule::new($span,
-            ScheduleKind::Expr(P::new(
-                Expr::new($span, ExprKind::Ident(
-                    table.usage($1.map_err(|_| ())?.span(), SymbolKind::ScheduleItem),
-                ))
-            ))
+            ScheduleKind::Sys(
+                None,
+                table.usage($1.map_err(|_| ())?.span(), SymbolKind::ScheduleItem),
+            )
         ))
     }
     ;

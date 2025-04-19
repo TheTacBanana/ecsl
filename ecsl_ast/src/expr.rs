@@ -71,7 +71,7 @@ pub enum ExprKind {
     /// `x.foo(1, 2)`
     Function(Option<P<Expr>>, ConcreteGenerics, SymbolID, Vec<Expr>),
     /// Static Function call within a types namespace
-    /// `Foo::new()`
+    /// `Foo->new()`
     StaticFunction(SymbolID, SymbolID, ConcreteGenerics, Vec<Expr>), //TODO: Kinda bad I dont like this
 
     // ECS Features

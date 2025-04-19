@@ -367,7 +367,7 @@ pub fn walk_query<V: Visitor>(_v: &mut V, _q: &QueryExpr) -> VisitorCF {
 
 pub fn walk_schedule<V: Visitor>(v: &mut V, s: &Schedule) -> VisitorCF {
     match &s.kind {
-        ScheduleKind::Expr(e) => visit!(v.visit_expr(e)),
+        ScheduleKind::Sys(_, _) => (),
         ScheduleKind::Ordered(list) | ScheduleKind::Unordered(list) => {
             for s in list {
                 visit!(v.visit_schedule(s))
