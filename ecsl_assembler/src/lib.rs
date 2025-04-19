@@ -2,11 +2,15 @@ use ecsl_bytecode::ext::BytecodeExt;
 use ecsl_bytecode::function::FunctionBytecode;
 use ecsl_bytecode::Immediate;
 use ecsl_index::{AssemblerConstID, ComponentID, TyID};
-use header::{FileType, SectionPointer, SectionType};
+use header::{EntryPointKind, FileType, SectionPointer, SectionType};
 use log::debug;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
+use std::fs::OpenOptions;
+use std::hash::{DefaultHasher, Hash, Hasher};
 use std::io::{prelude::*, SeekFrom};
 use std::marker::PhantomData;
+use std::os::unix::fs::FileExt;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::RwLock;
 use std::{fs::File, path::PathBuf};
 
@@ -19,11 +23,15 @@ pub struct Assembler<T> {
     path: PathBuf,
     temp_path: PathBuf,
     file: File,
+    cur_file_pos: AtomicU64,
 
     file_type: FileType,
 
-    const_data: RwLock<BTreeMap<Vec<u8>, AssemblerConstID>>,
-    const_data_offsets: BTreeMap<AssemblerConstID, u64>,
+    const_data_hash: RwLock<HashMap<u64, AssemblerConstID>>,
+    const_data_offsets: RwLock<BTreeMap<AssemblerConstID, u64>>,
+    const_data: RwLock<Vec<u8>>,
+
+    schedule_fn_patch_marker: RwLock<Vec<(AssemblerConstID, u64)>>,
 
     functions: RwLock<BTreeMap<TyID, FunctionBytecode>>, // Reduce duplication
 
@@ -34,6 +42,7 @@ pub struct Pre;
 pub struct ConstData;
 pub struct CompDefs;
 pub struct Executable;
+pub struct Schedule;
 pub struct Out;
 
 impl<T> Assembler<T> {
@@ -42,12 +51,17 @@ impl<T> Assembler<T> {
     pub const MAJOR_VERSION: u32 = 1;
     pub const MINOR_VERSION: u32 = 0;
 
+    fn current_file_pos(&self) -> u64 {
+        self.cur_file_pos.load(Ordering::Relaxed)
+    }
+
     fn offset_to_alignment(&mut self) -> std::io::Result<u64> {
         let start_of_header = self
             .file
             .seek(SeekFrom::Current(0))?
             .next_multiple_of(Self::ALIGNMENT);
         self.file.seek(SeekFrom::Start(start_of_header))?;
+        self.cur_file_pos.store(start_of_header, Ordering::Relaxed);
         Ok(start_of_header)
     }
 
@@ -61,7 +75,10 @@ impl<T> Assembler<T> {
             functions: self.functions,
             const_data: self.const_data,
             const_data_offsets: self.const_data_offsets,
+            const_data_hash: self.const_data_hash,
+            schedule_fn_patch_marker: self.schedule_fn_patch_marker,
             sections: self.sections,
+            cur_file_pos: self.cur_file_pos,
         }
     }
 }
@@ -76,7 +93,12 @@ impl Assembler<Pre> {
 
         let _ = std::fs::remove_file(&temp_path);
         std::fs::create_dir_all(temp_path.parent().unwrap()).unwrap();
-        let file = File::create(&temp_path).unwrap();
+        let file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .open(&temp_path)
+            .unwrap();
 
         Self {
             _phantom: Default::default(),
@@ -88,6 +110,9 @@ impl Assembler<Pre> {
             const_data_offsets: Default::default(),
             sections: Vec::new(),
             functions: Default::default(),
+            schedule_fn_patch_marker: Default::default(),
+            const_data_hash: Default::default(),
+            cur_file_pos: Default::default(),
         }
     }
 
@@ -101,47 +126,63 @@ impl Assembler<Pre> {
         self.file.write(&Self::MINOR_VERSION.to_be_bytes())?;
 
         // Write File Type
-        self.file.write(&(self.file_type as u32).to_be_bytes())?;
+        self.file.write(&(self.file_type as u16).to_be_bytes())?;
+
+        // Write Entry Point Kind
+        self.file.write(&(0 as u16).to_be_bytes())?;
 
         // Write entry point and section header as 0 to be written later
         self.file.write(&0u64.to_be_bytes())?;
         self.file.write(&0u64.to_be_bytes())?;
 
+        self.offset_to_alignment()?;
         Ok(self.cast())
     }
 }
 
 impl Assembler<ConstData> {
     pub fn add_const_data(&self, bytes: Vec<u8>) -> AssemblerConstID {
+        let mut hashes = self.const_data_hash.write().unwrap();
         let mut const_data = self.const_data.write().unwrap();
-        if let Some(id) = const_data.get(&bytes) {
-            *id
+        let mut offsets = self.const_data_offsets.write().unwrap();
+
+        let mut hasher = DefaultHasher::new();
+        bytes.hash(&mut hasher);
+        let hash_value = hasher.finish();
+
+        if let Some(id) = hashes.get(&hash_value) {
+            return *id;
         } else {
-            let next_id = AssemblerConstID::new(const_data.len());
-            const_data.insert(bytes, next_id);
+            let file_pos = self.current_file_pos() + const_data.len() as u64;
+            const_data.extend_from_slice(&bytes);
+
+            let next_id = AssemblerConstID::new(offsets.len());
+            offsets.insert(next_id, file_pos);
+            hashes.insert(hash_value, next_id);
+
             next_id
         }
     }
 
+    pub fn get_offset(&self, id: AssemblerConstID) -> Option<u64> {
+        let offsets = self.const_data_offsets.read().unwrap();
+        offsets.get(&id).cloned()
+    }
+
+    pub fn add_fn_patch_marker(&self, id: AssemblerConstID, offset: u64) {
+        let mut patches = self.schedule_fn_patch_marker.write().unwrap();
+        patches.push((id, offset));
+    }
+
     /// Write the const data section
     pub fn write_const_data(mut self) -> std::io::Result<Assembler<CompDefs>> {
-        let start_pos = self.offset_to_alignment()?;
-
-        let mut buffer = Vec::new();
-        let mut current_offset = 0;
+        let start_pos = self.current_file_pos();
 
         {
             let const_data = self.const_data.read().unwrap();
-            for (data, id) in const_data.iter() {
-                self.const_data_offsets
-                    .insert(*id, start_pos + current_offset);
-                current_offset += data.len() as u64;
-
-                buffer.extend_from_slice(data);
-            }
+            self.file.write(&const_data)?;
         }
 
-        self.file.write(&buffer)?;
         let end_pos = self.file.seek(SeekFrom::End(0))?;
 
         self.sections.push(SectionPointer {
@@ -212,7 +253,10 @@ impl Assembler<Executable> {
     }
 
     /// Write function bytecode
-    pub fn write_bytecode(mut self, entry_point: TyID) -> std::io::Result<Assembler<Out>> {
+    pub fn write_bytecode(
+        mut self,
+        entry_point: (TyID, EntryPointKind),
+    ) -> std::io::Result<Assembler<Out>> {
         let start_pos = self.offset_to_alignment()?;
 
         let functions = self.functions.get_mut().unwrap();
@@ -254,7 +298,14 @@ impl Assembler<Executable> {
                             );
                         }
                         Immediate::ConstAddressOf(const_id) => {
-                            *op = Immediate::ULong(*self.const_data_offsets.get(const_id).unwrap())
+                            *op = Immediate::ULong(
+                                *self
+                                    .const_data_offsets
+                                    .read()
+                                    .unwrap()
+                                    .get(const_id)
+                                    .unwrap(),
+                            )
                         }
                         _ => (),
                     }
@@ -299,14 +350,40 @@ impl Assembler<Executable> {
             address: start_pos,
         });
 
-        let entry_point = start_pos
-            + function_offsets.get(&entry_point).expect(&format!(
+        let entry_point_addr = start_pos
+            + function_offsets.get(&entry_point.0).expect(&format!(
                 "Internal Compiler Error: Entry point {:?} not found",
                 entry_point
             ));
 
-        self.file.seek(SeekFrom::Start(0x10))?;
-        self.file.write(&entry_point.to_be_bytes())?;
+        // Patch Entry Point Kind
+        self.file.seek(SeekFrom::Start(14))?;
+        self.file.write(&(entry_point.1 as u16).to_be_bytes())?;
+
+        // Patch Entry point addr
+        self.file.seek(SeekFrom::Start(16))?;
+        self.file.write_at(&entry_point_addr.to_be_bytes(), 16)?;
+
+        // Patch
+        {
+            let markers = self.schedule_fn_patch_marker.read().unwrap();
+            let offsets = self.const_data_offsets.read().unwrap();
+
+            for (id, offset) in markers.iter() {
+                let offset = *offsets.get(id).unwrap() + offset;
+
+                let mut bytes = [0u8; 8];
+                self.file.read_at(&mut bytes, offset).unwrap();
+                let bytes = function_offsets
+                    .get(&TyID::new(u64::from_be_bytes(bytes) as usize))
+                    .inspect(|v| debug!("{:?}", v))
+                    .unwrap()
+                    .to_be_bytes();
+
+                self.file.write_at(&bytes, offset).unwrap();
+            }
+        }
+
         self.file.seek(SeekFrom::End(0))?;
 
         Ok(self.cast())
@@ -334,8 +411,7 @@ impl Assembler<Out> {
             self.file.write(&address.to_be_bytes())?;
         }
 
-        self.file.seek(SeekFrom::Start(0x18))?;
-        self.file.write(&start_pos.to_be_bytes())?;
+        self.file.write_at(&start_pos.to_be_bytes(), 0x18)?;
 
         std::fs::rename(&self.temp_path, &self.path)?;
         let _ = std::fs::remove_file(&self.temp_path);

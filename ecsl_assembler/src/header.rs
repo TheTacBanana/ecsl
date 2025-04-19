@@ -4,6 +4,15 @@ pub enum FileType {
     Executable = 1,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EntryPointKind {
+    Unknown = 0,
+    MainFn = 1,
+    MainSysUnscheduled = 2,
+    MainSysOnce = 3,
+    MainSysLoop = 4,
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct SectionPointer {
     pub section_type: SectionType,
