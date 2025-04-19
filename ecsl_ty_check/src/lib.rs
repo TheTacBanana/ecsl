@@ -1981,6 +1981,10 @@ impl Visitor for TyCheck {
                                 fn_tyir.params.len() > 0,
                                 TyCheckError::ScheduleSysNoArguments
                             );
+                            sch_err_if!(
+                                fn_tyir.ret.ty != TyID::BOTTOM,
+                                TyCheckError::ScheduleSysNoArguments
+                            );
 
                             let ptr = ty_check.new_constant(Constant::Internal {
                                 span: schedule.span,

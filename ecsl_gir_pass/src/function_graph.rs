@@ -5,15 +5,18 @@ use std::{
 
 use cfgrammar::Span;
 use ecsl_ast::parse::FnKind;
+use ecsl_bytecode::Immediate;
 use ecsl_error::{ext::EcslErrorExt, EcslError, ErrorLevel};
 use ecsl_gir::{
+    cons::Constant,
     expr::ExprKind,
     stmt::{Stmt, StmtKind},
     visit::{Visitor, VisitorCF},
     GIR,
 };
-use ecsl_index::{SourceFileID, TyID};
+use ecsl_index::{ConstID, SourceFileID, TyID};
 use ecsl_ty::ctxt::TyCtxt;
+use log::debug;
 use petgraph::{prelude::DiGraphMap, visit::Bfs};
 
 use crate::GIRPass;
@@ -74,6 +77,8 @@ impl FunctionGraph {
             reachable.insert(node);
         }
 
+        debug!("{:?}", reachable);
+
         let unused = graph
             .nodes()
             .filter_map(|node| {
@@ -88,6 +93,11 @@ impl FunctionGraph {
         for un in unused {
             graph.remove_node(un);
         }
+    }
+
+    pub fn remove_path(&self, from: TyID, to: TyID) {
+        let mut graph = self.graph.write().unwrap();
+        graph.remove_edge(from, to);
     }
 }
 
@@ -127,6 +137,19 @@ impl Visitor for FunctionDependencies {
                     }
                     _ => (),
                 };
+            }
+            _ => (),
+        }
+        VisitorCF::Continue
+    }
+
+    fn visit_const(&mut self, _: ConstID, c: &Constant) -> VisitorCF {
+        match c {
+            Constant::Internal {
+                imm: Immediate::AddressOf(tyid),
+                span,
+            } => {
+                self.depends.push((*tyid, *span));
             }
             _ => (),
         }

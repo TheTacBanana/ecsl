@@ -434,6 +434,7 @@ impl ForLoopKind {
         };
 
         let one_const = ty_check.new_constant(Constant::Internal {
+            span,
             imm: Immediate::Int(1),
         });
         ty_check.push_stmt_to_cur_block(Stmt {

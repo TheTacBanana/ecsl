@@ -4,6 +4,7 @@ use bimap::BiBTreeMap;
 use byt::BytecodeValidator;
 use casing::CasingWarnings;
 use definitions::TypeDefCollector;
+use ecsl_assembler::header::EntryPointKind;
 use ecsl_ast::{
     data::{EnumDef, StructDef},
     item::{Item, ItemKind},
@@ -19,7 +20,7 @@ use ecsl_parse::{source::SourceFile, table::SymbolTable, LexerTy};
 use ecsl_ty::{
     def::Definition, import::Import, local::LocalTyCtxt, FieldDef, FnParent, GenericsScope, TyIr,
 };
-use entry_point::{EntryPoint, EntryPointError, EntryPointKind};
+use entry_point::{EntryPoint, EntryPointError};
 use fn_validator::FnValidator;
 use import_collector::ImportCollector;
 use log::debug;

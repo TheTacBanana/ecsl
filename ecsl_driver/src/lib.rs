@@ -320,27 +320,46 @@ impl Driver {
 
                     bytecode_out.insert(*id, bytecode);
                 }
-                Some(bytecode_out)
+                Some((bytecode_out, linker))
             },
             || diag.finish_stage(finish_stage),
         )?;
 
         debug!("Function inlining");
+        let assoc = (&context, assoc).par_map_assoc(
+            |_, _, (mut bytecode, linker)| {
+                for (_, byt) in bytecode.iter_mut() {
+                    Inline::apply_pass(byt, (&inlineable, &function_graph));
+                }
+                Some((bytecode, linker))
+            },
+            || diag.finish_stage(finish_stage),
+        )?;
+
+        debug!("Prune unused functions second pass");
+        function_graph.prune_unused(entry_point.0);
+        let assoc = (&context, assoc).par_map_assoc(
+            |_, _, (bytecode, mut linker)| {
+                let graph = function_graph.graph.read().unwrap();
+                linker.fn_gir.retain(|tyid, _| graph.contains_node(*tyid));
+
+                Some(bytecode)
+            },
+            || diag.finish_stage(finish_stage),
+        )?;
+
+        debug!("Include Functions");
         let _ = (&context, assoc).par_map_assoc(
             |_, _, bytecode| {
-                for mut byt in bytecode.into_values() {
-                    if inlineable.inlined(byt.tyid) {
-                        continue;
-                    }
-                    Inline::apply_pass(&mut byt, &inlineable);
-
+                for byt in bytecode.into_values() {
                     assembler.include_function(byt);
                 }
                 Some(())
             },
             || diag.finish_stage(finish_stage),
         )?;
-        let assember = assembler.write_bytecode(entry_point.0).unwrap();
+
+        let assember = assembler.write_bytecode(entry_point).unwrap();
 
         Ok(assember.output().unwrap())
     }

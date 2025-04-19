@@ -146,6 +146,7 @@ impl TyCtxt {
 
         let size = match tyir {
             TyIr::Ref(_, _) => 8,
+            TyIr::Schedule => 8,
             TyIr::Range(tyid, _) => self.internal_get_size(tyid, sizes)?,
             TyIr::ADT(def) => {
                 if def.is_struct() {

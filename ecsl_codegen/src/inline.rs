@@ -1,4 +1,5 @@
 use ecsl_bytecode::{function::FunctionBytecode, BytecodeInstruction, Opcode};
+use ecsl_gir_pass::function_graph::FunctionGraph;
 use ecsl_index::{BlockID, TyID};
 use std::{collections::BTreeMap, sync::RwLock};
 
@@ -68,13 +69,13 @@ impl CodegenPass for CanInline {
 pub struct Inline;
 
 impl CodegenPass for Inline {
-    type PassInput<'a> = &'a InlineableFunctions;
+    type PassInput<'a> = (&'a InlineableFunctions, &'a FunctionGraph);
 
     type PassResult = ();
 
     fn apply_pass<'a>(
         bytecode: &mut FunctionBytecode,
-        inline: Self::PassInput<'a>,
+        (inline, fn_graph): (&'a InlineableFunctions, &'a FunctionGraph),
     ) -> Self::PassResult {
         for (_, block) in bytecode.blocks.iter_mut() {
             let mut out = Vec::new();
@@ -85,6 +86,7 @@ impl CodegenPass for Inline {
                         let tyid = byt.operand[0].to_tyid().unwrap();
                         if let Some(to_inline) = inline.try_inline(tyid) {
                             out.extend(to_inline);
+                            fn_graph.remove_path(bytecode.tyid, tyid);
                         } else {
                             out.push(byt);
                         }

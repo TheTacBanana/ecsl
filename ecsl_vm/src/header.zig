@@ -11,12 +11,21 @@ pub const ProgramHeader = packed struct {
     major: u32,
     minor: u32,
     file_type: FileType,
+    entry_point_kind: EntryPointKind,
     entry_point: u64,
     section_header: u64,
 
-    pub const FileType = enum(u32) {
-        Unknown,
-        Executable,
+    pub const FileType = enum(u16) {
+        Unknown = 0,
+        Executable = 1,
+    };
+
+    pub const EntryPointKind = enum(u16) {
+        Unknown = 0,
+        MainFn = 1,
+        MainSysUnscheduled = 2,
+        MainSysOnce = 3,
+        MainSysLoop = 4,
     };
 
     pub const ProgramHeaderError = error{
@@ -40,7 +49,8 @@ pub const ProgramHeader = packed struct {
 
         const major: u32 = reader.readInt(u32, big) catch return error.FileError;
         const minor: u32 = reader.readInt(u32, big) catch return error.FileError;
-        const file_type: FileType = @enumFromInt(reader.readInt(u32, big) catch return error.FileError);
+        const file_type: FileType = @enumFromInt(reader.readInt(u16, big) catch return error.FileError);
+        const entry_point_kind: EntryPointKind = @enumFromInt(reader.readInt(u16, big) catch return error.FileError);
         const entry_point: u64 = reader.readInt(u64, big) catch return error.FileError;
         const section_header: u64 = reader.readInt(u64, big) catch return error.FileError;
 
@@ -49,6 +59,7 @@ pub const ProgramHeader = packed struct {
             .major = major,
             .minor = minor,
             .file_type = file_type,
+            .entry_point_kind = entry_point_kind,
             .entry_point = entry_point,
             .section_header = section_header,
         };

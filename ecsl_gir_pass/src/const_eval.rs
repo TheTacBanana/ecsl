@@ -60,7 +60,7 @@ impl<'a> Visitor for ConstEval<'a> {
         self.out.consts.insert(
             i,
             match c {
-                Constant::Internal { imm } => *imm,
+                Constant::Internal { imm, .. } => *imm,
                 Constant::External { kind, span, .. } => {
                     let s = self.lexer.span_str(*span);
                     match kind {
@@ -117,6 +117,33 @@ impl<'a> Visitor for ConstEval<'a> {
                     }
 
                     let id = self.assembler.add_const_data(bytes);
+                    Immediate::ConstAddressOf(id)
+                }
+                Constant::Schedule { kind, contents } => {
+                    let mut bytes = Vec::new();
+                    bytes.push(kind.discriminant());
+
+                    let mut patches = Vec::new();
+                    for (i, c) in contents.iter().enumerate() {
+                        match self.out.consts.get(c).unwrap() {
+                            Immediate::AddressOf(tyid) => {
+                                bytes.extend_from_slice(&(tyid.inner() as u64).to_be_bytes());
+                                patches.push((1 + i * 8) as u64);
+                            }
+                            Immediate::ConstAddressOf(id) => {
+                                let offset = self.assembler.get_offset(*id).unwrap();
+                                bytes.extend_from_slice(&offset.to_be_bytes());
+                            }
+                            _ => panic!(),
+                        }
+                    }
+
+                    let id = self.assembler.add_const_data(bytes);
+
+                    for p in patches {
+                        self.assembler.add_fn_patch_marker(id, p);
+                    }
+
                     Immediate::ConstAddressOf(id)
                 }
             },

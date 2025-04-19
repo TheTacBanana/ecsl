@@ -374,11 +374,13 @@ impl LocalTyCtxt {
                 | TyIr::Str
                 | TyIr::Entity
                 | TyIr::Bottom
-                | TyIr::Query => Some(id),
-                e => {
-                    error!("{:?}", e);
-                    None
-                }
+                | TyIr::Query
+                | TyIr::Schedule => Some(id),
+                TyIr::Unknown => None,
+                TyIr::Range(_, _) => todo!(),
+                TyIr::Ptr(_, _) => todo!(),
+                TyIr::Array(_, _) => todo!(),
+                TyIr::ArrayRef(_, _) => todo!(),
             }
         }
     }

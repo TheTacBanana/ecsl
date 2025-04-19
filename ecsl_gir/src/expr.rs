@@ -125,3 +125,29 @@ impl std::fmt::Display for Query {
         Ok(())
     }
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScheduleKind {
+    Ordered,
+    Unordered,
+}
+
+impl ScheduleKind {
+    pub fn discriminant(&self) -> u8 {
+        *self as u8
+    }
+
+    pub fn opening(&self) -> &'static str {
+        match self {
+            ScheduleKind::Ordered => "[",
+            ScheduleKind::Unordered => "{",
+        }
+    }
+
+    pub fn closing(&self) -> &'static str {
+        match self {
+            ScheduleKind::Ordered => "]",
+            ScheduleKind::Unordered => "}",
+        }
+    }
+}
