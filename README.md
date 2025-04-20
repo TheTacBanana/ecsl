@@ -109,8 +109,8 @@ Scheduled allows ECS features, once executes the schedule once and loop will ind
 
 * Plain - `fn main() { .. }`
 * Unscheduled - `sys main() { .. }`
-* Scheduled Once - `fn main_once() Schedule { .. }`
-* Scheduled Loop - `fn main_loop() Schedule { .. }`
+* Scheduled Once - `sys main_once() Schedule { .. }`
+* Scheduled Loop - `sys main_loop() Schedule { .. }`
 ---
 ```
 let b = true; 
