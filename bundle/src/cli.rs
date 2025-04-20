@@ -13,7 +13,7 @@ pub struct Cli {
 #[derive(Debug, Subcommand)]
 pub enum Commands {
     New(New),
-    Compile(Compile),
+    Build(Compile),
     Run(Compile),
 }
 
@@ -31,7 +31,7 @@ impl CommandTrait for Commands {
     fn execute(&mut self, _: ()) -> Result<()> {
         match self {
             Commands::New(n) => n.execute(()),
-            Commands::Compile(b) => b.execute(false),
+            Commands::Build(b) => b.execute(false),
             Commands::Run(b) => b.execute(true),
         }
     }
