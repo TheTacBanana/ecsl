@@ -319,6 +319,7 @@ impl TyCheck {
         self.new_block();
         walk_block(self, &f.block)?;
 
+        // TODO: If block is terminated in bytecode then 2 RET instructions inserted
         let block = self.block_mut(self.cur_block());
         if !block.terminated() && fn_tyir.ret.ty == TyID::BOTTOM {
             block.terminate(Terminator {

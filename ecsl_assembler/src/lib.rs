@@ -281,12 +281,12 @@ impl Assembler<Executable> {
             for ins in bytecode.iter_mut() {
                 for op in ins.operand.iter_mut() {
                     match op {
-                        Immediate::AddressOf(ty_id) => {
+                        Immediate::AddressOf(tyid) => {
                             *op = Immediate::ULong(
                                 start_pos
-                                    + *function_offsets.get(&ty_id).expect(&format!(
+                                    + *function_offsets.get(&tyid).expect(&format!(
                                         "Internal Compiler Error: Function {:?} not found",
-                                        entry_point
+                                        tyid
                                     )),
                             )
                         }
@@ -374,13 +374,12 @@ impl Assembler<Executable> {
 
                 let mut bytes = [0u8; 8];
                 self.file.read_at(&mut bytes, offset).unwrap();
-                let bytes = function_offsets
-                    .get(&TyID::new(u64::from_be_bytes(bytes) as usize))
-                    .inspect(|v| debug!("{:?}", v))
-                    .unwrap()
-                    .to_be_bytes();
+                let bytes = start_pos
+                    + function_offsets
+                        .get(&TyID::new(u64::from_be_bytes(bytes) as usize))
+                        .unwrap();
 
-                self.file.write_at(&bytes, offset).unwrap();
+                self.file.write_at(&bytes.to_be_bytes(), offset).unwrap();
             }
         }
 

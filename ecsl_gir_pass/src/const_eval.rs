@@ -122,13 +122,14 @@ impl<'a> Visitor for ConstEval<'a> {
                 Constant::Schedule { kind, contents } => {
                     let mut bytes = Vec::new();
                     bytes.push(kind.discriminant());
+                    bytes.extend_from_slice(&(contents.len() as u32).to_be_bytes());
 
                     let mut patches = Vec::new();
                     for (i, c) in contents.iter().enumerate() {
                         match self.out.consts.get(c).unwrap() {
                             Immediate::AddressOf(tyid) => {
                                 bytes.extend_from_slice(&(tyid.inner() as u64).to_be_bytes());
-                                patches.push((1 + i * 8) as u64);
+                                patches.push((5 + i * 8) as u64);
                             }
                             Immediate::ConstAddressOf(id) => {
                                 let offset = self.assembler.get_offset(*id).unwrap();

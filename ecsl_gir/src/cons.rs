@@ -35,7 +35,7 @@ impl std::fmt::Display for Constant {
             Constant::Schedule { kind, contents } => {
                 write!(f, "{}", kind.opening())?;
                 for c in contents {
-                    write!(f, "{}", c)?
+                    write!(f, "{}, ", c)?
                 }
                 write!(f, "{}", kind.closing())
             }
