@@ -46,8 +46,9 @@ Note - the build.rs for bundle will copy the std library to `$HOME/.ecsl/ecsl_st
 
 ## Overview
 
-Brief language overview
+Brief language overview aiming to cover all relevant syntax
 
+---
 Add `comp` to the definition to make it a component
 ```
 struct comp Health {
@@ -80,6 +81,26 @@ sys create_archer() Entity {
 }
 ```
 ---
+Impl block for static functions and member functions.
+Static functions are called using `Foo->bar()` syntax
+```
+impl Health {
+    fn default() Health {
+        return Health { val: 8 };
+    }    
+
+    fn take_damage(&self, damage: int) {
+        self.val = self.val - damage;
+    }
+}
+```
+---
+File path based imports
+```
+use std::vector::Vector3;
+use lib_foo::foo::{Foo, Bar};
+```
+---
 Entry point can be multiple types of function.
 
 Plain is just a default entry point with no ECS features
@@ -108,7 +129,7 @@ while (true) {
     break;
 }
 
-let opt = Option::<Int>::Some { val: 8, };
+let opt = Option::<Int>::Some { val: 8 };
 match (opt) {
     Some { val } -> {
       print_int(val);
@@ -140,13 +161,13 @@ for (e in q) {
 A Schedule is a user defined ordering of systems to execute
 ```
 return Schedule [
-    { foo, bar, },
+    { foo, bar },
     last,
 ];
 ```
 
-* `[ .. ]` - Ordered Schedule
-* `{ .. }` - Unordered Schedule
+* Ordered Schedule - `[ .. ]`
+* Unordered Schedule - `{ .. }`
 
 ## Drawbacks
 
@@ -160,6 +181,8 @@ VM Performance - VM is very unoptimized and developed in a way allowing flexibil
 
 Optimisations - Compiled bytecode is often severely unoptimized
 
-Polmorphism - Lacking traits or other forms of compile time adhoc polymorphism
+Polymorphism - Lacking traits or other forms of compile time ad-hoc polymorphism
 
-Platform - Untested on platform other than x64 Linux, likely works on other platforms due to being compiled for bytecode
+Visibility - No public/private visibility modifiers
+
+Platform Compatibility - Untested on platforms other than x64 Linux NixOS
