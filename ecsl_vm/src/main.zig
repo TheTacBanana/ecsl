@@ -2,7 +2,9 @@ const std = @import("std");
 const builtin = @import("builtin");
 const header = @import("header.zig");
 const vm = @import("vm.zig");
+const thread = @import("thread.zig");
 const world = @import("ecs/world.zig");
+const schedule = @import("ecs/schedule.zig");
 
 pub const std_options: std.Options = .{
     .log_level = switch (builtin.mode) {
@@ -141,9 +143,43 @@ pub fn main() anyerror!void {
 
     const thread_ptr = ecsl_vm.get_thread(thread_id);
     const program_status = thread_ptr.execute_from_address(program_header.entry_point);
-    const exit_code: usize = switch (program_status) {
+    exit_code_from_status(program_status);
+
+    switch (ecsl_vm.header.program.entry_point_kind) {
+        .MainSysOnce => {
+            const schedule_addr = thread_ptr.get_schedule();
+            const static_schedule = try schedule.StaticSchedule.new(schedule_addr, ecsl_vm, alloc);
+
+            for (static_schedule.ordering.items) |ptr| {
+                const status = thread_ptr.execute_scheduled_system(ptr);
+                exit_code_from_status(status);
+            }
+        },
+        .MainSysLoop => {
+            const schedule_addr = thread_ptr.get_schedule();
+            var static_schedule = try schedule.StaticSchedule.new(schedule_addr, ecsl_vm, alloc);
+
+            while (true) {
+                for (static_schedule.ordering.items) |ptr| {
+                    const status = thread_ptr.execute_scheduled_system(ptr);
+                    exit_code_from_status(status);
+                }
+                try static_schedule.next_schedule();
+            }
+        },
+        else => {},
+    }
+
+    std.log.info("Program terminated with exit code 0", .{});
+}
+
+fn exit_code_from_status(status: thread.ProgramThread.ProgramStatus) void {
+    const exit_code: usize = switch (status) {
         .Running, .HaltProgram => 0,
         .ErrorOrPanic => 1,
     };
-    std.log.info("Program terminated with exit code {d}", .{exit_code});
+    if (exit_code == 1) {
+        std.log.info("Program terminated with exit code {d}", .{exit_code});
+        std.process.exit(1);
+    }
 }

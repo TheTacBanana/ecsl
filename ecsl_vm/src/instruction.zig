@@ -32,7 +32,7 @@ pub fn pop(self: *ProgramThread, size: u8) !void {
 }
 
 pub fn pbp(self: *ProgramThread) !void {
-    const bp = self.get_bp();
+    const bp = self.get_bp_ptr();
     try self.push_stack(u64, @constCast(&bp));
 }
 
@@ -42,7 +42,7 @@ pub fn ldr(self: *ProgramThread, size: u8, offset: i64) !void {
 }
 
 pub fn bpldr(self: *ProgramThread, size: u8, offset: i64) !void {
-    try ldr_impl(self, size, offset, self.get_bp());
+    try ldr_impl(self, size, offset, self.get_bp_ptr());
 }
 
 pub fn ldr_impl(self: *ProgramThread, size: u8, offset: i64, address: u64) !void {
@@ -70,7 +70,7 @@ pub fn str(self: *ProgramThread, size: u8, offset: i64) !void {
 }
 
 pub fn bpstr(self: *ProgramThread, size: u8, offset: i64) !void {
-    try str_impl(self, size, offset, self.get_bp());
+    try str_impl(self, size, offset, self.get_bp_ptr());
 }
 
 pub fn str_impl(self: *ProgramThread, size: u8, offset: i64, address: u64) !void {
@@ -99,7 +99,7 @@ pub fn pshr(self: *ProgramThread, offset: i64) !void {
 }
 
 pub fn setsp(self: *ProgramThread, offset: u64) !void {
-    self.sp = self.get_bp() + offset;
+    self.sp = self.call_stack[self.call_stack_index].?.stack_frame_base + offset;
 }
 
 pub fn setspr(self: *ProgramThread, offset: i64) !void {

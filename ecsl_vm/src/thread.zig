@@ -124,12 +124,12 @@ pub const ProgramThread = struct {
 
     pub inline fn next_opcode(self: *ProgramThread) u8 {
         const op_byte = self.vm_ptr.binary[self.pc];
-        // std.log.debug("PC {} Op {}", .{ self.pc, @as(Opcode, @enumFromInt(op_byte)) });
+        // std.log.debug("PC {} SP {} Op {}", .{ self.pc, self.sp, @as(Opcode, @enumFromInt(op_byte)) });
         self.pc += 1;
         return op_byte;
     }
 
-    pub inline fn get_bp(self: *ProgramThread) u64 {
+    pub inline fn get_bp_ptr(self: *ProgramThread) u64 {
         return self.vm_ptr.binary.len + self.call_stack[self.call_stack_index].?.stack_frame_base;
     }
 
@@ -196,23 +196,6 @@ pub const ProgramThread = struct {
         return out;
     }
 
-    pub inline fn clear_stack(self: *ProgramThread, new_sp: u64) void {
-        // Ensure valid clear
-        if (new_sp > self.sp) {
-            return;
-        }
-        // Zero memory
-        if (build_options.zero_memory) {
-            const old_sp = self.sp;
-            // Get slice of stack
-            const stack_slice = self.stack[self.sp..][0..(old_sp - self.sp)];
-            // Zero out slice
-            @memset(stack_slice, 0);
-        }
-        // Replace SP
-        self.sp = new_sp;
-    }
-
     pub fn get_ptr(
         self: *ProgramThread,
         address: u64,
@@ -238,13 +221,15 @@ pub const ProgramThread = struct {
 
     pub fn execute_from_address(self: *ProgramThread, from: u64) ProgramStatus {
         self.pc = from;
+        self.state.status = ProgramStatus.Running;
 
         self.call_stack[0] = StackFrame{
             .func_address = from,
-            .stack_frame_base = 8, //TODO: This doesnt need to be 8?
+            .stack_frame_base = 16,
             .unwind_addr = null,
         };
-        self.sp = 8;
+        self.sp = 16;
+        self.call_stack_index = 0;
 
         while (true) {
             // Get next opcode
@@ -262,7 +247,43 @@ pub const ProgramThread = struct {
                 return self.state.status;
             }
         }
+    }
 
-        // return ProgramStatus.Running;
+    pub fn execute_scheduled_system(self: *ProgramThread, from: u64) ProgramStatus {
+        self.pc = from;
+        self.state.status = ProgramStatus.Running;
+
+        self.call_stack[1] = StackFrame{
+            .func_address = from,
+            .stack_frame_base = 16,
+            .unwind_addr = null,
+        };
+        self.sp = 16;
+        self.call_stack_index = 1;
+
+        while (true) {
+            // Get next opcode
+            const op = self.next_opcode();
+
+            // Execute the opcode
+            Opcode.execute(self, op) catch |err| {
+                switch (self.unwrap_call_stack(err)) {
+                    ProgramUnwrap.Completed => return ProgramStatus.ErrorOrPanic,
+                    ProgramUnwrap.Resume => {},
+                }
+            };
+
+            if (self.call_stack_index == 0) {
+                return ProgramStatus.HaltProgram;
+            }
+
+            if (self.state.status != ProgramStatus.Running) {
+                return self.state.status;
+            }
+        }
+    }
+
+    pub fn get_schedule(self: *ProgramThread) u64 {
+        return std.mem.bytesToValue(u64, self.stack[0..8]);
     }
 };
