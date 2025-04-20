@@ -2,17 +2,10 @@
 
 use ecsl_bytecode_derive::Bytecode;
 use ecsl_index::{AssemblerConstID, BlockID, LocalID, SymbolID, TyID};
-use std::{collections::BTreeMap, usize};
+use std::usize;
 
 pub mod ext;
-
-#[derive(Debug)]
-pub struct FunctionBytecode {
-    pub tyid: TyID,
-    pub total_size: usize,
-    pub block_offsets: BTreeMap<BlockID, usize>,
-    pub ins: Vec<BytecodeInstruction>,
-}
+pub mod function;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct BytecodeInstruction {
@@ -53,10 +46,15 @@ pub enum Immediate {
     LabelOf(BlockID),
     LocalOf(LocalID),
     SymbolOf(SymbolID),
+    ComponentOf(TyID),
+    SizeOf(TyID, i32),
+
+    Builtin(BuiltinOp, SymbolID),
 
     Bool(bool),
     UByte(u8),
 
+    UInt(u32),
     Int(i32),
     Float(f32),
 
@@ -72,13 +70,16 @@ impl Immediate {
             Immediate::LocalOf(_) => 8,
             Immediate::SymbolOf(_) => 8,
             Immediate::ConstAddressOf(_) => 8,
-
             Immediate::Bool(_) => 1,
             Immediate::UByte(_) => 1,
+            Immediate::UInt(_) => 4,
             Immediate::Int(_) => 4,
             Immediate::Float(_) => 4,
             Immediate::Long(_) => 8,
             Immediate::ULong(_) => 8,
+            Immediate::ComponentOf(_) => 4,
+            Immediate::SizeOf(_, _) => 1,
+            Immediate::Builtin(_, _) => panic!(),
         }
     }
 
@@ -95,6 +96,7 @@ impl Immediate {
     pub fn to_u32(self) -> Option<u32> {
         unsafe {
             match self {
+                Immediate::UInt(v) => Some(v),
                 Immediate::Int(v) => Some(std::mem::transmute(v)),
                 Immediate::Float(v) => Some(std::mem::transmute(v)),
                 _ => None,
@@ -117,6 +119,41 @@ impl Immediate {
             _ => None,
         }
     }
+
+    pub fn to_tyid(self) -> Option<TyID> {
+        match self {
+            Immediate::AddressOf(tyid) => Some(tyid),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum BuiltinOp {
+    CID,
+    Size,
+    SizeAdd1,
+    Unknown,
+}
+
+impl BuiltinOp {
+    pub fn from_str(s: &str) -> BuiltinOp {
+        match s.to_uppercase().as_str() {
+            "CID" => BuiltinOp::CID,
+            "SIZE" => BuiltinOp::Size,
+            "SIZE_ADD_1" => BuiltinOp::SizeAdd1,
+            _ => BuiltinOp::Unknown,
+        }
+    }
+
+    pub fn size_of(&self) -> usize {
+        match self {
+            BuiltinOp::CID => 4,
+            BuiltinOp::Size => 1,
+            BuiltinOp::SizeAdd1 => 1,
+            BuiltinOp::Unknown => 0,
+        }
+    }
 }
 
 #[derive(Debug, Bytecode, PartialEq, Eq)]
@@ -125,7 +162,6 @@ pub enum Bytecode {
     /// Undefined instruction
     UNDF,
     /// No Op
-    #[execute("{}")]
     NOP,
     /// Halt the program
     HALT,
@@ -140,10 +176,14 @@ pub enum Bytecode {
     /// from the [address + offset] and push to the top of the stack
     /// Most LDRs will have a PBP before
     LDR(u8, i64),
+    /// LDR but always relative to the BP
+    BPLDR(u8, i64),
     /// Pop the address from the top of the stack and and pop the N bytes
     /// from the top of the stack to the [address + offset]
     /// Most STRs will have a PBP before
     STR(u8, i64),
+    /// STR but always relative to the BP
+    BPSTR(u8, i64),
     /// Pop the address from the top of the stack and push [address + offset]
     /// to the top of the stack
     /// Aka: Create a reference
@@ -164,7 +204,7 @@ pub enum Bytecode {
     /// Return from Function
     RET,
 
-    /// Panic with no message //TODO: Pointer to string
+    /// Panic with no message
     PANIC,
 
     /// Push the byte immediate value
@@ -195,29 +235,41 @@ pub enum Bytecode {
     // Int operations
     /// Compare 2 ints equality and push bool to stack
     EQ_I,
-    /// Compare 2 ints equality and push bool to stack
+    /// Compare 2 ints and push bool to stack
     NEQ_I,
-    /// Compare 2 ints equality and push bool to stack
+    /// Compare 2 ints and push bool to stack
     LT_I,
-    /// Compare 2 ints equality and push bool to stack
+    /// Compare 2 ints and push bool to stack
     LEQ_I,
-    /// Compare 2 ints equality and push bool to stack
+    /// Compare 2 ints and push bool to stack
     GT_I,
-    /// Compare 2 ints equality and push bool to stack
+    /// Compare 2 ints and push bool to stack
     GEQ_I,
+
+    // Bitwise Int Operations
+    /// Bitwise AND on top 2 integers of the stack and push the result
+    AND_I,
+    /// Bitwise OR on top 2 integers of the stack and push the result
+    OR_I,
+    /// Bitwise XOR on top 2 integers of the stack and push the result
+    XOR_I,
+    /// Bitwise shift left on top 2 integers of the stack and push the result
+    SHL_I,
+    /// Bitwise shift right on top 2 integers of the stack and push the result
+    SHR_I,
 
     // Float operations
     /// Compare 2 ints equality and push bool to stack
     EQ_F,
-    /// Compare 2 ints equality and push bool to stack
+    /// Compare 2 ints and push bool to stack
     NEQ_F,
-    /// Compare 2 ints equality and push bool to stack
+    /// Compare 2 ints and push bool to stack
     LT_F,
-    /// Compare 2 ints equality and push bool to stack
+    /// Compare 2 ints and push bool to stack
     LEQ_F,
-    /// Compare 2 ints equality and push bool to stack
+    /// Compare 2 ints and push bool to stack
     GT_F,
-    /// Compare 2 ints equality and push bool to stack
+    /// Compare 2 ints and push bool to stack
     GEQ_F,
 
     // Integer numeric instructions
@@ -229,6 +281,8 @@ pub enum Bytecode {
     MUL_I,
     /// Div the top 2 integers of the stack and push the result
     DIV_I,
+    /// Mod the top 2 integers of the stack and push the results
+    MOD_I,
     /// Negate the top integer of the stack and push the result
     NEG_I,
 
@@ -241,7 +295,9 @@ pub enum Bytecode {
     MUL_F,
     /// Div the top 2 floats of the stack and push the result
     DIV_F,
-    /// Negate the top integer of the stack and push the result
+    /// Mod the top 2 floats of the stack and push the results
+    MOD_F,
+    /// Negate the top float of the stack and push the result
     NEG_F,
 
     // Cast instructions
@@ -259,9 +315,42 @@ pub enum Bytecode {
     PRINT_F,
     /// Pop bool from stack and print to stdout
     PRINT_B,
-    // ECS Instructions
+
+    // Entity Instructions
     /// Create a new entity and push the entity id to the stack
     NENT,
     /// Pop the entity id from the stack and remove it
     RENT,
+
+    // Component Instructions
+    /// Using the component ID, pop the component from the stack and
+    /// the entity from the stack and insert into storage
+    INCOMP(u32),
+    /// Using the component ID amd the entity from the stack, get the address
+    /// of the component from storage and push as an optional
+    GECOMP(u32),
+    /// Using the component ID, pop the entity from the stack and remove
+    /// the component from storage (if it exists) and push onto the stack
+    /// as an optional
+    RECOMP(u32),
+    /// Using the component ID and the entity from the stack, check if the
+    /// component is present and push a 1 byte bool
+    HACOMP(u32),
+
+    // Query Instructions
+    /// Pop a pointer to a query layout in const data and convert into an
+    /// Active Query ID, pushing it to the stack (4 bytes)
+    STQRY,
+    /// Pop the Active Query ID from the stack and test if the next entity
+    /// exists, pushing a one byte bool
+    NEQRY,
+    /// Pop the Active Query ID from the stack and get the next EntityID
+    /// push to the stack, will panic if there is no entity availabe
+    TAQRY,
+    /// Using an EntityID and a pointer to a query layout in const data
+    /// from the stack, test if the query matches the entity, pushing a
+    /// one byte bool
+    HAQRY,
+    /// Pop the Active Query ID from the stack and end the query
+    REQRY,
 }

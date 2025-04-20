@@ -2,6 +2,9 @@ const std = @import("std");
 const builtin = @import("builtin");
 const header = @import("header.zig");
 const vm = @import("vm.zig");
+const thread = @import("thread.zig");
+const world = @import("ecs/world.zig");
+const schedule = @import("ecs/schedule.zig");
 
 pub const std_options: std.Options = .{
     .log_level = switch (builtin.mode) {
@@ -57,11 +60,11 @@ pub fn customLog(
 }
 
 pub fn main() anyerror!void {
-    const allocator = std.heap.page_allocator;
+    const alloc = std.heap.page_allocator;
 
     // Allocate args
-    const args = try std.process.argsAlloc(allocator);
-    defer std.process.argsFree(allocator, args);
+    const args = try std.process.argsAlloc(alloc);
+    defer std.process.argsFree(alloc, args);
 
     // Switch on arguments
     if (args.len <= 1) {
@@ -87,7 +90,7 @@ pub fn main() anyerror!void {
     defer file.close();
 
     // Read Program Header
-    const program_header = header.read_program_header(&file) catch |e| {
+    const program_header = header.ProgramHeader.read(&file) catch |e| {
         switch (e) {
             error.FileError => std.log.err("A File Error occured", .{}),
             error.MagicBytesMissing => std.log.err("Magic Bytes Missing, likely incorrect file type", .{}),
@@ -106,7 +109,7 @@ pub fn main() anyerror!void {
     }
 
     // Read Section Header
-    const section_header = header.read_section_header(allocator, &file, &program_header) catch |e| {
+    const section_header = header.SectionHeader.read(alloc, &file, &program_header) catch |e| {
         switch (e) {
             error.AllocError => std.log.err("An Allocation Error occured", .{}),
             error.FileError => std.log.err("A File Error occured", .{}),
@@ -115,25 +118,18 @@ pub fn main() anyerror!void {
         return;
     };
 
-    // Create Thread Safe Allocator
-    var ts_allocator = std.heap.ThreadSafeAllocator{
-        .child_allocator = allocator,
-    };
-
-    const vm_allocator = ts_allocator.allocator();
+    const world_config = world.WorldConfig.DEFAULT;
 
     // Complete Header and Initialize the VM
     const file_header = header.Header{
         .program = program_header,
         .section = section_header,
     };
-    var ecsl_vm = vm.init_vm(vm_allocator, &file, file_header, 1000000) catch |e| {
-        switch (e) {
-            error.FileError => std.log.err("A File Error occured", .{}),
-            error.AllocError => std.log.err("An Allocation Error occured", .{}),
-        }
-        return;
-    };
+    var ecsl_vm = try vm.EcslVM.init(&file, file_header, world_config, alloc);
+    defer {
+        ecsl_vm.free();
+        alloc.destroy(ecsl_vm);
+    }
 
     // Create Initial Main Thread
     const thread_id = ecsl_vm.create_thread() catch |e| {
@@ -146,10 +142,46 @@ pub fn main() anyerror!void {
     std.log.debug("Created thread with id {d}", .{thread_id});
 
     const thread_ptr = ecsl_vm.get_thread(thread_id);
-    const program_status = thread_ptr.execute_from_address(program_header.entry_point);
-    const exit_code: usize = switch (program_status) {
-        .Running, .HaltProgram => 0,
-        .ErrorOrPanic => 1,
-    };
-    std.log.info("Program terminated with exit code {d}", .{exit_code});
+    const program_status = thread_ptr.execute(program_header.entry_point);
+    exit_code_from_status(program_status);
+
+    switch (ecsl_vm.header.program.entry_point_kind) {
+        .MainSysOnce => {
+            const schedule_addr = thread_ptr.get_schedule();
+            const static_schedule = try schedule.StaticSchedule.new(schedule_addr, ecsl_vm, alloc);
+
+            for (static_schedule.ordering.items) |ptr| {
+                const status = thread_ptr.execute(ptr);
+                exit_code_from_status(status);
+            }
+        },
+        .MainSysLoop => {
+            const schedule_addr = thread_ptr.get_schedule();
+            var static_schedule = try schedule.StaticSchedule.new(schedule_addr, ecsl_vm, alloc);
+
+            while (true) {
+                for (static_schedule.ordering.items) |ptr| {
+                    const status = thread_ptr.execute(ptr);
+                    exit_code_from_status(status);
+                }
+                try static_schedule.next_schedule();
+            }
+        },
+        else => {},
+    }
+
+    exit_code_from_status(thread.ProgramThread.ProgramStatus.HaltProgram);
+}
+
+fn exit_code_from_status(status: thread.ProgramThread.ProgramStatus) void {
+    switch (status) {
+        .Running, .StackReturn => return,
+        .HaltProgram => {
+            std.process.exit(0);
+        },
+        .ErrorOrPanic => {
+            std.log.info("Exit code: 1", .{});
+            std.process.exit(0);
+        },
+    }
 }

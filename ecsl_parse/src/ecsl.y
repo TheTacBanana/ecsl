@@ -26,6 +26,7 @@
 %epp 'MINUS' '-'
 %epp 'STAR' '*'
 %epp 'FSLASH' '/'
+%epp 'MOD' '%'
 
 %epp 'LEQ'  '<='
 %epp 'LT' '<'
@@ -96,10 +97,13 @@
 %left 'DOTDOT' 'DOTDOTEQ'
 %left 'OR'
 %left 'AND'
+%left 'PIPE'
+%left 'CARAT'
 %left 'EQEQ' 'NOTEQ'
 %left 'LT' 'LEQ' 'GT' 'GEQ'
+%left 'SLEFT' 'SRIGHT'
 %left 'PLUS' 'MINUS'
-%left 'STAR' 'FSLASH'
+%left 'STAR' 'FSLASH' 'MOD'
 %right 'NOT' 'AMPERSAND'
 %left 'DOT'
 %right 'AS'
@@ -137,6 +141,16 @@ Item -> Result<Item, ()>:
     }
     | FnDef { Ok(Item::new($span, ItemKind::Fn(P::new($1?)))) }
     | Attributes 'STRUCT' Component 'ENTITY' Generics FieldDefs {
+        Ok(Item::new($span, ItemKind::Struct(P::new(StructDef {
+            span: $4.map_err(|_| ())?.span(),
+            kind: $3?,
+            ident: table.definition($4.map_err(|_| ())?.span(), SymbolKind::Struct($3?)),
+            attributes: $1?,
+            generics: $5?,
+            fields: $6?,
+        }))))
+    }
+    | Attributes 'STRUCT' Component 'QUERY' Generics FieldDefs {
         Ok(Item::new($span, ItemKind::Struct(P::new(StructDef {
             span: $4.map_err(|_| ())?.span(),
             kind: $3?,
@@ -310,13 +324,13 @@ StructConcreteGenerics -> Result<ConcreteGenerics, ()>:
     ;
 
 FnConcreteGenerics -> Result<ConcreteGenerics, ()>:
-    'PATH' 'LT' TyList TrailingComma 'GT' 'PATH' {
+    'PATH' 'LT' TyList TrailingComma 'GT' {
         Ok(ConcreteGenerics {
             span: $span,
             params: $3?,
         })
     }
-    | 'PATH' 'LT' 'GT' 'PATH' {
+    | 'PATH' 'LT' 'GT' {
         Ok(ConcreteGenerics {
             span: $span,
             params: Vec::new(),
@@ -493,6 +507,12 @@ UsePath -> Result<UsePath, ()>:
             table.definition($1.map_err(|_| ())?.span(), SymbolKind::ImportItem),
         ))
     }
+    | 'QUERY' {
+        Ok(UsePath::Item(
+            $span,
+            table.definition($1.map_err(|_| ())?.span(), SymbolKind::ImportItem),
+        ))
+    }
     | 'SUPER' 'PATH' UsePath {
         Ok(UsePath::Super(
             $1.map_err(|_| ())?.span(),
@@ -538,6 +558,9 @@ Ty -> Result<Ty, ()>:
     }
     | EntityTy {
         Ok(Ty::new($span, TyKind::Entity(table.create_entry("Entity".to_string()), $1?), ConcreteGenerics::empty($span)))
+    }
+    | 'QUERY' {
+        Ok(Ty::new($span, TyKind::Query(table.create_entry("Query".to_string())), ConcreteGenerics::empty($span)))
     }
     | 'SCHEDULE' {
         Ok(Ty::new($span, TyKind::Schedule, ConcreteGenerics::empty($span)))
@@ -703,17 +726,7 @@ ImmediateList -> Result<Vec<Immediate>, ()>:
     ;
 
 Immediate -> Result<Immediate, ()>:
-    'HASH' 'IDENT' {
-        Ok(Immediate::SymbolOf(
-            table.usage($2.map_err(|_| ())?.span(), SymbolKind::Local)
-        ))
-    }
-    | 'HASH' 'SELF' {
-        Ok(Immediate::SymbolOf(
-            table.usage($2.map_err(|_| ())?.span(), SymbolKind::Local)
-        ))
-    }
-    | 'HASH' 'INT' 'INTKIND' {
+    'HASH' 'INT' 'INTKIND' {
         let num = table.string($2.map_err(|_| ())?.span());
         let num_kind = table.string($3.map_err(|_| ())?.span());
         let kind = IntKind::from_str(num_kind.as_str());
@@ -725,6 +738,27 @@ Immediate -> Result<Immediate, ()>:
             IntKind::Byte => todo!(),
             IntKind::UByte => Immediate::UByte(num.parse().unwrap()),
         })
+    }
+    | 'HASH' 'RETURN' {
+        Ok(Immediate::LocalOf(LocalID::ZERO))
+    }
+    | 'HASH' 'IDENT' {
+        Ok(Immediate::SymbolOf(
+            table.usage($2.map_err(|_| ())?.span(), SymbolKind::Local)
+        ))
+    }
+    | 'HASH' 'SELF' {
+        Ok(Immediate::SymbolOf(
+            table.usage($2.map_err(|_| ())?.span(), SymbolKind::Local)
+        ))
+    }
+    | 'HASH' 'IDENT' 'DOT' 'IDENT' {
+        let s = table.string($2.map_err(|_| ())?.span());
+        let kind = BuiltinOp::from_str(s.as_str());
+        Ok(Immediate::Builtin(
+            kind,
+            table.usage($4.map_err(|_| ())?.span(), SymbolKind::Local)
+        ))
     }
     ;
 
@@ -879,6 +913,28 @@ Expr -> Result<Expr, ()>:
             P::new($3?),
         )))
     }
+    | Expr 'PIPE' Expr {
+        Ok(Expr::new($span, ExprKind::BinOp(
+            BinOpKind::BOr,
+            P::new($1?),
+            P::new($3?),
+        )))
+    }
+    | Expr 'CARAT' Expr {
+        Ok(Expr::new($span, ExprKind::BinOp(
+            BinOpKind::BXor,
+            P::new($1?),
+            P::new($3?),
+        )))
+    }
+    | Expr 'AMPERSAND' Expr {
+        Ok(Expr::new($span, ExprKind::BinOp(
+            BinOpKind::BAnd,
+            P::new($1?),
+            P::new($3?),
+        )))
+    }
+    
     | Expr 'EQEQ' Expr {
         Ok(Expr::new($span, ExprKind::BinOp(
             BinOpKind::Eq,
@@ -921,6 +977,20 @@ Expr -> Result<Expr, ()>:
             P::new($3?),
         )))
     }
+    | Expr 'SRIGHT' Expr {
+        Ok(Expr::new($span, ExprKind::BinOp(
+            BinOpKind::ShiftRight,
+            P::new($1?),
+            P::new($3?),
+        )))
+    }
+    | Expr 'SLEFT' Expr {
+        Ok(Expr::new($span, ExprKind::BinOp(
+            BinOpKind::ShiftLeft,
+            P::new($1?),
+            P::new($3?),
+        )))
+    }
     | Expr 'PLUS' Expr {
         Ok(Expr::new($span, ExprKind::BinOp(
             BinOpKind::Add,
@@ -931,6 +1001,13 @@ Expr -> Result<Expr, ()>:
     | Expr 'MINUS' Expr {
         Ok(Expr::new($span, ExprKind::BinOp(
             BinOpKind::Sub,
+            P::new($1?),
+            P::new($3?),
+        )))
+    }
+    | Expr 'MOD' Expr {
+        Ok(Expr::new($span, ExprKind::BinOp(
+            BinOpKind::Mod,
             P::new($1?),
             P::new($3?),
         )))
@@ -1032,7 +1109,7 @@ Expr -> Result<Expr, ()>:
         )))
     }
     | 'SCHEDULE' ScheduleExpr {
-        Ok(Expr::new($span, ExprKind::Schedule(P::new($2?))))
+        Ok(Expr::new($1.map_err(|_| ())?.span(), ExprKind::Schedule(P::new($2?))))
     }
     | 'QUERY' 'LBRACKET' 'RBRACKET' {
         Ok(Expr::new($span, ExprKind::Query(P::new(
@@ -1126,32 +1203,39 @@ PrecedingSchedule -> ():
 
 ScheduleExpr -> Result<Schedule, ()>:
     PrecedingSchedule 'LSQUARE' ScheduleList TrailingComma 'RSQUARE' {
-        Ok(Schedule::new($span,
+        Ok(Schedule::new($2.map_err(|_| ())?.span(),
             ScheduleKind::Ordered($3?)
         ))
     }
     | PrecedingSchedule 'LSQUARE' 'RSQUARE' {
-        Ok(Schedule::new($span,
+        Ok(Schedule::new($2.map_err(|_| ())?.span(), 
             ScheduleKind::Ordered(Vec::new())
         ))
     }
     | PrecedingSchedule 'LCURLY' ScheduleList TrailingComma 'RCURLY' {
-        Ok(Schedule::new($span,
+        Ok(Schedule::new($2.map_err(|_| ())?.span(),
             ScheduleKind::Unordered($3?)
         ))
     }
     | PrecedingSchedule 'LCURLY' 'RCURLY' {
-        Ok(Schedule::new($span,
+        Ok(Schedule::new($2.map_err(|_| ())?.span(),
             ScheduleKind::Unordered(Vec::new())
+        ))
+    }
+    | 'IDENT' 'ARROW' 'IDENT' {
+        Ok(Schedule::new($span,
+            ScheduleKind::Sys(
+                Some(table.usage($1.map_err(|_| ())?.span(), SymbolKind::FunctionUsage)),
+                table.usage($3.map_err(|_| ())?.span(), SymbolKind::FunctionUsage),
+            )
         ))
     }
     | 'IDENT' {
         Ok(Schedule::new($span,
-            ScheduleKind::Expr(P::new(
-                Expr::new($span, ExprKind::Ident(
-                    table.usage($1.map_err(|_| ())?.span(), SymbolKind::ScheduleItem),
-                ))
-            ))
+            ScheduleKind::Sys(
+                None,
+                table.usage($1.map_err(|_| ())?.span(), SymbolKind::ScheduleItem),
+            )
         ))
     }
     ;
@@ -1172,28 +1256,28 @@ QueryFilterList -> Result<Vec<QueryFilter>, ()>:
 
 QueryFilter -> Result<QueryFilter, ()>:
     'WITH' 'LT' TyList TrailingComma 'GT' {
-        Ok(QueryFilter::new($span, FilterKind::With($3?)))
+        Ok(QueryFilter::new($span, FilterKind::With, $3?))
     }
     | 'WITH' 'LT' 'GT' {
-        Ok(QueryFilter::new($span, FilterKind::With(Vec::new())))
+        Ok(QueryFilter::new($span, FilterKind::With, Vec::new()))
     }
     | 'WITHOUT' 'LT' TyList  TrailingComma 'GT' {
-        Ok(QueryFilter::new($span, FilterKind::Without($3?)))
+        Ok(QueryFilter::new($span, FilterKind::Without, $3?))
     }
     | 'WITHOUT' 'LT' 'GT' {
-        Ok(QueryFilter::new($span, FilterKind::Without(Vec::new())))
+        Ok(QueryFilter::new($span, FilterKind::Without, Vec::new()))
     }
     | 'ADDED' 'LT' TyList TrailingComma 'GT' {
-        Ok(QueryFilter::new($span, FilterKind::Added($3?)))
+        Ok(QueryFilter::new($span, FilterKind::Added, $3?))
     }
     | 'ADDED' 'LT' 'GT' {
-        Ok(QueryFilter::new($span, FilterKind::Added(Vec::new())))
+        Ok(QueryFilter::new($span, FilterKind::Added, Vec::new()))
     }
     | 'REMOVED' 'LT' TyList TrailingComma 'GT'{
-        Ok(QueryFilter::new($span, FilterKind::Removed($3?)))
+        Ok(QueryFilter::new($span, FilterKind::Removed, $3?))
     }
     | 'REMOVED' 'LT' 'GT' {
-        Ok(QueryFilter::new($span, FilterKind::Added(Vec::new())))
+        Ok(QueryFilter::new($span, FilterKind::Removed, Vec::new()))
     }
     ;
 

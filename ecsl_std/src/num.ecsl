@@ -1,5 +1,6 @@
 use bool::bool;
 use panic::panic;
+use fmt::print_int;
 
 // Builtin 32 Bit Signed Integer Type
 [copy, builtin(4), allow_casing]
@@ -38,6 +39,23 @@ impl int {
             return true;
         }
         return false;
+    }
+
+    // Integer pow function
+    fn pow(self, exp: int) int {
+        if (exp < 0) {
+            panic();
+        }
+    
+        let result = 1;
+        while (exp != 0) {
+            if ((exp & 1) == 1) {
+                result = result * self;
+            } 
+            exp = exp >> 1;
+            self = self * self;
+        }
+        return result;
     }
 }
 
@@ -97,6 +115,11 @@ impl float {
     // Epsilon value for floating point approximations
     fn epsilon() float {
         return 0.0000000001;
+    }
+
+    // Pi Value
+    fn pi() float {
+        return 3.14159265358979323846264338327950288;
     }
 
     // Get NaN value

@@ -51,6 +51,8 @@ pub enum TyIr {
     Array(TyID, usize),
     /// Reference to an array of type
     ArrayRef(Mutable, FieldDef),
+    /// Query Type
+    Query,
 }
 
 impl From<Literal> for TyIr {
@@ -106,6 +108,7 @@ impl TyIr {
             TyIr::GenericParam(i) => &format!("T{}", i + 1),
             TyIr::Entity => "Entity",
             TyIr::Schedule => "Schedule",
+            TyIr::Query => "Query",
         };
         s.to_string()
     }

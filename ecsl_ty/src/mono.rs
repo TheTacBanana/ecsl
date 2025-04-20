@@ -1,11 +1,9 @@
+use bimap::BiBTreeMap;
+use ecsl_index::TyID;
 use std::{
     collections::{btree_map::Entry, BTreeMap, BTreeSet},
     sync::RwLock,
 };
-
-use bimap::BiBTreeMap;
-use ecsl_index::TyID;
-use log::debug;
 
 #[derive(Debug, Default)]
 pub struct Mono {
@@ -18,13 +16,11 @@ pub struct Mono {
 
 impl Mono {
     pub fn insert_mapping(&self, key: (TyID, Vec<TyID>), value: TyID) {
-        debug!("before");
         let tyid = key.0;
         {
             let mut mono_map = self.mono_map.write().unwrap();
             mono_map.insert(key, value);
         }
-        debug!("after");
         {
             let mut variants = self.function_variants.write().unwrap();
             match variants.entry(tyid) {
@@ -36,7 +32,6 @@ impl Mono {
                 }
             }
         }
-        debug!("after");
     }
 
     pub fn insert(&self, key: (TyID, Vec<TyID>), value: TyID) {

@@ -1,6 +1,7 @@
 use crate::{local::LocalTyCtxt, mono::Mono, TyIr};
 use bimap::{BiBTreeMap, BiHashMap};
 use cfgrammar::Span;
+use ecsl_ast::data::DataKind;
 use ecsl_diagnostics::DiagConn;
 use ecsl_index::{FieldID, GlobalID, SourceFileID, TyID, VariantID};
 use ecsl_parse::LexerTy;
@@ -67,6 +68,11 @@ impl TyCtxt {
         let mut defs = self.tyirs.write().unwrap();
         let mut spans = self.spans.write().unwrap();
         defs.insert(id, tyir);
+        spans.insert(id, (span, fid));
+    }
+
+    pub fn insert_span_file(&self, id: TyID, span: Span, fid: SourceFileID) {
+        let mut spans = self.spans.write().unwrap();
         spans.insert(id, (span, fid));
     }
 
@@ -140,6 +146,7 @@ impl TyCtxt {
 
         let size = match tyir {
             TyIr::Ref(_, _) => 8,
+            TyIr::Schedule => 8,
             TyIr::Range(tyid, _) => self.internal_get_size(tyid, sizes)?,
             TyIr::ADT(def) => {
                 if def.is_struct() {
@@ -215,15 +222,25 @@ impl TyCtxt {
     }
 
     pub fn is_primitive(&self, id: TyID) -> bool {
-        match self.get_tyir(id) {
+        let defs = self.tyirs.read().unwrap();
+        match defs.get_by_left(&id).unwrap() {
             TyIr::Bool | TyIr::Char | TyIr::Int | TyIr::Float => true,
             _ => false,
         }
     }
 
     pub fn is_numeric(&self, id: TyID) -> bool {
-        match self.get_tyir(id) {
+        let defs = self.tyirs.read().unwrap();
+        match defs.get_by_left(&id).unwrap() {
             TyIr::Int | TyIr::Float => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_comp(&self, id: TyID) -> bool {
+        let defs = self.tyirs.read().unwrap();
+        match defs.get_by_left(&id).unwrap() {
+            TyIr::ADT(adt) => adt.kind == DataKind::Component,
             _ => false,
         }
     }

@@ -1,14 +1,15 @@
 use crate::{linker::FunctionLinker, GIRPass};
 use cfgrammar::Span;
+use ecsl_bytecode::Immediate;
 use ecsl_gir::{
-    expr::Expr,
+    cons::Constant,
+    expr::{Expr, ExprKind},
     stmt::{Stmt, StmtKind},
     visit::{walk_expr_mut, walk_stmt_mut, VisitorCF, VisitorMut},
     Local, Place, GIR,
 };
-use ecsl_index::{LocalID, TyID};
+use ecsl_index::{ConstID, LocalID, TyID};
 use ecsl_ty::{local::LocalTyCtxt, TyIr};
-use log::debug;
 use std::{collections::BTreeMap, sync::Arc};
 
 pub fn monomorphize(linker: &mut FunctionLinker, ctxt: &Arc<LocalTyCtxt>) {
@@ -18,8 +19,6 @@ pub fn monomorphize(linker: &mut FunctionLinker, ctxt: &Arc<LocalTyCtxt>) {
 
         for (v, generics) in variants {
             let mut new_gir = gir.clone();
-
-            debug!("{}", new_gir);
 
             let mapping = generics
                 .iter()
@@ -103,9 +102,35 @@ impl<'a> VisitorMut for MonomorphizeFn<'a> {
         VisitorCF::Continue
     }
 
+    fn visit_const_mut(&mut self, _: ConstID, c: &mut Constant) -> VisitorCF {
+        match c {
+            Constant::Query { query, span } => {
+                query
+                    .with
+                    .iter_mut()
+                    .for_each(|tyid| self.replace_tyid(tyid, *span));
+                query
+                    .without
+                    .iter_mut()
+                    .for_each(|tyid| self.replace_tyid(tyid, *span));
+                VisitorCF::Continue
+            }
+            _ => VisitorCF::Continue,
+        }
+    }
+
     fn visit_stmt_mut(&mut self, s: &mut Stmt) -> VisitorCF {
         match &mut s.kind {
             StmtKind::AllocReturn(ty_id) => self.replace_tyid(ty_id, s.span),
+            StmtKind::BYT(byt) => {
+                for op in byt.operand.iter_mut() {
+                    match op {
+                        Immediate::ComponentOf(tyid) => self.replace_tyid(tyid, s.span),
+                        Immediate::SizeOf(tyid, _) => self.replace_tyid(tyid, s.span),
+                        _ => (),
+                    }
+                }
+            }
             _ => (),
         }
         walk_stmt_mut(self, s)

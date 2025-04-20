@@ -109,6 +109,7 @@ pub enum AttributeMarker {
     Copy,
     AllowCasing,
     Terminator,
+    RequireCompGenerics,
 
     #[default]
     #[strum(disabled)]
@@ -127,6 +128,7 @@ impl AttributeMarker {
             AttributeMarker::AllowCasing => false,
             AttributeMarker::Unknown => false,
             AttributeMarker::Terminator => true,
+            AttributeMarker::RequireCompGenerics => true,
         }
     }
 }

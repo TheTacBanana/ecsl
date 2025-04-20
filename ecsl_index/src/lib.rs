@@ -65,6 +65,8 @@ impl std::fmt::Display for TyID {
     }
 }
 
+generate_index_type!(ComponentID);
+
 generate_index_type!(VariantID);
 generate_index_type!(FieldID);
 

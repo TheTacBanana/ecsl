@@ -1,3 +1,4 @@
+use ecsl_assembler::header::EntryPointKind;
 use ecsl_ast::{
     parse::FnKind,
     visit::{FnCtxt, Visitor, VisitorCF},
@@ -80,21 +81,14 @@ impl Visitor for EntryPoint {
             (EntryPointKind::MainSysLoop, ecsl_ty::FnDef { ret, .. }) => {
                 err_if!(ret.ty != schedule_tyid, EntryPointError::WrongReturnType);
 
-                todo!();
+                self.entry_points.push((tyid, EntryPointKind::MainSysLoop));
             }
             (EntryPointKind::MainSysUnscheduled, _) => unreachable!(),
+            (EntryPointKind::Unknown, _) => unreachable!(),
         }
 
         VisitorCF::Continue
     }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum EntryPointKind {
-    MainFn,
-    MainSysUnscheduled,
-    MainSysOnce,
-    MainSysLoop,
 }
 
 #[derive(Debug)]

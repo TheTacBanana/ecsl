@@ -69,3 +69,140 @@ impl IntoTyID for (&Ty, &GenericsScope) {
         ty_ctxt.get_tyid(self.0, self.1)
     }
 }
+
+#[macro_export]
+#[allow(unused)]
+macro_rules! err_macros {
+    ($root:expr, $root_s:expr) => {
+        #[allow(unused)]
+        macro_rules! catch_unknown {
+            ($i:expr, $err:expr) => {{
+                let t = $i;
+                if t == TyID::UNKNOWN {
+                    $root
+                        .diag
+                        .push_error(EcslError::new(ErrorLevel::Error, $err).with_span(|_| $root_s));
+                    return VisitorCF::Break;
+                }
+                t
+            }};
+        }
+
+        #[allow(unused)]
+        macro_rules! unify {
+            ($l:expr, $r:expr, $err:expr) => {
+                if $l == TyID::UNKNOWN || $r == TyID::UNKNOWN || $l != $r {
+                    $root
+                        .diag
+                        .push_error(EcslError::new(ErrorLevel::Error, $err).with_span(|_| $root_s));
+                    return VisitorCF::Break;
+                }
+            };
+            ($l:expr, $r:expr, $err:expr, $span:expr) => {
+                if $l == TyID::UNKNOWN || $r == TyID::UNKNOWN || $l != $r {
+                    $root
+                        .diag
+                        .push_error(EcslError::new(ErrorLevel::Error, $err).with_span(|_| $span));
+                    return VisitorCF::Break;
+                }
+            };
+        }
+
+        #[allow(unused)]
+        macro_rules! err_if {
+            ($c:expr, $e:expr) => {
+                if $c {
+                    $root
+                        .diag
+                        .push_error(EcslError::new(ErrorLevel::Error, $e).with_span(|_| $root_s));
+                    return VisitorCF::Break;
+                }
+            };
+            ($c:expr, $e:expr, $s:expr) => {
+                if $c {
+                    $root
+                        .diag
+                        .push_error(EcslError::new(ErrorLevel::Error, $e).with_span(|_| $s));
+                    return VisitorCF::Break;
+                }
+            };
+        }
+
+        #[allow(unused)]
+        macro_rules! err {
+            ($e:expr,$s:expr) => {{
+                $root
+                    .diag
+                    .push_error(EcslError::new(ErrorLevel::Error, $e).with_span(|_| $s));
+                return VisitorCF::Break;
+            }};
+        }
+    };
+
+
+    ($root:expr, $root_s:expr, $prefix: ident) => {
+        #[allow(unused)]
+        macro_rules! ${concat($prefix, catch_unknown)} {
+            ($i:expr, $err:expr) => {{
+                let t = $i;
+                if t == TyID::UNKNOWN {
+                    $root
+                        .diag
+                        .push_error(EcslError::new(ErrorLevel::Error, $err).with_span(|_| $root_s));
+                    return VisitorCF::Break;
+                }
+                t
+            }};
+        }
+
+        #[allow(unused)]
+        macro_rules! ${concat($prefix, unify)} {
+            ($l:expr, $r:expr, $err:expr) => {
+                if $l == TyID::UNKNOWN || $r == TyID::UNKNOWN || $l != $r {
+                    $root
+                        .diag
+                        .push_error(EcslError::new(ErrorLevel::Error, $err).with_span(|_| $root_s));
+                    return VisitorCF::Break;
+                }
+            };
+            ($l:expr, $r:expr, $err:expr, $span:expr) => {
+                if $l == TyID::UNKNOWN || $r == TyID::UNKNOWN || $l != $r {
+                    $root
+                        .diag
+                        .push_error(EcslError::new(ErrorLevel::Error, $err).with_span(|_| $span));
+                    return VisitorCF::Break;
+                }
+            };
+        }
+
+        #[allow(unused)]
+        macro_rules! ${concat($prefix, err_if)} {
+            ($c:expr, $e:expr) => {
+                if $c {
+                    $root
+                        .diag
+                        .push_error(EcslError::new(ErrorLevel::Error, $e).with_span(|_| $root_s));
+                    return VisitorCF::Break;
+                }
+            };
+            ($c:expr, $e:expr, $s:expr) => {
+                if $c {
+                    $root
+                        .diag
+                        .push_error(EcslError::new(ErrorLevel::Error, $e).with_span(|_| $s));
+                    return VisitorCF::Break;
+                }
+            };
+        }
+
+        #[allow(unused)]
+        macro_rules! ${concat($prefix, err)} {
+            ($e:expr,$s:expr) => {{
+                $root
+                    .diag
+                    .push_error(EcslError::new(ErrorLevel::Error, $e).with_span(|_| $s));
+                return VisitorCF::Break;
+            }};
+        }
+    };
+}

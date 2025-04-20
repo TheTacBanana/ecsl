@@ -8,22 +8,57 @@ impl Entity {
     sys new() Entity {
         byt {
             NENT;
+            BPSTR #8UB #return;
             RET;
         }
     }
 
     sys destroy(self) {
         byt {
-            LDR #8UB #self;
+            BPLDR #8UB #self;
             RENT;
+            RET;
         }
     }
 
-    sys has<T>(&self) bool {
-        return true;
+
+    [require_comp_generics]
+    sys insert<T>(self, t: T) {
+        byt {
+            BPLDR #size.T #t;
+            BPLDR #8UB #self;
+            INCOMP #cid.T;
+            RET;
+        }
     }
-    
-    sys get<T>(&self) Option<&T> {
-        return Option::<&T>::None;
+
+    [require_comp_generics]
+    sys get<T>(self) Option<&T> {
+        byt {
+            BPLDR #8UB #self;
+            GECOMP #cid.T;
+            BPSTR #9UB #return;
+            RET;
+        }
+    }
+
+    [require_comp_generics]
+    sys has<T>(self) bool {
+        byt {
+            BPLDR #8UB #self;
+            HACOMP #cid.T;
+            BPSTR #1UB #return;
+            RET;
+        }
+    }
+
+    [require_comp_generics]
+    sys remove<T>(self) Option<T> {
+        byt {
+            BPLDR #8UB #self;
+            RECOMP #cid.T;
+            BPSTR #size_add_1.T #return;
+            RET;
+        }
     }
 }

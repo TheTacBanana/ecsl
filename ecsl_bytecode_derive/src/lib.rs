@@ -159,6 +159,7 @@ fn generate(e: &DataEnum) -> TokenStream {
 fn zig_opcode_generation(e: &DataEnum) -> std::io::Result<()> {
     let mut variant_names = String::new();
     let mut match_arms = String::new();
+    let mut outlined_functions = String::new();
 
     for (i, variant) in e.variants.iter().enumerate() {
         {
@@ -209,10 +210,19 @@ fn zig_opcode_generation(e: &DataEnum) -> std::io::Result<()> {
                     fields.push_str(&format!(", t.next_immediate({}).*", field_ty));
                 }
 
-                execute_string = Some(format!("ins.{}(t{})", method_name, fields));
+                if fields.is_empty() {
+                    execute_string = Some(format!("ins.{}", method_name));
+                } else {
+                    outlined_functions.push_str(&format!(
+                        "fn outlined_{}(t: *thread.ProgramThread) anyerror!void {{ try ins.{}(t{}); }}\n\t",
+                        method_name, method_name, fields
+                    ));
+
+                    execute_string = Some(format!("outlined_{}", method_name));
+                }
             }
 
-            match_arms.push_str(&format!("{} => {},\n\t\t\t", i, execute_string.unwrap()));
+            match_arms.push_str(&format!("{},\n\t\t\t", execute_string.unwrap()));
         }
     }
 
@@ -227,16 +237,18 @@ pub const Opcode = enum(u8) {{
 
     /// Execute an Opcode
     pub fn execute(t: *thread.ProgramThread, op: u8) !void {{
-        try switch (op) {{
+        const fs = [_]*const fn (*thread.ProgramThread) anyerror!void {{
             {}
-            else => ins.undf(t),
         }};
+        try fs[op](t);
     }}
+    {}
 }};
 
 "#,
         variant_names.trim_end(),
         match_arms.trim_end(),
+        outlined_functions
     );
 
     std::fs::File::create(format!("{PATH_TO_VM_SRC}/opcode.zig"))?

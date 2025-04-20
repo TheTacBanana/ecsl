@@ -1,12 +1,19 @@
 use anyhow::Result;
 use ecsl_assembler::Assembler;
 use ecsl_ast_pass::*;
-use ecsl_codegen::CodeGen;
+use ecsl_codegen::{
+    bp_promotion::BpPromotion,
+    codegen::CodeGen,
+    inline::{CanInline, Inline, InlineableFunctions},
+    noop::NoOp,
+    CodegenPass,
+};
 use ecsl_context::{Context, MapAssocExt};
 use ecsl_diagnostics::{Diagnostics, DiagnosticsExt};
 use ecsl_error::{ext::EcslErrorExt, EcslError};
 use ecsl_gir_pass::{
     block_order::BlockOrder,
+    comp_ids::ComponentDefinitions,
     const_eval::ConstEval,
     dead_block::DeadBlocks,
     function_graph::{FunctionDependencies, FunctionGraph},
@@ -32,11 +39,12 @@ impl Driver {
         let path = Driver::inner(std_path, diag.clone());
         diag.finish_stage(|_| ())?;
 
-        if path.is_ok() {
-            info!("Finished in {:?}", start_time.elapsed());
-        } else {
-            info!("Exited in {:?}", start_time.elapsed());
-        }
+        let elapsed = start_time.elapsed().as_secs_f32();
+        info!(
+            "{} in {:.3}s",
+            ["Exited", "Finished"][path.is_ok() as usize],
+            elapsed
+        );
 
         Ok(path?)
     }
@@ -256,6 +264,20 @@ impl Driver {
             || diag.finish_stage(finish_stage),
         )?;
 
+        let comp_defs = Arc::new(ComponentDefinitions::new(ty_ctxt.clone()));
+        let assoc = (&context, assoc).par_map_assoc(
+            |_, _, (diag, ast, table, local_ctxt, linker)| {
+                for (_, gir) in linker.fn_gir.iter() {
+                    for c in gir.components() {
+                        comp_defs.add_component(*c);
+                    }
+                }
+                Some((diag, ast, table, local_ctxt, linker))
+            },
+            || diag.finish_stage(finish_stage),
+        )?;
+
+        info!("Assembling");
         let root_config = context.config().root_config();
         let assembler = Assembler::new(
             root_config.name().to_string(),
@@ -264,12 +286,13 @@ impl Driver {
 
         let assembler = assembler.write_temp_header().unwrap();
 
+        debug!("Write const data");
         let assoc = (&context, assoc).par_map_assoc(
             |_, src, (_, _, _, local_ctxt, mut linker)| {
                 let lexer = lexers.get(&src.id).unwrap();
                 let mut gir_consts = BTreeMap::new();
                 for (id, gir) in linker.fn_gir.iter_mut() {
-                    let consts = ConstEval::apply_pass(gir, (lexer, &assembler));
+                    let consts = ConstEval::apply_pass(gir, (lexer, &comp_defs, &assembler));
                     gir_consts.insert(*id, consts);
                 }
                 Some((local_ctxt, linker, gir_consts))
@@ -278,20 +301,65 @@ impl Driver {
         )?;
         let assembler = assembler.write_const_data().unwrap();
 
-        let _ = (&context, assoc).par_map_assoc(
+        debug!("Write component defs");
+        let assembler = assembler
+            .write_comp_defs(comp_defs.clone_components())
+            .unwrap();
+
+        let inlineable = InlineableFunctions::new();
+        let assoc = (&context, assoc).par_map_assoc(
             |_, _, (local_ctxt, mut linker, gir_consts)| {
+                let mut bytecode_out = BTreeMap::new();
                 for (id, gir) in linker.fn_gir.iter_mut() {
                     let consts = gir_consts.get(id).unwrap();
-                    let bytecode = CodeGen::apply_pass(gir, (local_ctxt.clone(), consts));
-                    debug!("{}", gir);
+                    let mut bytecode =
+                        CodeGen::apply_pass(gir, (local_ctxt.clone(), comp_defs.clone(), consts));
+                    BpPromotion::apply_pass(&mut bytecode, ());
+                    NoOp::apply_pass(&mut bytecode, ());
+                    CanInline::apply_pass(&mut bytecode, &inlineable);
 
-                    assembler.include_function(bytecode);
+                    bytecode_out.insert(*id, bytecode);
+                }
+                Some((bytecode_out, linker))
+            },
+            || diag.finish_stage(finish_stage),
+        )?;
+
+        debug!("Function inlining");
+        let assoc = (&context, assoc).par_map_assoc(
+            |_, _, (mut bytecode, linker)| {
+                for (_, byt) in bytecode.iter_mut() {
+                    Inline::apply_pass(byt, (&inlineable, &function_graph));
+                }
+                Some((bytecode, linker))
+            },
+            || diag.finish_stage(finish_stage),
+        )?;
+
+        debug!("Prune unused functions second pass");
+        function_graph.prune_unused(entry_point.0);
+        let assoc = (&context, assoc).par_map_assoc(
+            |_, _, (bytecode, mut linker)| {
+                let graph = function_graph.graph.read().unwrap();
+                linker.fn_gir.retain(|tyid, _| graph.contains_node(*tyid));
+
+                Some(bytecode)
+            },
+            || diag.finish_stage(finish_stage),
+        )?;
+
+        debug!("Include Functions");
+        let _ = (&context, assoc).par_map_assoc(
+            |_, _, bytecode| {
+                for byt in bytecode.into_values() {
+                    assembler.include_function(byt);
                 }
                 Some(())
             },
             || diag.finish_stage(finish_stage),
         )?;
-        let assember = assembler.write_bytecode(entry_point.0).unwrap();
+
+        let assember = assembler.write_bytecode(entry_point).unwrap();
 
         Ok(assember.output().unwrap())
     }

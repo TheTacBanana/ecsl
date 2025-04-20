@@ -1,11 +1,13 @@
 use panic::panic;
 use bool::bool;
 
+// Optional monadic type
+// Variants must remain None = 0 and Some = 1
 enum Option<T> {
+    None, 
     Some {
         val: T,
     },
-    None,
 }
 
 impl<T> Option<T> {

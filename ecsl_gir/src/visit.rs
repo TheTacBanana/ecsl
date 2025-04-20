@@ -98,6 +98,7 @@ pub fn walk_expr<V: Visitor>(v: &mut V, e: &Expr) -> VisitorCF {
             VisitorCF::Continue
         }
         ExprKind::Reference(_, _) => VisitorCF::Continue,
+        ExprKind::Query(_, operand) => v.visit_operand(operand),
     }
 }
 
@@ -202,6 +203,7 @@ pub fn walk_expr_mut<V: VisitorMut>(v: &mut V, e: &mut Expr) -> VisitorCF {
             VisitorCF::Continue
         }
         ExprKind::Reference(_, _) => VisitorCF::Continue,
+        ExprKind::Query(_, operand) => v.visit_operand_mut(operand),
     }
 }
 

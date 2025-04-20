@@ -4,6 +4,7 @@ use bimap::BiBTreeMap;
 use byt::BytecodeValidator;
 use casing::CasingWarnings;
 use definitions::TypeDefCollector;
+use ecsl_assembler::header::EntryPointKind;
 use ecsl_ast::{
     data::{EnumDef, StructDef},
     item::{Item, ItemKind},
@@ -19,9 +20,10 @@ use ecsl_parse::{source::SourceFile, table::SymbolTable, LexerTy};
 use ecsl_ty::{
     def::Definition, import::Import, local::LocalTyCtxt, FieldDef, FnParent, GenericsScope, TyIr,
 };
-use entry_point::{EntryPoint, EntryPointError, EntryPointKind};
+use entry_point::{EntryPoint, EntryPointError};
 use fn_validator::FnValidator;
 use import_collector::ImportCollector;
+use log::debug;
 use prelude::{rewrite_use_path, Prelude};
 use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
 
@@ -198,6 +200,7 @@ pub fn generate_pre_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                         "char" => Some(TyIr::Char),
                         "str" => Some(TyIr::Str),
                         "Entity" => Some(TyIr::Entity),
+                        "Query" => Some(TyIr::Query),
                         _ => None,
                     };
 
@@ -466,6 +469,7 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                     return;
                 };
                 let impl_tyir = ty_ctxt.global.get_tyir(impl_id);
+                debug!("{:?}", impl_tyir);
 
                 let Some(fn_scope) = ty.into_scope() else {
                     ty_ctxt.diag.push_error(
@@ -488,16 +492,20 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                         );
                         return;
                     }
-                    TyIr::Entity => (),
-                    TyIr::Bool
+                    TyIr::Entity
+                    | TyIr::Query
+                    | TyIr::Bool
                     | TyIr::Char
                     | TyIr::Int
                     | TyIr::Float
                     | TyIr::Str
                     | TyIr::ADT(_) => {
                         let Some((_, file)) = ty_ctxt.global.get_span(impl_id) else {
-                            todo!();
-                            // return;
+                            ty_ctxt.diag.push_error(
+                                EcslError::new(ErrorLevel::Error, "Cannot impl for type")
+                                    .with_span(|_| ty.span),
+                            );
+                            return;
                         };
 
                         if file != ty_ctxt.file {

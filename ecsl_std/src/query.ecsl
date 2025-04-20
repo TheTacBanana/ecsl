@@ -1,0 +1,18 @@
+use entity::Entity;
+use bool::bool;
+
+[copy, builtin(8)]
+struct Query;
+
+impl Query {
+    fn contains(self, entity: Entity) bool {
+        byt {
+            BPLDR #8UB #self;
+            BPLDR #8UB #entity;
+            HAQRY;
+            BPSTR #1UB #return;
+            RET;
+        }
+    }
+}
+

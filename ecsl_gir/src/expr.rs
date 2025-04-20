@@ -25,6 +25,7 @@ pub enum ExprKind {
     /// From To
     Cast(Operand, OperandKind, OperandKind),
     Call(TyID, Vec<Operand>),
+    Query(QueryOpKind, Operand),
 }
 
 impl std::fmt::Display for ExprKind {
@@ -44,6 +45,7 @@ impl std::fmt::Display for ExprKind {
                 write!(f, ")")
             }
             ExprKind::Cast(operand, from, to) => write!(f, "{} -> {:?} as {:?}", operand, from, to),
+            ExprKind::Query(kind, operand) => write!(f, "{:?} Query {}", kind, operand),
         }
     }
 }
@@ -85,4 +87,67 @@ pub enum OperandKind {
     Bool,
     Int,
     Float,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum QueryOpKind {
+    Start,
+    Next,
+    Take,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Query {
+    pub with: Vec<TyID>,
+    pub without: Vec<TyID>,
+}
+
+impl std::fmt::Display for Query {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Query")?;
+
+        if !self.with.is_empty() {
+            write!(f, " With<")?;
+            for tyid in self.with.iter() {
+                write!(f, "{:?}, ", tyid)?;
+            }
+            write!(f, ">")?;
+        }
+
+        if !self.without.is_empty() {
+            write!(f, " Without<")?;
+            for tyid in self.without.iter() {
+                write!(f, "{:?}, ", tyid)?;
+            }
+            write!(f, ">")?;
+        }
+
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScheduleKind {
+    Ordered,
+    Unordered,
+}
+
+impl ScheduleKind {
+    pub fn discriminant(&self) -> u8 {
+        *self as u8
+    }
+
+    pub fn opening(&self) -> &'static str {
+        match self {
+            ScheduleKind::Ordered => "[",
+            ScheduleKind::Unordered => "{",
+        }
+    }
+
+    pub fn closing(&self) -> &'static str {
+        match self {
+            ScheduleKind::Ordered => "]",
+            ScheduleKind::Unordered => "}",
+        }
+    }
 }
