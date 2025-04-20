@@ -1,3 +1,9 @@
 sys main() Schedule {
-    return Schedule [];
+    return Schedule [
+        hello,
+    ];
+}
+
+sys hello() {
+    print("Hello World!");
 }
