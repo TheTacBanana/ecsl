@@ -22,6 +22,7 @@ pub const ProgramThread = struct {
     /// Status of program
     pub const ProgramStatus = enum {
         Running,
+        StackReturn,
         HaltProgram,
         ErrorOrPanic,
     };
@@ -219,66 +220,32 @@ pub const ProgramThread = struct {
         return error.InvalidPointer;
     }
 
-    pub fn execute_from_address(self: *ProgramThread, from: u64) ProgramStatus {
-        self.pc = from;
-        self.state.status = ProgramStatus.Running;
-
-        self.call_stack[0] = StackFrame{
-            .func_address = from,
-            .stack_frame_base = 16,
+    pub fn execute(this: *ProgramThread, from: u64) ProgramStatus {
+        this.pc = from;
+        this.sp = 16;
+        this.state.status = ProgramStatus.Running;
+        this.call_stack_index = 1;
+        this.call_stack[1] = StackFrame{
+            .func_address = this.pc,
+            .stack_frame_base = this.sp,
             .unwind_addr = null,
         };
-        self.sp = 16;
-        self.call_stack_index = 0;
 
         while (true) {
-            // Get next opcode
-            const op = self.next_opcode();
-
-            // Execute the opcode
-            Opcode.execute(self, op) catch |err| {
-                switch (self.unwrap_call_stack(err)) {
+            const op = this.next_opcode();
+            Opcode.execute(this, op) catch |err| {
+                switch (this.unwrap_call_stack(err)) {
                     ProgramUnwrap.Completed => return ProgramStatus.ErrorOrPanic,
                     ProgramUnwrap.Resume => {},
                 }
             };
 
-            if (self.state.status != ProgramStatus.Running) {
-                return self.state.status;
-            }
-        }
-    }
-
-    pub fn execute_scheduled_system(self: *ProgramThread, from: u64) ProgramStatus {
-        self.pc = from;
-        self.state.status = ProgramStatus.Running;
-
-        self.call_stack[1] = StackFrame{
-            .func_address = from,
-            .stack_frame_base = 16,
-            .unwind_addr = null,
-        };
-        self.sp = 16;
-        self.call_stack_index = 1;
-
-        while (true) {
-            // Get next opcode
-            const op = self.next_opcode();
-
-            // Execute the opcode
-            Opcode.execute(self, op) catch |err| {
-                switch (self.unwrap_call_stack(err)) {
-                    ProgramUnwrap.Completed => return ProgramStatus.ErrorOrPanic,
-                    ProgramUnwrap.Resume => {},
-                }
-            };
-
-            if (self.call_stack_index == 0) {
-                return ProgramStatus.HaltProgram;
+            if (this.call_stack_index == 0) {
+                return ProgramStatus.StackReturn;
             }
 
-            if (self.state.status != ProgramStatus.Running) {
-                return self.state.status;
+            if (this.state.status != ProgramStatus.Running) {
+                return this.state.status;
             }
         }
     }

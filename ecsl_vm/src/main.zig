@@ -142,7 +142,7 @@ pub fn main() anyerror!void {
     std.log.debug("Created thread with id {d}", .{thread_id});
 
     const thread_ptr = ecsl_vm.get_thread(thread_id);
-    const program_status = thread_ptr.execute_from_address(program_header.entry_point);
+    const program_status = thread_ptr.execute(program_header.entry_point);
     exit_code_from_status(program_status);
 
     switch (ecsl_vm.header.program.entry_point_kind) {
@@ -151,7 +151,7 @@ pub fn main() anyerror!void {
             const static_schedule = try schedule.StaticSchedule.new(schedule_addr, ecsl_vm, alloc);
 
             for (static_schedule.ordering.items) |ptr| {
-                const status = thread_ptr.execute_scheduled_system(ptr);
+                const status = thread_ptr.execute(ptr);
                 exit_code_from_status(status);
             }
         },
@@ -161,7 +161,7 @@ pub fn main() anyerror!void {
 
             while (true) {
                 for (static_schedule.ordering.items) |ptr| {
-                    const status = thread_ptr.execute_scheduled_system(ptr);
+                    const status = thread_ptr.execute(ptr);
                     exit_code_from_status(status);
                 }
                 try static_schedule.next_schedule();
@@ -170,16 +170,18 @@ pub fn main() anyerror!void {
         else => {},
     }
 
-    std.log.info("Program terminated with exit code 0", .{});
+    exit_code_from_status(thread.ProgramThread.ProgramStatus.HaltProgram);
 }
 
 fn exit_code_from_status(status: thread.ProgramThread.ProgramStatus) void {
-    const exit_code: usize = switch (status) {
-        .Running, .HaltProgram => 0,
-        .ErrorOrPanic => 1,
-    };
-    if (exit_code == 1) {
-        std.log.info("Program terminated with exit code {d}", .{exit_code});
-        std.process.exit(1);
+    switch (status) {
+        .Running, .StackReturn => return,
+        .HaltProgram => {
+            std.process.exit(0);
+        },
+        .ErrorOrPanic => {
+            std.log.info("Exit code: 1", .{});
+            std.process.exit(0);
+        },
     }
 }

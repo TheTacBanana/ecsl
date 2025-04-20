@@ -239,11 +239,7 @@ impl<'a> CodeGen<'a> {
                         [Immediate::LabelOf(*block_id)],
                     )),
                     TerminatorKind::Return => {
-                        if gir.fn_id == self.ty_ctxt.global.entry_point() {
-                            instrs.push(ins!(HALT));
-                        } else {
-                            instrs.push(ins!(RET));
-                        }
+                        instrs.push(ins!(RET));
                     }
                     TerminatorKind::Switch(operand, switch_cases) => {
                         for case in switch_cases {
