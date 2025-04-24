@@ -99,6 +99,12 @@ pub fn walk_expr<V: Visitor>(v: &mut V, e: &Expr) -> VisitorCF {
         }
         ExprKind::Reference(_, _) => VisitorCF::Continue,
         ExprKind::Query(_, operand) => v.visit_operand(operand),
+        ExprKind::Bundle(operands) => {
+            for (_, op) in operands {
+                v.visit_operand(op)?;
+            }
+            VisitorCF::Continue
+        }
     }
 }
 
@@ -204,6 +210,12 @@ pub fn walk_expr_mut<V: VisitorMut>(v: &mut V, e: &mut Expr) -> VisitorCF {
         }
         ExprKind::Reference(_, _) => VisitorCF::Continue,
         ExprKind::Query(_, operand) => v.visit_operand_mut(operand),
+        ExprKind::Bundle(operands) => {
+            for (_, op) in operands {
+                v.visit_operand_mut(op)?;
+            }
+            VisitorCF::Continue
+        }
     }
 }
 

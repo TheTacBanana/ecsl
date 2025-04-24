@@ -3,7 +3,7 @@ use cfgrammar::Span;
 use ecsl_bytecode::Immediate;
 use ecsl_gir::{
     cons::Constant,
-    expr::{Expr, ExprKind},
+    expr::Expr,
     stmt::{Stmt, StmtKind},
     visit::{walk_expr_mut, walk_stmt_mut, VisitorCF, VisitorMut},
     Local, Place, GIR,

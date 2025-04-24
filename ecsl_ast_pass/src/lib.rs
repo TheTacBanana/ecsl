@@ -469,7 +469,6 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                     return;
                 };
                 let impl_tyir = ty_ctxt.global.get_tyir(impl_id);
-                debug!("{:?}", impl_tyir);
 
                 let Some(fn_scope) = ty.into_scope() else {
                     ty_ctxt.diag.push_error(

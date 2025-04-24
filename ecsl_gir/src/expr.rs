@@ -26,6 +26,7 @@ pub enum ExprKind {
     Cast(Operand, OperandKind, OperandKind),
     Call(TyID, Vec<Operand>),
     Query(QueryOpKind, Operand),
+    Bundle(Vec<(TyID, Operand)>),
 }
 
 impl std::fmt::Display for ExprKind {
@@ -46,6 +47,13 @@ impl std::fmt::Display for ExprKind {
             }
             ExprKind::Cast(operand, from, to) => write!(f, "{} -> {:?} as {:?}", operand, from, to),
             ExprKind::Query(kind, operand) => write!(f, "{:?} Query {}", kind, operand),
+            ExprKind::Bundle(operands) => {
+                write!(f, "{{")?;
+                for (_, op) in operands {
+                    write!(f, "{}, ", op)?;
+                }
+                write!(f, "}}")
+            }
         }
     }
 }

@@ -1125,6 +1125,12 @@ Expr -> Result<Expr, ()>:
             }
         ))))
     }
+    | 'ENTITY' 'LCURLY' 'RCURLY' {
+        Ok(Expr::new($span, ExprKind::Bundle(Vec::new())))
+    }
+    | 'ENTITY' 'LCURLY' ExprList TrailingComma 'RCURLY' {
+        Ok(Expr::new($span, ExprKind::Bundle($3?)))
+    }
     | 'IDENT' EnumConcreteGenerics 'IDENT' FieldAssignments {
         Ok(Expr::new($span, ExprKind::Enum(
             P::new(Ty::new(

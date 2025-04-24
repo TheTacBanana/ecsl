@@ -53,6 +53,8 @@ pub enum ExprKind {
     Struct(P<Ty>, Vec<FieldExpr>),
     /// Enum `Foo::Bar { baz : 2 }`
     Enum(P<Ty>, SymbolID, Vec<FieldExpr>),
+    /// Bundle of components
+    Bundle(Vec<Expr>),
 
     /// Range Expr
     /// `1..11`

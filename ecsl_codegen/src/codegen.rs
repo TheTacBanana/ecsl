@@ -193,6 +193,26 @@ impl<'a> CodeGen<'a> {
                                     QueryOpKind::Take => ins!(TAQRY),
                                 });
                             }
+                            ExprKind::Bundle(operands) => {
+                                instrs.push(ins!(NENT));
+                                self.store_to_place(place, &mut instrs);
+
+                                let mut load_eid = Vec::new();
+                                self.load_operand(&Operand::Copy(place.clone()), &mut load_eid);
+
+                                for (tyid, op) in operands {
+                                    self.load_operand(op, &mut instrs);
+                                    instrs.extend_from_slice(&load_eid);
+                                    instrs.push(ins!(
+                                        INCOMP,
+                                        Immediate::UInt(
+                                            self.components.get_component(*tyid).inner() as u32
+                                        )
+                                    ))
+                                }
+
+                                instrs.extend_from_slice(&load_eid);
+                            }
                         }
 
                         self.store_to_place(place, &mut instrs);
