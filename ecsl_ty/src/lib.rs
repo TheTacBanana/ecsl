@@ -5,6 +5,7 @@ use ecsl_ast::{
     ty::Mutable,
 };
 use ecsl_index::{FieldID, SymbolID, TyID, VariantID};
+use log::debug;
 use std::collections::BTreeMap;
 
 pub mod ctxt;
@@ -254,10 +255,12 @@ impl GenericsScope {
         self.scopes.push(g);
     }
 
-    pub fn add_opt(&mut self, g: Option<ecsl_ast::ty::Generics>) {
+    pub fn add_opt(&mut self, g: Option<ecsl_ast::ty::Generics>) -> bool {
         if let Some(g) = g {
             self.scopes.push(g);
+            return true;
         }
+        return false;
     }
 
     pub fn scope_index(&self, id: SymbolID) -> Option<usize> {

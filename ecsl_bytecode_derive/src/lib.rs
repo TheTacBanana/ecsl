@@ -161,7 +161,7 @@ fn zig_opcode_generation(e: &DataEnum) -> std::io::Result<()> {
     let mut match_arms = String::new();
     let mut outlined_functions = String::new();
 
-    for (i, variant) in e.variants.iter().enumerate() {
+    for (_, variant) in e.variants.iter().enumerate() {
         {
             let mut docs = String::new();
             for c in &variant.attrs {
@@ -214,7 +214,7 @@ fn zig_opcode_generation(e: &DataEnum) -> std::io::Result<()> {
                     execute_string = Some(format!("ins.{}", method_name));
                 } else {
                     outlined_functions.push_str(&format!(
-                        "fn outlined_{}(t: *thread.ProgramThread) anyerror!void {{ try ins.{}(t{}); }}\n\t",
+                        "fn outlined_{}(t: *thread.ProgramThread) void {{ ins.{}(t{}); }}\n\t",
                         method_name, method_name, fields
                     ));
 
@@ -236,11 +236,11 @@ pub const Opcode = enum(u8) {{
     {}
 
     /// Execute an Opcode
-    pub fn execute(t: *thread.ProgramThread, op: u8) !void {{
-        const fs = [_]*const fn (*thread.ProgramThread) anyerror!void {{
+    pub fn execute(t: *thread.ProgramThread, op: u8) void {{
+        const fs = [_]*const fn (*thread.ProgramThread) void {{
             {}
         }};
-        try fs[op](t);
+        fs[op](t);
     }}
     {}
 }};

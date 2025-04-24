@@ -265,7 +265,7 @@ impl TyCheck {
     }
 
     fn process_fn(&mut self, f: &FnDef, scope: Option<SymbolID>) -> VisitorCF {
-        self.generic_scope.add_opt(f.generics.clone());
+        let pop_generics = self.generic_scope.add_opt(f.generics.clone());
 
         // Create GIR for Fn
         let tyid = self.get_tyid((scope, f.ident));
@@ -337,7 +337,9 @@ impl TyCheck {
         self.linker.add_gir(tyid, self.cur_gir.take().unwrap());
         self.generated_gir.push(tyid);
 
-        self.generic_scope.pop();
+        if pop_generics {
+            self.generic_scope.pop();
+        }
 
         VisitorCF::Continue
     }
@@ -428,15 +430,18 @@ impl Visitor for TyCheck {
     }
 
     fn visit_impl(&mut self, i: &ImplBlock) -> VisitorCF {
-        self.generic_scope.add_opt(i.generics.clone());
+        debug!("START OF IMPL");
+        let pop_generics = self.generic_scope.add_opt(i.generics.clone());
 
         let scope = i.ty.into_scope().unwrap();
 
         for f in i.fn_defs.iter() {
-            self.process_fn(f, Some(scope))?;
+            _ = self.process_fn(f, Some(scope));
         }
 
-        self.generic_scope.pop();
+        if pop_generics {
+            self.generic_scope.pop();
+        }
 
         VisitorCF::Continue
     }
@@ -470,6 +475,7 @@ impl Visitor for TyCheck {
 
                 // Unify Types
                 if let Some(ty) = ty {
+                    debug!("{:?} {:?}", ty, self.generic_scope);
                     let let_ty = catch_unknown!(
                         self.get_tyid((ty.as_ref(), &self.generic_scope)),
                         TyCheckError::UnknownTy
@@ -835,30 +841,7 @@ impl Visitor for TyCheck {
                         local.kind.promote_from_temp(LocalKind::Internal);
                         place
                     }
-                    Operand::Constant(_) => {
-                        // Create local ID
-                        let local_id = self.new_local(Local::new(
-                            expr.span,
-                            Mutable::Imm,
-                            ty,
-                            LocalKind::Internal,
-                        ));
-
-                        // Create Assignment Stmt
-                        self.push_stmt_to_cur_block(gir::Stmt {
-                            span: expr.span,
-                            kind: gir::StmtKind::Assign(
-                                Place::from_local(local_id, span),
-                                gir::Expr {
-                                    span: expr.span,
-                                    kind: gir::ExprKind::Value(op),
-                                },
-                            ),
-                        });
-
-                        // Return local
-                        Place::from_local(local_id, span)
-                    }
+                    _ => panic!("Interal Compiler Error: Enum cannot be const"),
                 };
 
                 let current_block = self.cur_block();
@@ -1170,10 +1153,12 @@ impl Visitor for TyCheck {
                         _ = catch_unknown!(*p, TyCheckError::UnknownTy);
                     }
 
-                    tyid = self
-                        .ty_ctxt
-                        .get_mono_variant(tyid, &params, generics.span)
-                        .unwrap();
+                    tyid = catch_unknown!(
+                        self.ty_ctxt
+                            .get_mono_variant(tyid, &params, generics.span)
+                            .unwrap(),
+                        TyCheckError::FunctionDoesntExist
+                    );
                     self.get_tyir(tyid).into_fn().unwrap()
                 } else {
                     fn_tyir
@@ -1310,10 +1295,14 @@ impl Visitor for TyCheck {
                         _ = catch_unknown!(*p, TyCheckError::UnknownTy);
                     }
 
-                    fn_tyid = self
-                        .ty_ctxt
-                        .get_mono_variant(fn_tyid, &params, generics.span)
-                        .unwrap();
+                    debug!("{:?} {:?}", fn_tyid, self.ty_ctxt.global.get_tyir(fn_tyid));
+
+                    fn_tyid = catch_unknown!(
+                        self.ty_ctxt
+                            .get_mono_variant(fn_tyid, &params, generics.span)
+                            .unwrap(),
+                        TyCheckError::FunctionDoesntExist
+                    );
                     let tyir = self.get_tyir(fn_tyid).into_fn().unwrap();
 
                     tyir
@@ -2036,6 +2025,46 @@ impl Visitor for TyCheck {
 
                 Some((schedule_tyid, Operand::Constant(out.unwrap())))
             }
+            ExprKind::Bundle(exprs) => {
+                let mut bundle = BTreeMap::new();
+                for e in exprs {
+                    self.visit_expr(e)?;
+                    let (ty, op) = self.pop();
+
+                    err_if!(
+                        !self.ty_ctxt.global.is_comp(ty),
+                        TyCheckError::RequiresComp(ty),
+                        e.span
+                    );
+
+                    self.cur_gir_mut().require_component(ty);
+
+                    let out = bundle.insert(ty, (ty, op));
+                    err_if!(out.is_some(), TyCheckError::DuplicateInBundle(ty))
+                }
+
+                let entity_tyid = self.get_tyid(TyIr::Entity);
+                let local = self.new_local(Local::new(
+                    span,
+                    Mutable::Imm,
+                    entity_tyid,
+                    LocalKind::Internal,
+                ));
+                let place = Place::from_local(local, span);
+
+                self.push_stmt_to_cur_block(gir::Stmt {
+                    span,
+                    kind: gir::StmtKind::Assign(
+                        place.clone(),
+                        gir::Expr {
+                            span,
+                            kind: gir::ExprKind::Bundle(bundle.into_values().collect()),
+                        },
+                    ),
+                });
+
+                Some((entity_tyid, Operand::Copy(place)))
+            }
             e => panic!("{:?}", e),
             // ExprKind::Array(exprs) => todo!(),
         };
@@ -2135,6 +2164,7 @@ pub enum TyCheckError {
     EmptySchedule,
     FnInSchedule,
     ScheduleSysNoArguments,
+    DuplicateInBundle(TyID),
 }
 
 impl std::fmt::Display for TyCheckError {
@@ -2214,6 +2244,7 @@ impl std::fmt::Display for TyCheckError {
             EmptySchedule => "Schedule is empty",
             FnInSchedule => "Fn must be Sys to be used in schedule",
             ScheduleSysNoArguments => "System in a schedule must have no arguments",
+            DuplicateInBundle(tyid) => &format!("Duplicate component of Type '{}' in bundle", tyid),
         };
         write!(f, "{}", s)
     }

@@ -11,7 +11,7 @@ use ecsl_diagnostics::DiagConn;
 use ecsl_error::{ext::EcslErrorExt, EcslError, ErrorLevel};
 use ecsl_index::{FieldID, GlobalID, SourceFileID, SymbolID, TyID};
 use ecsl_parse::table::SymbolTable;
-use log::error;
+use log::debug;
 use std::{
     collections::{btree_map::Entry, BTreeMap},
     sync::{Arc, RwLock},
@@ -276,8 +276,9 @@ impl LocalTyCtxt {
     pub fn get_mono_variant(&self, id: TyID, params: &Vec<TyID>, span: Span) -> Option<TyID> {
         fn map_tyid(s: &LocalTyCtxt, field: &mut FieldDef, params: &Vec<TyID>, span: Span) {
             let mut tyir = s.global.get_tyir(field.ty);
+
             field.ty = match &mut tyir {
-                TyIr::GenericParam(i) => params.get(*i).copied().unwrap(),
+                TyIr::GenericParam(i) => params.get(*i).copied().unwrap_or(field.ty),
                 TyIr::ADT(adtdef) => {
                     let mut field_params = Vec::new();
                     for param_tyid in &mut field.params {
@@ -322,7 +323,6 @@ impl LocalTyCtxt {
 
             match &mut tyir {
                 TyIr::ADT(adt_tyir) => {
-                    // debug!("{:?}", adt_tyir);
                     if params.len() != generic_count {
                         self.diag.push_error(
                             EcslError::new(ErrorLevel::Error, "Mismatched generics")

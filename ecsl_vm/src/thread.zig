@@ -10,9 +10,9 @@ pub const ProgramThread = struct {
     id: usize,
     pc: u64,
     sp: u64,
-    call_stack: []?StackFrame,
+    call_stack: []StackFrame,
     call_stack_index: usize,
-    stack: []u8,
+    stack: [1000000]u8,
 
     pub const State = struct {
         status: ProgramStatus,
@@ -35,6 +35,8 @@ pub const ProgramThread = struct {
         StackOverflow,
         /// Invalid Pointer
         InvalidPointer,
+        /// Entity Limit
+        EntityLimit,
     };
 
     /// Incorrect behaviour from incorrectly generated code
@@ -67,8 +69,8 @@ pub const ProgramThread = struct {
     };
 
     pub fn new(v: *const vm.EcslVM) error{AllocError}!ProgramThread {
-        const stack = v.allocator.alloc(u8, v.stack_size) catch return error.AllocError;
-        const call_stack = v.allocator.alloc(?StackFrame, 1024) catch return error.AllocError;
+        // const stack = v.allocator.alloc(u8, v.stack_size) catch return error.AllocError;
+        const call_stack = v.allocator.alloc(StackFrame, 1024) catch return error.AllocError;
         return ProgramThread{
             .vm_ptr = v,
             .id = v.next_thread_id(),
@@ -78,14 +80,14 @@ pub const ProgramThread = struct {
             },
             .pc = 0,
             .sp = 0,
-            .stack = stack,
+            .stack = undefined,
             .call_stack = call_stack,
             .call_stack_index = 0,
         };
     }
 
     pub fn free(self: *ProgramThread) void {
-        self.vm_ptr.allocator.free(self.stack);
+        // self.vm_ptr.allocator.free(self.stack);
         self.vm_ptr.allocator.free(self.call_stack);
     }
 
@@ -113,7 +115,7 @@ pub const ProgramThread = struct {
         std.log.err("Program Thread {d} panicked with {s}:", .{ self.id, @errorName(err) });
         var i: usize = self.call_stack_index;
         while (i > 0) {
-            const frame = self.call_stack[i].?;
+            const frame = self.call_stack[i];
             i -= 1;
             std.log.err("at Func Address {d} : ({d})", .{ frame.func_address, i });
         }
@@ -131,27 +133,24 @@ pub const ProgramThread = struct {
     }
 
     pub inline fn get_bp_ptr(self: *ProgramThread) u64 {
-        return self.vm_ptr.binary.len + self.call_stack[self.call_stack_index].?.stack_frame_base;
+        return self.vm_ptr.binary.len + self.call_stack[self.call_stack_index].stack_frame_base;
     }
 
     pub fn next_immediate(self: *ProgramThread, comptime T: type) *align(1) const T {
-        const temp_pc = self.pc;
+        const val: *align(1) const T = @ptrCast(&self.vm_ptr.binary[self.pc]);
         self.pc += @sizeOf(T);
-
-        const val: *align(1) const T = @ptrCast(&self.vm_ptr.binary[temp_pc]);
-
-        // std.log.debug("Imm {}", .{val.*});
         return val;
     }
 
     // Push comptime type to stack
-    pub fn push_stack(self: *ProgramThread, comptime T: type, val: *align(1) T) ProgramError!void {
+    pub fn push_stack(self: *ProgramThread, comptime T: type, val: *align(1) const T) void {
         // std.log.debug("Push {}", .{val.*});
 
         // Guard against stack overflow
         const new_sp = self.sp + @sizeOf(T);
         if (new_sp >= self.stack.len) {
-            return error.StackOverflow;
+            self.state.err = ProgramError.StackOverflow;
+            return;
         }
 
         const stack_slice = self.stack[self.sp..][0..@sizeOf(T)];
@@ -161,11 +160,12 @@ pub const ProgramThread = struct {
     }
 
     // Push comptime type to stack
-    pub fn push_stack_const(self: *ProgramThread, comptime T: type, val: T) ProgramError!void {
+    pub fn push_stack_const(self: *ProgramThread, comptime T: type, val: T) void {
         // Guard against stack overflow
         const new_sp = self.sp + @sizeOf(T);
         if (new_sp >= self.stack.len) {
-            return error.StackOverflow;
+            self.state.err = ProgramError.StackOverflow;
+            return;
         }
 
         const stack_slice = self.stack[self.sp..][0..@sizeOf(T)];
@@ -174,17 +174,18 @@ pub const ProgramThread = struct {
         self.sp = new_sp;
     }
 
-    pub fn pop_pair(self: *ProgramThread, comptime T: type) ProgramPanic!struct { l: T, r: T } {
-        const r = try self.pop_stack(T);
-        const l = try self.pop_stack(T);
+    pub fn pop_pair(self: *ProgramThread, comptime T: type) struct { l: T, r: T } {
+        const r = self.pop_stack(T);
+        const l = self.pop_stack(T);
         return .{ .l = l.*, .r = r.* };
     }
 
     // Pop type of comptime size from stack
-    pub fn pop_stack(self: *ProgramThread, comptime T: type) ProgramPanic!*align(1) const T {
+    pub fn pop_stack(self: *ProgramThread, comptime T: type) *align(1) const T {
         // Check for type larger than stack
         if (@sizeOf(T) > self.sp) {
-            return error.EmptyStack;
+            self.state.err = ProgramError.StackOverflow;
+            return @ptrCast(&self.stack[0]); // Return junk value
         }
 
         // Decrement Stack
@@ -200,7 +201,7 @@ pub const ProgramThread = struct {
     pub fn get_ptr(
         self: *ProgramThread,
         address: u64,
-    ) ProgramError!*u8 {
+    ) ?*u8 {
         var t_address = address;
         const binary_len = self.vm_ptr.binary.len;
         if (t_address < binary_len) {
@@ -217,7 +218,8 @@ pub const ProgramThread = struct {
             return &self.vm_ptr.world.storage.data[t_address];
         }
 
-        return error.InvalidPointer;
+        self.state.err = ProgramError.InvalidPointer;
+        return null;
     }
 
     pub fn execute(this: *ProgramThread, from: u64) ProgramStatus {
@@ -233,12 +235,14 @@ pub const ProgramThread = struct {
 
         while (true) {
             const op = this.next_opcode();
-            Opcode.execute(this, op) catch |err| {
+            Opcode.execute(this, op);
+
+            if (this.state.err) |err| {
                 switch (this.unwrap_call_stack(err)) {
                     ProgramUnwrap.Completed => return ProgramStatus.ErrorOrPanic,
                     ProgramUnwrap.Resume => {},
                 }
-            };
+            }
 
             if (this.call_stack_index == 0) {
                 return ProgramStatus.StackReturn;
