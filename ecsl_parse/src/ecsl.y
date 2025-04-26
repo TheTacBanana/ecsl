@@ -875,7 +875,7 @@ Expr -> Result<Expr, ()>:
         ))
     }
     | 'LBRACKET' Expr 'RBRACKET' { $2 }
-    | 'LSQUARE''RSQUARE' {
+    | 'LSQUARE' 'RSQUARE' {
         Ok(Expr::new($span, ExprKind::Array(
             Vec::new()
         )))

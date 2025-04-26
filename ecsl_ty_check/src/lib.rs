@@ -1714,42 +1714,59 @@ impl Visitor for TyCheck {
                 };
 
                 let place = e_op.place_mut().unwrap();
-                let adtdef = match self.get_tyir(e_ty) {
-                    TyIr::Ref(_, def) => {
-                        place.with_projection_ref(Projection::Deref { new_ty: def.ty });
-                        get_struct_tyir(self, def.ty, self.get_tyir(def.ty))
+                let tyir = self.get_tyir(e_ty);
+
+                if let TyIr::Array(_, len) = tyir {
+                    let symbol = self.ty_ctxt.table.get_symbol(*symbol_id).unwrap();
+                    if symbol.name == "len" {
+                        Some((
+                            self.get_tyid(TyIr::Int),
+                            Operand::Constant(self.new_constant(Constant::Internal {
+                                span,
+                                imm: Immediate::Int(len as i32),
+                            })),
+                        ))
+                    } else {
+                        err!(TyCheckError::NoMemberWithName(e_ty), e.span);
                     }
-                    tyir => get_struct_tyir(self, e_ty, tyir),
-                };
+                } else {
+                    let adtdef = match tyir {
+                        TyIr::Ref(_, def) => {
+                            place.with_projection_ref(Projection::Deref { new_ty: def.ty });
+                            get_struct_tyir(self, def.ty, self.get_tyir(def.ty))
+                        }
+                        tyir => get_struct_tyir(self, e_ty, tyir),
+                    };
 
-                let Some(struct_tyir) = adtdef else {
-                    return VisitorCF::Break;
-                };
+                    let Some(struct_tyir) = adtdef else {
+                        return VisitorCF::Break;
+                    };
 
-                // Get the structs fields
-                let variant = struct_tyir.get_struct_fields();
+                    // Get the structs fields
+                    let variant = struct_tyir.get_struct_fields();
 
-                // Get the field name and id
-                let symbol = self.ty_ctxt.table.get_symbol(*symbol_id).unwrap();
-                let Some(field_id) = variant.field_hash.get(&symbol.name) else {
-                    err!(TyCheckError::NoMemberWithName(e_ty), e.span);
-                };
+                    // Get the field name and id
+                    let symbol = self.ty_ctxt.table.get_symbol(*symbol_id).unwrap();
+                    let Some(field_id) = variant.field_hash.get(&symbol.name) else {
+                        err!(TyCheckError::NoMemberWithName(e_ty), e.span);
+                    };
 
-                // Get the field definition and create a projection to it
-                let field_def = variant.field_tys.get(field_id).unwrap();
-                match &mut e_op {
-                    Operand::Copy(place) | Operand::Move(place) => {
-                        place.with_projection_ref(gir::Projection::Field {
-                            ty: struct_tyir.id,
-                            fid: *field_id,
-                            vid: variant.id,
-                            new_ty: field_def.ty,
-                        });
+                    // Get the field definition and create a projection to it
+                    let field_def = variant.field_tys.get(field_id).unwrap();
+                    match &mut e_op {
+                        Operand::Copy(place) | Operand::Move(place) => {
+                            place.with_projection_ref(gir::Projection::Field {
+                                ty: struct_tyir.id,
+                                fid: *field_id,
+                                vid: variant.id,
+                                new_ty: field_def.ty,
+                            });
+                        }
+                        _ => unreachable!(),
                     }
-                    _ => unreachable!(),
+
+                    Some((field_def.ty, e_op))
                 }
-
-                Some((field_def.ty, e_op))
             }
             ExprKind::Enum(ty, variant, fields) => {
                 let enum_tyid = catch_unknown!(
@@ -2072,6 +2089,7 @@ impl Visitor for TyCheck {
                     self.visit_expr(e)?;
                     out.push(self.pop());
                 }
+
                 err_if!(out.len() == 0, TyCheckError::EmptyArray);
                 for [(l, _), (r, _)] in out.array_windows::<2>() {
                     err_if!(l != r, TyCheckError::LHSMatchRHS(*l, *r));
