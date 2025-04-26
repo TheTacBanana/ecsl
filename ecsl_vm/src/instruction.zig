@@ -160,9 +160,19 @@ pub fn jmp(self: *ProgramThread, addr: u64) void {
     self.pc = addr;
 }
 
+pub fn jmpr(self: *ProgramThread, rel_addr: i64) void {
+    self.pc = u64_plus_i64(self.pc, rel_addr);
+}
+
 pub fn jmpt(self: *ProgramThread, addr: u64) void {
     if ((self.pop_stack(u8)).* > 0) {
         self.pc = addr;
+    }
+}
+
+pub fn jmptr(self: *ProgramThread, rel_addr: i64) void {
+    if ((self.pop_stack(u8)).* > 0) {
+        self.pc = u64_plus_i64(self.pc, rel_addr);
     }
 }
 
@@ -277,6 +287,36 @@ pub fn neg_i(self: *ProgramThread) void {
     self.push_stack_const(i32, -a.*);
 }
 
+pub fn add_l(self: *ProgramThread) void {
+    const pair = self.pop_pair(i64);
+    self.push_stack_const(i64, pair.l + pair.r);
+}
+
+pub fn sub_l(self: *ProgramThread) void {
+    const pair = self.pop_pair(i64);
+    self.push_stack_const(i64, pair.l - pair.r);
+}
+
+pub fn mul_l(self: *ProgramThread) void {
+    const pair = self.pop_pair(i64);
+    self.push_stack_const(i64, pair.l * pair.r);
+}
+
+pub fn div_l(self: *ProgramThread) void {
+    const pair = self.pop_pair(i64);
+    self.push_stack_const(i64, @divTrunc(pair.l, pair.r));
+}
+
+pub fn mod_l(self: *ProgramThread) void {
+    const pair = self.pop_pair(i64);
+    self.push_stack_const(i64, @mod(pair.l, pair.r));
+}
+
+pub fn neg_l(self: *ProgramThread) void {
+    const a = self.pop_stack(i64);
+    self.push_stack_const(i64, -a.*);
+}
+
 pub fn eq_f(self: *ProgramThread) void {
     const pair = self.pop_pair(f32);
     self.push_stack_const(u8, @intFromBool(pair.l == pair.r));
@@ -346,6 +386,11 @@ pub fn itf(self: *ProgramThread) void {
 pub fn fti(self: *ProgramThread) void {
     const a = self.pop_stack(f32);
     self.push_stack_const(i32, @intFromFloat(a.*));
+}
+
+pub fn itl(self: *ProgramThread) void {
+    const a = self.pop_stack(i32);
+    self.push_stack_const(i64, @intCast(a.*));
 }
 
 pub fn print_s(self: *ProgramThread) void {

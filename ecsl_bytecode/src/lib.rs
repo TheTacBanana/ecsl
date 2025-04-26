@@ -108,6 +108,7 @@ impl Immediate {
         unsafe {
             match self {
                 Immediate::ULong(v) => Some(std::mem::transmute(v)),
+                Immediate::Long(v) => Some(std::mem::transmute(v)),
                 _ => None,
             }
         }
@@ -217,8 +218,12 @@ pub enum Bytecode {
     // General jumps
     /// Unconditional Jump
     JMP(u64),
+    /// Unconditional relative jump
+    JMPR(i64),
     /// Jump if true
     JMPT(u64),
+    /// Relative jump if true
+    JMPTR(i64),
 
     // Boolean Operations
     /// Compare 2 bools
@@ -286,6 +291,19 @@ pub enum Bytecode {
     /// Negate the top integer of the stack and push the result
     NEG_I,
 
+    /// Add the top 2 longs of the stack and push the result
+    ADD_L,
+    /// Sub the top 2 longs of the stack and push the result
+    SUB_L,
+    /// Mul the top 2 longs of the stack and push the result
+    MUL_L,
+    /// Div the top 2 longs of the stack and push the result
+    DIV_L,
+    /// Mod the top 2 longs of the stack and push the results
+    MOD_L,
+    /// Negate the top longs of the stack and push the result
+    NEG_L,
+
     // Float numeric instructions
     /// Add the top 2 floats of the stack and push the result
     ADD_F,
@@ -305,6 +323,8 @@ pub enum Bytecode {
     ITF,
     /// Cast float to integer
     FTI,
+    // Cast integer to long
+    ITL,
 
     // Print instructions
     /// Pop a char pointer and print the string to stdout

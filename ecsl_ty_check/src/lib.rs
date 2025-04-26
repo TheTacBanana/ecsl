@@ -2105,11 +2105,12 @@ impl Visitor for TyCheck {
                 ));
 
                 for (i, (_, op)) in out.into_iter().enumerate() {
-                    let place =
-                        Place::from_local(local, span).with_projection(Projection::ArrayIndex {
+                    let place = Place::from_local(local, span).with_projection(
+                        Projection::ConstArrayIndex {
                             array_element,
                             index: i,
-                        });
+                        },
+                    );
 
                     self.push_stmt_to_cur_block(gir::Stmt {
                         span,
@@ -2124,6 +2125,104 @@ impl Visitor for TyCheck {
                 }
 
                 Some((array_ty, Operand::Move(Place::from_local(local, span))))
+            }
+            ExprKind::ArrayRepeat(expr, len) => {
+                self.visit_expr(expr)?;
+                let (array_element, op) = self.pop();
+
+                let array_ty = self.get_tyid(TyIr::Array(array_element, *len));
+                let local = self.new_local(Local::new(
+                    span,
+                    Mutable::Imm,
+                    array_ty,
+                    LocalKind::Internal,
+                ));
+
+                for i in 0..*len {
+                    let place = Place::from_local(local, span).with_projection(
+                        Projection::ConstArrayIndex {
+                            array_element,
+                            index: i,
+                        },
+                    );
+
+                    self.push_stmt_to_cur_block(gir::Stmt {
+                        span,
+                        kind: gir::StmtKind::Assign(
+                            place,
+                            gir::Expr {
+                                span,
+                                kind: gir::ExprKind::Value(op.clone()),
+                            },
+                        ),
+                    });
+                }
+
+                Some((array_ty, Operand::Move(Place::from_local(local, span))))
+            }
+            ExprKind::ArrayIndex(arr, index) => {
+                self.visit_expr(arr)?;
+                let (arr_ty, arr_op) = self.pop();
+
+                self.visit_expr(index)?;
+                let (index_ty, index_op) = self.pop();
+
+                let TyIr::Array(element, _) = self.get_tyir(arr_ty) else {
+                    err!(TyCheckError::CannotIndex(arr_ty), arr.span)
+                };
+                err_if!(
+                    index_ty != self.get_tyid(TyIr::Int),
+                    TyCheckError::CannotIndexWith(index_ty)
+                );
+
+                let index_place = match index_op {
+                    Operand::Copy(place) | Operand::Move(place) => place,
+                    Operand::Constant(_) => {
+                        // Create local ID
+                        let local_id = self.new_local(Local::new(
+                            span,
+                            Mutable::Imm,
+                            element,
+                            LocalKind::Internal,
+                        ));
+
+                        // Create Assignment Stmt
+                        self.push_stmt_to_cur_block(gir::Stmt {
+                            span,
+                            kind: gir::StmtKind::Assign(
+                                Place::from_local(local_id, span),
+                                gir::Expr {
+                                    span,
+                                    kind: gir::ExprKind::Value(index_op),
+                                },
+                            ),
+                        });
+
+                        Place::from_local(local_id, span)
+                    }
+                };
+
+                let indexed =
+                    self.new_local(Local::new(span, Mutable::Imm, element, LocalKind::Temp));
+                let place = Place::from_local(indexed, span);
+
+                self.push_stmt_to_cur_block(gir::Stmt {
+                    span,
+                    kind: gir::StmtKind::Assign(
+                        place.clone(),
+                        gir::Expr {
+                            span,
+                            kind: gir::ExprKind::Value(Operand::Copy(
+                                arr_op.place().unwrap().with_projection(Projection::Index {
+                                    array_element: element,
+                                    with: index_place,
+                                }),
+                            )),
+                        },
+                    ),
+                });
+
+                Some((element, Operand::Copy(place)))
             }
         };
 
@@ -2216,6 +2315,8 @@ pub enum TyCheckError {
     UnknownBuiltinOp,
 
     EmptyArray,
+    CannotIndex(TyID),
+    CannotIndexWith(TyID),
 
     UnsupportedFilterKind,
     DuplicateFilter(TyID),
@@ -2306,6 +2407,8 @@ impl std::fmt::Display for TyCheckError {
             ScheduleSysNoArguments => "System in a schedule must have no arguments",
             DuplicateInBundle(tyid) => &format!("Duplicate component of Type '{}' in bundle", tyid),
             EmptyArray => "Cannot create empty array",
+            CannotIndex(tyid) => &format!("Cannot index non array Type '{}'", tyid),
+            CannotIndexWith(tyid) => &format!("Cannot index array with Type '{}'", tyid),
         };
         write!(f, "{}", s)
     }

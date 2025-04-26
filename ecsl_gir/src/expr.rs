@@ -76,6 +76,13 @@ impl std::fmt::Display for Operand {
 }
 
 impl Operand {
+    pub fn place(self) -> Option<Place> {
+        match self {
+            Operand::Copy(place) | Operand::Move(place) => Some(place),
+            Operand::Constant(_) => None,
+        }
+    }
+
     pub fn place_mut(&mut self) -> Option<&mut Place> {
         match self {
             Operand::Copy(place) | Operand::Move(place) => Some(place),

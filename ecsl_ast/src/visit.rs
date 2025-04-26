@@ -289,6 +289,13 @@ pub fn walk_expr<V: Visitor>(v: &mut V, expr: &Expr) -> VisitorCF {
                 visit!(v.visit_expr(e));
             }
         }
+        ExprKind::ArrayIndex(arr, index) => {
+            visit!(v.visit_expr(arr));
+            visit!(v.visit_expr(index));
+        }
+        ExprKind::ArrayRepeat(expr, _) => {
+            visit!(v.visit_expr(expr));
+        }
         ExprKind::Struct(t, fields) => {
             visit!(v.visit_ty(t));
             for f in fields {

@@ -38,6 +38,8 @@ pub enum ExprKind {
 
     /// Array `[1, 2, 3, 4]`
     Array(Vec<Expr>),
+    /// Array `[0; N]`
+    ArrayRepeat(P<Expr>, usize),
     /// Locally accesible symbol
     /// `foo` `bar`
     Ident(SymbolID),
@@ -67,6 +69,9 @@ pub enum ExprKind {
     /// Field Access
     /// `foo.bar`
     Field(P<Expr>, SymbolID),
+    /// Array Access
+    /// 'arr[0]'
+    ArrayIndex(P<Expr>, P<Expr>),
 
     /// Function call
     /// Called On, Function Ident, Args

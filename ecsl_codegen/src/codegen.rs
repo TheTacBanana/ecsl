@@ -6,7 +6,7 @@ use ecsl_gir::{
     LocalKind, Place, Projection, GIR,
 };
 use ecsl_gir_pass::{comp_ids::ComponentDefinitions, const_eval::ConstMap, GIRPass};
-use ecsl_index::{BlockID, LocalID};
+use ecsl_index::{BlockID, LocalID, TyID};
 use ecsl_ty::{local::LocalTyCtxt, TyIr};
 use log::debug;
 use petgraph::visit::{Bfs, Dfs};
@@ -403,8 +403,8 @@ impl<'a> CodeGen<'a> {
         };
 
         let mut cur_stack_offset = stack_offset;
+        let mut cur_ty = self.gir.get_local(place.local).tyid;
 
-        // let mut ldr_stack = Vec::new();
         instrs.push(ins!(PBP));
 
         let mut iter = place.projections.iter();
@@ -424,6 +424,7 @@ impl<'a> CodeGen<'a> {
                     let size = self.ty_ctxt.global.get_size(*new_ty).unwrap();
                     cur_stack_offset.offset += offset as i64;
                     cur_stack_offset.size = size;
+                    cur_ty = *new_ty;
                 }
                 Projection::Discriminant { tyid } => {
                     let TyIr::ADT(adt) = self.ty_ctxt.global.get_tyir(*tyid) else {
@@ -441,14 +442,55 @@ impl<'a> CodeGen<'a> {
 
                     cur_stack_offset.offset = 0;
                     cur_stack_offset.size = self.ty_ctxt.global.get_size(*new_ty).unwrap();
+                    cur_ty = *new_ty;
                 }
-                Projection::ArrayIndex {
+                Projection::ConstArrayIndex {
                     array_element,
                     index,
                 } => {
                     let element_size = self.ty_ctxt.global.get_size(*array_element).unwrap();
                     cur_stack_offset.size = element_size;
                     cur_stack_offset.offset += (index * element_size) as i64;
+                    cur_ty = *array_element;
+                }
+                Projection::Index {
+                    array_element,
+                    with,
+                } => {
+                    let TyIr::Array(_, len) = self.ty_ctxt.global.get_tyir(cur_ty) else {
+                        unreachable!()
+                    };
+                    let element_size = self.ty_ctxt.global.get_size(*array_element).unwrap();
+
+                    let mut load_index = Vec::new();
+                    self.load_operand(&Operand::Copy(with.clone()), &mut load_index);
+
+                    instrs.extend_from_slice(&load_index);
+                    instrs.extend_from_slice(&[
+                        ins!(PSHI, Immediate::Int(0)),
+                        ins!(GEQ_I),
+                        ins!(JMPTR, Immediate::Long(1)),
+                        ins!(PANIC),
+                    ]);
+                    instrs.extend_from_slice(&load_index);
+                    instrs.extend_from_slice(&[
+                        ins!(PSHI, Immediate::Int(len as i32)),
+                        ins!(LT_I),
+                        ins!(JMPTR, Immediate::Long(1)),
+                        ins!(PANIC),
+                    ]);
+                    instrs.extend_from_slice(&load_index);
+                    instrs.extend_from_slice(&[
+                        ins!(PSHI, Immediate::Int(element_size as i32)),
+                        ins!(MUL_I),
+                        ins!(ITL),
+                        ins!(PSHR, Immediate::Long(cur_stack_offset.offset)),
+                        ins!(ADD_L),
+                    ]);
+
+                    cur_stack_offset.size = element_size;
+                    cur_stack_offset.offset = 0;
+                    cur_ty = *array_element;
                 }
             }
         }

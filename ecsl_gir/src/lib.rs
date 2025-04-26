@@ -343,13 +343,14 @@ impl Place {
                 Projection::Field { new_ty, .. } => tyid = *new_ty,
                 Projection::Discriminant { .. } => (),
                 Projection::Deref { new_ty } => tyid = *new_ty,
-                Projection::ArrayIndex { array_element, .. } => tyid = *array_element,
+                Projection::ConstArrayIndex { array_element, .. } => tyid = *array_element,
+                Projection::Index { array_element, .. } => tyid = *array_element,
             }
         }
         return tyid;
     }
 
-    pub fn rewrite_tyid(&mut self, f: impl Fn(&mut TyID)) {
+    pub fn rewrite_tyid(&mut self, f: impl Fn(&mut TyID) + Copy) {
         for proj in self.projections.iter_mut() {
             match proj {
                 Projection::Field { ty, new_ty, .. } => {
@@ -358,7 +359,14 @@ impl Place {
                 }
                 Projection::Discriminant { tyid } => f(tyid),
                 Projection::Deref { new_ty } => f(new_ty),
-                Projection::ArrayIndex { array_element, .. } => f(array_element),
+                Projection::ConstArrayIndex { array_element, .. } => f(array_element),
+                Projection::Index {
+                    array_element,
+                    with,
+                } => {
+                    f(array_element);
+                    with.rewrite_tyid(f);
+                }
             }
         }
     }
@@ -378,9 +386,13 @@ pub enum Projection {
     Deref {
         new_ty: TyID,
     },
-    ArrayIndex {
+    ConstArrayIndex {
         array_element: TyID,
         index: usize,
+    },
+    Index {
+        array_element: TyID,
+        with: Place,
     },
 }
 
@@ -404,7 +416,8 @@ impl std::fmt::Display for Projection {
             Projection::Field { fid, .. } => write!(f, ".{}", fid.inner()),
             Projection::Discriminant { .. } => write!(f, "Disc"),
             Projection::Deref { .. } => write!(f, "*"),
-            Projection::ArrayIndex { index, .. } => write!(f, "[{}]", index),
+            Projection::ConstArrayIndex { index, .. } => write!(f, "[{}]", index),
+            Projection::Index { with, .. } => write!(f, "[{}]", with),
         }
     }
 }

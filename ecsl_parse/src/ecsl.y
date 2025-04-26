@@ -93,6 +93,7 @@
 %parse-param table: Rc<RefCell<PartialSymbolTable>>
 
 %left 'PATH'
+%left 'LSQUARE' 'RSQUARE'
 %right 'ASSIGN'
 %left 'DOTDOT' 'DOTDOTEQ'
 %left 'OR'
@@ -875,9 +876,10 @@ Expr -> Result<Expr, ()>:
         ))
     }
     | 'LBRACKET' Expr 'RBRACKET' { $2 }
-    | 'LSQUARE' 'RSQUARE' {
-        Ok(Expr::new($span, ExprKind::Array(
-            Vec::new()
+    | 'LSQUARE' Expr 'SEMI' 'INT' 'RSQUARE' {
+        Ok(Expr::new($span, ExprKind::ArrayRepeat(
+            P::new($2?),
+            table.string($4.map_err(|_| ())?.span()).parse().map_err(|_| ())?
         )))
     }
     | 'LSQUARE' ExprList TrailingComma 'RSQUARE' {
@@ -1124,6 +1126,11 @@ Expr -> Result<Expr, ()>:
                 filters: $3?,
             }
         ))))
+    }
+    | Expr 'LSQUARE' Expr 'RSQUARE' {
+        Ok(Expr::new($span, ExprKind::ArrayIndex(
+            P::new($1?), P::new($3?)
+        )))
     }
     | 'ENTITY' 'LCURLY' 'RCURLY' {
         Ok(Expr::new($span, ExprKind::Bundle(Vec::new())))
