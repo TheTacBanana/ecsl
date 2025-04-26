@@ -1,5 +1,6 @@
 #![feature(if_let_guard)]
 #![feature(macro_metavar_expr_concat)]
+#![feature(array_windows)]
 use ecsl_ast::ecs::{FilterKind, Schedule, ScheduleKind};
 use ecsl_ast::expr::{BinOpKind, UnOpKind};
 use ecsl_ast::item::{ImplBlock, Item, ItemKind};
@@ -2065,8 +2066,47 @@ impl Visitor for TyCheck {
 
                 Some((entity_tyid, Operand::Copy(place)))
             }
-            e => panic!("{:?}", e),
-            // ExprKind::Array(exprs) => todo!(),
+            ExprKind::Array(exprs) => {
+                let mut out = Vec::new();
+                for e in exprs {
+                    self.visit_expr(e)?;
+                    out.push(self.pop());
+                }
+                err_if!(out.len() == 0, TyCheckError::EmptyArray);
+                for [(l, _), (r, _)] in out.array_windows::<2>() {
+                    err_if!(l != r, TyCheckError::LHSMatchRHS(*l, *r));
+                }
+
+                let array_element = out[0].0;
+                let array_ty = self.get_tyid(TyIr::Array(array_element, out.len()));
+                let local = self.new_local(Local::new(
+                    span,
+                    Mutable::Imm,
+                    array_ty,
+                    LocalKind::Internal,
+                ));
+
+                for (i, (_, op)) in out.into_iter().enumerate() {
+                    let place =
+                        Place::from_local(local, span).with_projection(Projection::ArrayIndex {
+                            array_element,
+                            index: i,
+                        });
+
+                    self.push_stmt_to_cur_block(gir::Stmt {
+                        span,
+                        kind: gir::StmtKind::Assign(
+                            place,
+                            gir::Expr {
+                                span,
+                                kind: gir::ExprKind::Value(op),
+                            },
+                        ),
+                    });
+                }
+
+                Some((array_ty, Operand::Move(Place::from_local(local, span))))
+            }
         };
 
         if let Some((ty, op)) = ret_ty {
@@ -2157,6 +2197,8 @@ pub enum TyCheckError {
     NoContinue,
     UnknownBuiltinOp,
 
+    EmptyArray,
+
     UnsupportedFilterKind,
     DuplicateFilter(TyID),
     ConflictingFilter(TyID),
@@ -2245,6 +2287,7 @@ impl std::fmt::Display for TyCheckError {
             FnInSchedule => "Fn must be Sys to be used in schedule",
             ScheduleSysNoArguments => "System in a schedule must have no arguments",
             DuplicateInBundle(tyid) => &format!("Duplicate component of Type '{}' in bundle", tyid),
+            EmptyArray => "Cannot create empty array",
         };
         write!(f, "{}", s)
     }

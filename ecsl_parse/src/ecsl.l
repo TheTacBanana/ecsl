@@ -80,11 +80,10 @@ imm "IMM"
 as "AS"
 
 byt "BYT"
-(UB|UL|U|B|L)? "INTKIND"
 
 (false|true) "BOOLEAN"
 [a-zA-Z_][a-zA-Z0-9_]* "IDENT"
--?[0-9]+\.[0-9]+D? "FLOAT"
+-?[0-9]+\.[0-9]+ "FLOAT"
 -?[0-9]+ "INT"
 "(?:\\\\|\\"|[^"\n])*" "STRING"
 '([^\t\n\r\f\\'\\]|\\[tnr'"\\])' "CHAR"

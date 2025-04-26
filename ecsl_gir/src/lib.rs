@@ -343,6 +343,7 @@ impl Place {
                 Projection::Field { new_ty, .. } => tyid = *new_ty,
                 Projection::Discriminant { .. } => (),
                 Projection::Deref { new_ty } => tyid = *new_ty,
+                Projection::ArrayIndex { array_element, .. } => tyid = *array_element,
             }
         }
         return tyid;
@@ -357,6 +358,7 @@ impl Place {
                 }
                 Projection::Discriminant { tyid } => f(tyid),
                 Projection::Deref { new_ty } => f(new_ty),
+                Projection::ArrayIndex { array_element, .. } => f(array_element),
             }
         }
     }
@@ -375,6 +377,10 @@ pub enum Projection {
     },
     Deref {
         new_ty: TyID,
+    },
+    ArrayIndex {
+        array_element: TyID,
+        index: usize,
     },
 }
 
@@ -398,6 +404,7 @@ impl std::fmt::Display for Projection {
             Projection::Field { fid, .. } => write!(f, ".{}", fid.inner()),
             Projection::Discriminant { .. } => write!(f, "Disc"),
             Projection::Deref { .. } => write!(f, "*"),
+            Projection::ArrayIndex { index, .. } => write!(f, "[{}]", index),
         }
     }
 }

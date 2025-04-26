@@ -266,8 +266,7 @@ mod test {
             pass(r#"sys foo() {}"#);
 
             // Return Types
-            pass(r#"fn foo() -> Schedule {}"#);
-            fail(r#"fn foo() ->  {}"#);
+            pass(r#"fn foo() Schedule {}"#);
 
             // Arguments
             pass(r#"fn foo(bar: &Bar,) {}"#);
@@ -280,7 +279,7 @@ mod test {
             pass(r#"fn foo(&mut self) {}"#);
 
             // Generics
-            pass(r#"fn foo<T, U>(t: T) -> U {}"#);
+            pass(r#"fn foo<T, U>(t: T) U {}"#);
         }
 
         #[test]
@@ -308,7 +307,7 @@ mod test {
         fn impl_block() {
             pass(r#"impl Foo { }"#);
             pass(r#"impl<T> Foo<T> { }"#);
-            pass(r#"impl Foo { fn bar() -> int {} }"#);
+            pass(r#"impl Foo { fn bar() int {} }"#);
         }
     }
 

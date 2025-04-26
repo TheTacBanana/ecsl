@@ -442,6 +442,14 @@ impl<'a> CodeGen<'a> {
                     cur_stack_offset.offset = 0;
                     cur_stack_offset.size = self.ty_ctxt.global.get_size(*new_ty).unwrap();
                 }
+                Projection::ArrayIndex {
+                    array_element,
+                    index,
+                } => {
+                    let element_size = self.ty_ctxt.global.get_size(*array_element).unwrap();
+                    cur_stack_offset.size = element_size;
+                    cur_stack_offset.offset += (index * element_size) as i64;
+                }
             }
         }
 

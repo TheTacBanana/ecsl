@@ -148,6 +148,7 @@ impl TyCtxt {
             TyIr::Ref(_, _) => 8,
             TyIr::Schedule => 8,
             TyIr::Range(tyid, _) => self.internal_get_size(tyid, sizes)?,
+            TyIr::Array(tyid, size) => self.internal_get_size(tyid, sizes)? * size,
             TyIr::ADT(def) => {
                 if def.is_struct() {
                     let mut total_size = 0;
@@ -170,11 +171,7 @@ impl TyCtxt {
             e => {
                 error!("{id:?} {e:?}");
                 return None;
-            } // TyIr::String => todo!(),
-              // TyIr::Fn(fn_def) => todo!(),
-              // TyIr::Array(ty_id, _) => todo!(),
-              // TyIr::ArrayRef(mutable, ty_id) => todo!(),
-              // TyIr::GenericParam(_) => todo!(),
+            }
         };
         sizes.insert(id, size);
         Some(size)

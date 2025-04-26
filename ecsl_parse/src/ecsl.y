@@ -726,7 +726,7 @@ ImmediateList -> Result<Vec<Immediate>, ()>:
     ;
 
 Immediate -> Result<Immediate, ()>:
-    'HASH' 'INT' 'INTKIND' {
+    'HASH' 'INT' 'IDENT' {
         let num = table.string($2.map_err(|_| ())?.span());
         let num_kind = table.string($3.map_err(|_| ())?.span());
         let kind = IntKind::from_str(num_kind.as_str());
