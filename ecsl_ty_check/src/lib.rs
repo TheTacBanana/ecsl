@@ -2176,7 +2176,11 @@ impl Visitor for TyCheck {
                 );
 
                 let index_place = match index_op {
-                    Operand::Copy(place) | Operand::Move(place) => place,
+                    Operand::Copy(place) | Operand::Move(place) => {
+                        let local = self.get_local_mut(place.local);
+                        local.kind.promote_from_temp(LocalKind::Internal);
+                        place
+                    }
                     Operand::Constant(_) => {
                         // Create local ID
                         let local_id = self.new_local(Local::new(
@@ -2202,24 +2206,9 @@ impl Visitor for TyCheck {
                     }
                 };
 
-                let indexed =
-                    self.new_local(Local::new(span, Mutable::Imm, element, LocalKind::Temp));
-                let place = Place::from_local(indexed, span);
-
-                self.push_stmt_to_cur_block(gir::Stmt {
-                    span,
-                    kind: gir::StmtKind::Assign(
-                        place.clone(),
-                        gir::Expr {
-                            span,
-                            kind: gir::ExprKind::Value(Operand::Copy(
-                                arr_op.place().unwrap().with_projection(Projection::Index {
-                                    array_element: element,
-                                    with: index_place,
-                                }),
-                            )),
-                        },
-                    ),
+                let place = arr_op.place().unwrap().with_projection(Projection::Index {
+                    array_element: element,
+                    with: index_place,
                 });
 
                 Some((element, Operand::Copy(place)))
