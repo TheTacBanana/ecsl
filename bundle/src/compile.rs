@@ -34,12 +34,16 @@ impl CommandTrait for Compile {
 
         if let Ok(path) = out {
             info!("Invoking VM");
-            Command::new("ecslvm")
+            let status = Command::new("ecslvm")
                 .args([path])
                 .spawn()
                 .unwrap()
                 .wait()
                 .unwrap();
+
+            if !status.success() {
+                std::process::exit(1);
+            }
         }
 
         Ok(())

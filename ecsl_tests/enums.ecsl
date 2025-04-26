@@ -1,0 +1,20 @@
+enum Ord {
+    Less,
+    Equal,
+    Greater,
+}
+
+fn main() {
+    let ord: Ord = Ord::Less;
+
+    match (ord) {
+        Less -> {},
+        _ -> { panic(); },
+    }
+    
+    match (Ord::Equal) {
+        Less -> { panic(); },
+        Greater -> { panic(); },
+        _ -> {},
+    }
+}

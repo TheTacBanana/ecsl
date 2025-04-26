@@ -16,5 +16,6 @@ fn main() {
 	let e3: OneMember = OneMember {
 		i: 42,
 	};
-	print_int(e3.i);
+
+	assert_true(e3.i == 42);
 }

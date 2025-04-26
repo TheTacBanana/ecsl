@@ -1,0 +1,13 @@
+fn main() {
+	let n = 0;
+	for (i in 0..3) {
+		n = n + i;
+	}
+	assert_true(n == 3);
+	
+	let k = 0;
+	for (i in 0..=3) {
+		k = k + i;
+	}
+	assert_true(k == 6);
+}

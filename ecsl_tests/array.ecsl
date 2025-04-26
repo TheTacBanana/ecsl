@@ -1,0 +1,18 @@
+fn main() {
+    let arr = [1, 2, 3];
+    let arr2 = [42; 3];
+
+    assert_true(arr[0] == 1);
+    assert_true(arr[1] == 2);
+    assert_true(arr[2] == 3);
+    assert_true(arr.len == 3);
+
+    arr[1] = 4;
+
+    assert_true(arr[1] == 4);
+
+    assert_true(arr2[0] == 42);
+    assert_true(arr2[1] == 42);
+    assert_true(arr2[2] == 42);
+    assert_true(arr2.len == 3);
+}

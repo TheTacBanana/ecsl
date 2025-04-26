@@ -1,5 +1,5 @@
 fn main() {
-    let opt = Option::<Option<int>>::Some {
+    let opt = Option::<Option<int> >::Some {
 		val: Option::<int>::Some {
 			val: 8,
 		}
@@ -9,15 +9,15 @@ fn main() {
         Some { val } -> {
             match (val) {
                 Some { val} -> {
-					assert_true(val == 8)
+					assert_true(val == 8);
                 },
                 None -> {
-					panic!();
+					panic();
                 }
             }
         },
         None -> {
-			panic!();
+			panic();
         }
     }
 }

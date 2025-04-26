@@ -134,7 +134,7 @@ impl ErrorLevel {
         match self {
             ErrorLevel::Error => Red,
             ErrorLevel::Warning => Yellow,
-            ErrorLevel::Note => White,
+            ErrorLevel::Note => Blue,
         }
     }
 }

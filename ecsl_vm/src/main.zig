@@ -181,7 +181,7 @@ fn exit_code_from_status(status: thread.ProgramThread.ProgramStatus) void {
         },
         .ErrorOrPanic => {
             std.log.info("Exit code: 1", .{});
-            std.process.exit(0);
+            std.process.exit(1);
         },
     }
 }
