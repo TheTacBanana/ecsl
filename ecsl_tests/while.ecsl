@@ -1,0 +1,20 @@
+fn main() {
+    let i = 0;
+    while (true) {
+        i = i + 1;
+        break;
+    }
+    assert_true(i == 1);
+
+    while (false) {
+        panic();
+    }
+
+    while (true) {
+        if (i == 5) {
+            break;
+        }
+        i = i + 1;
+    }
+    assert_true(i == 5);
+}

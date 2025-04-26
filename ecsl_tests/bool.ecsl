@@ -1,0 +1,28 @@
+fn main() {
+    assert_true(true);
+    assert_false(false);
+
+    assert_true(!false);
+    assert_false(!true);
+
+    assert_true(true == true);
+    assert_true(false == false);
+
+    assert_false(true != true);
+    assert_false(false != false);
+
+    assert_true(true && true);
+    assert_false(false && true);
+    assert_false(true && false);
+    assert_false(false && false);
+
+    assert_true(true || true);
+    assert_true(false || true);
+    assert_true(true || false);
+    assert_false(false || false);
+
+    assert_false(true ^ true);
+    assert_true(false ^ true);
+    assert_true(true ^ false);
+    assert_false(false ^ false);
+}

@@ -1,0 +1,17 @@
+fn main() {
+    if (true) {
+    } else {
+        panic();
+    }
+
+    if (false) {
+        panic();
+    }
+
+    if (false) {
+        panic();
+    } else if (true) {
+    } else {
+        panic();
+    }
+}
