@@ -92,6 +92,17 @@ pub enum AttributeKind {
     Value(AttributeValue, usize),
 }
 
+impl std::fmt::Display for AttributeKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AttributeKind::Marker(attribute_marker) => write!(f, "{}", attribute_marker.as_ref()),
+            AttributeKind::Value(attribute_value, n) => {
+                write!(f, "{}({})", attribute_value.as_ref(), n)
+            }
+        }
+    }
+}
+
 impl PartialEq for AttributeKind {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {

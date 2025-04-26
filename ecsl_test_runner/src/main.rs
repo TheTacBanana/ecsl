@@ -50,6 +50,7 @@ fn main() -> anyhow::Result<()> {
                     .with_path(|_| file.clone())
                     .with_note(|_| {
                         let mut s = String::from("\n");
+                        s.push_str(String::from_utf8(status.stdout.clone()).unwrap().as_str());
                         s.push_str(String::from_utf8(status.stderr.clone()).unwrap().as_str());
                         s
                     }),

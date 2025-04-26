@@ -147,6 +147,7 @@ impl<'a> CodeGen<'a> {
                                     BinOp(OperandKind::Bool, BinOpKind::Neq) => ins!(NEQ_B),
                                     BinOp(OperandKind::Bool, BinOpKind::And) => ins!(AND_B),
                                     BinOp(OperandKind::Bool, BinOpKind::Or) => ins!(OR_B),
+                                    BinOp(OperandKind::Bool, BinOpKind::BXor) => ins!(XOR_B),
 
                                     e => panic!("{:?}", e),
                                 });

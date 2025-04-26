@@ -196,9 +196,14 @@ pub fn or_b(self: *ProgramThread) void {
     self.push_stack_const(u8, pair.l | pair.r);
 }
 
+pub fn xor_b(self: *ProgramThread) void {
+    const pair = self.pop_pair(u8);
+    self.push_stack_const(u8, 1 & (pair.l ^ pair.r));
+}
+
 pub fn not_b(self: *ProgramThread) void {
     const a = self.pop_stack(u8);
-    self.push_stack_const(u8, ~a.*);
+    self.push_stack_const(u8, (1 & (~a.*)));
 }
 
 pub fn eq_i(self: *ProgramThread) void {

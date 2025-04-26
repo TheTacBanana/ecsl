@@ -234,6 +234,8 @@ pub enum Bytecode {
     AND_B,
     /// OR operation on two bools
     OR_B,
+    /// XOR operation on two bools
+    XOR_B,
     /// NOT operation on a bool
     NOT_B,
 

@@ -241,7 +241,9 @@ impl BinOpKind {
 
     pub fn boolean_logic(&self) -> bool {
         match self {
-            BinOpKind::And | BinOpKind::Or | BinOpKind::Eq | BinOpKind::Neq => true,
+            BinOpKind::And | BinOpKind::Or | BinOpKind::BXor | BinOpKind::Eq | BinOpKind::Neq => {
+                true
+            }
             _ => false,
         }
     }

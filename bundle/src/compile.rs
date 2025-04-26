@@ -28,6 +28,10 @@ impl CommandTrait for Compile {
         debug!("Running Driver");
         let out = Driver::run(self.std.clone());
 
+        if out.is_err() {
+            std::process::exit(1);
+        }
+
         if !run {
             return Ok(());
         }
@@ -45,7 +49,6 @@ impl CommandTrait for Compile {
                 std::process::exit(1);
             }
         }
-
         Ok(())
     }
 }
