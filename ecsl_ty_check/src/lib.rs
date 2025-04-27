@@ -1296,8 +1296,6 @@ impl Visitor for TyCheck {
                         _ = catch_unknown!(*p, TyCheckError::UnknownTy);
                     }
 
-                    debug!("{:?} {:?}", fn_tyid, self.ty_ctxt.global.get_tyir(fn_tyid));
-
                     fn_tyid = catch_unknown!(
                         self.ty_ctxt
                             .get_mono_variant(fn_tyid, &params, generics.span)
@@ -1455,15 +1453,15 @@ impl Visitor for TyCheck {
                 };
 
                 let local_id =
-                    self.new_local(Local::new(e.span, Mutable::Imm, tyid, LocalKind::Temp));
+                    self.new_local(Local::new(e.span, Mutable::Imm, tyid, LocalKind::Internal));
 
                 // Create Assignment Stmt
                 self.push_stmt_to_cur_block(gir::Stmt {
-                    span: e.span,
+                    span,
                     kind: gir::StmtKind::Assign(
                         Place::from_local(local_id, span),
                         gir::Expr {
-                            span: e.span, //TODO: Replace Span
+                            span,
                             kind: gir::ExprKind::BinOp(BinOp(op_kind, *op), lhs_op, rhs_op),
                         },
                     ),
@@ -1756,7 +1754,7 @@ impl Visitor for TyCheck {
                     match &mut e_op {
                         Operand::Copy(place) | Operand::Move(place) => {
                             place.with_projection_ref(gir::Projection::Field {
-                                ty: struct_tyir.id,
+                                ty: e_ty, //struct_tyir.id,
                                 fid: *field_id,
                                 vid: variant.id,
                                 new_ty: field_def.ty,

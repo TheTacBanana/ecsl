@@ -1,0 +1,11 @@
+struct Container<T> {
+    t: T,
+}
+
+fn main() {
+    let cont = Container::<int> {
+        t: 42,
+    };
+
+    assert_true(cont.t == 42);
+}

@@ -1,21 +1,17 @@
-// 42
-
 struct EmptySemi;
 
 struct EmptyCurly {}
 
 struct OneMember {
-	i: int,
+    i: int,
 }
 
 fn main() {
-	let e1: EmptySemi = EmptySemi {};
-	
-	let e2: EmptyCurly = EmptyCurly {};
+    let e1 = EmptySemi {};
 
-	let e3: OneMember = OneMember {
-		i: 42,
-	};
+    let e2 = EmptyCurly {};
 
-	assert_true(e3.i == 42);
+    let e3 = OneMember { i: 42 };
+
+    assert_true(e3.i == 42);
 }

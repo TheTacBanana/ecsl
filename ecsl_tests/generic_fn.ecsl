@@ -1,0 +1,14 @@
+fn identity<T>(t: T) T {
+    return t;
+}
+
+fn identity_alt<T>(t: T) T {
+    let ret = t;
+    return ret;
+}
+
+fn main() {
+    assert_true(identity::<int>(42) == 42);
+    
+    assert_true(identity_alt::<int>(42) == 42);
+}

@@ -1,0 +1,13 @@
+fn left(l: int, r: int) int {
+    return l;
+}
+
+fn right(l: int, r: int) int {
+    return r;
+}
+
+fn main() {
+    assert_true(left(-1, 1) == -1);
+    
+    assert_true(right(-1, 1) == 1);
+}

@@ -329,6 +329,8 @@ pub enum Bytecode {
     ITL,
 
     // Print instructions
+    /// Print \n
+    PRINT_NL,
     /// Pop a char pointer and print the string to stdout
     PRINT_S,
     /// Pop integer from stack and print to stdout
@@ -375,4 +377,16 @@ pub enum Bytecode {
     HAQRY,
     /// Pop the Active Query ID from the stack and end the query
     REQRY,
+}
+
+#[cfg(test)]
+pub mod test {
+    use super::*;
+
+    #[test]
+    fn bytecode() {
+        let byt =
+            BytecodeInstruction::new(Opcode::LDR, [Immediate::UByte(12), Immediate::Long(-1)]);
+        assert_eq!(byt.to_bytecode(), Some(Bytecode::LDR(12, -1)));
+    }
 }

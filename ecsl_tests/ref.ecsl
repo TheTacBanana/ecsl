@@ -1,0 +1,14 @@
+fn pass_by_ref(r: &int) {
+    *r = 5;
+}
+
+fn main() {
+    let i = 42;
+    let ref = &i;
+    assert_true(i == 42);
+    assert_true(*ref == 42);
+
+    pass_by_ref(ref);
+    assert_true(i == 5);
+    assert_true(*ref == 5);
+}

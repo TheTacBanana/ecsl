@@ -409,9 +409,14 @@ mod test {
 
         #[test]
         fn array() {
-            pass("[]");
             pass("[1]");
             pass("[1, 2,]");
+        }
+
+        #[test]
+        fn array_repeat() {
+            pass("[0; 0]");
+            pass("[9; 42]");
         }
 
         #[test]

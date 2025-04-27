@@ -6,7 +6,7 @@ use ecsl_gir::{
     LocalKind, Place, Projection, GIR,
 };
 use ecsl_gir_pass::{comp_ids::ComponentDefinitions, const_eval::ConstMap, GIRPass};
-use ecsl_index::{BlockID, LocalID, TyID};
+use ecsl_index::{BlockID, LocalID};
 use ecsl_ty::{local::LocalTyCtxt, TyIr};
 use log::debug;
 use petgraph::visit::{Bfs, Dfs};
@@ -412,15 +412,16 @@ impl<'a> CodeGen<'a> {
         while let Some(proj) = iter.next() {
             match proj {
                 Projection::Field {
-                    ty,
+                    // ty,
                     vid,
                     fid,
                     new_ty,
+                    ..
                 } => {
                     let offset = self
                         .ty_ctxt
                         .global
-                        .get_field_offset(*ty, *vid, *fid)
+                        .get_field_offset(cur_ty, *vid, *fid)
                         .unwrap();
                     let size = self.ty_ctxt.global.get_size(*new_ty).unwrap();
                     cur_stack_offset.offset += offset as i64;

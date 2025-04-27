@@ -5,7 +5,7 @@ use std::{
 
 use ansi_term::{
     Colour,
-    Colour::{Blue, Red, White, Yellow},
+    Colour::{Blue, Red, Yellow},
 };
 
 use cfgrammar::Span;

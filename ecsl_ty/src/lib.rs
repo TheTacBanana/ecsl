@@ -5,7 +5,6 @@ use ecsl_ast::{
     ty::Mutable,
 };
 use ecsl_index::{FieldID, SymbolID, TyID, VariantID};
-use log::debug;
 use std::collections::BTreeMap;
 
 pub mod ctxt;

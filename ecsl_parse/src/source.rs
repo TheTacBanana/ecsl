@@ -31,6 +31,16 @@ impl SourceFile {
         }
     }
 
+    pub fn from_string(contents: String, id: SourceFileID, cr: PackageID) -> Self {
+        SourceFile {
+            id,
+            cr,
+            path: PathBuf::new(),
+            file_size: contents.len(),
+            contents,
+        }
+    }
+
     pub fn lexer(&self) -> LexerTy {
         LEXER_DEF.lexer(&self.contents)
     }
