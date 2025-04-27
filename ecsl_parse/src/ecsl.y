@@ -92,8 +92,6 @@
 
 %parse-param table: Rc<RefCell<PartialSymbolTable>>
 
-%left 'PATH'
-%left 'LSQUARE' 'RSQUARE'
 %right 'ASSIGN'
 %left 'DOTDOT' 'DOTDOTEQ'
 %left 'OR'
@@ -106,8 +104,10 @@
 %left 'PLUS' 'MINUS'
 %left 'STAR' 'FSLASH' 'MOD'
 %right 'NOT' 'AMPERSAND'
+%left 'LSQUARE' 'RSQUARE'
 %left 'DOT'
 %right 'AS'
+%left 'PATH'
 
 %%
 File -> Result<SourceAST, ()>:

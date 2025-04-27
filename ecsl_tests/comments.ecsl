@@ -1,0 +1,8 @@
+fn main() {
+    let i = 0;
+    // i = 1;
+    assert_true(i == 0);
+}
+
+// fn main() {
+// }
