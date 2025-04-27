@@ -288,11 +288,12 @@ impl Driver {
 
         debug!("Write const data");
         let assoc = (&context, assoc).par_map_assoc(
-            |_, src, (_, _, _, local_ctxt, mut linker)| {
+            |_, src, (diag, _, _, local_ctxt, mut linker)| {
                 let lexer = lexers.get(&src.id).unwrap();
                 let mut gir_consts = BTreeMap::new();
                 for (id, gir) in linker.fn_gir.iter_mut() {
-                    let consts = ConstEval::apply_pass(gir, (lexer, &comp_defs, &assembler));
+                    let consts =
+                        ConstEval::apply_pass(gir, (lexer, &comp_defs, &assembler, diag.clone()));
                     gir_consts.insert(*id, consts);
                 }
                 Some((local_ctxt, linker, gir_consts))
