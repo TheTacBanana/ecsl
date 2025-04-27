@@ -28,7 +28,7 @@ pub const World = struct {
             .storage = try alloc.create(storage.Table),
             .query_tracker = try alloc.create(query.QueryTracker),
         };
-        self.entities.* = try entity.EntityCollection.new(&self.config, alloc);
+        self.entities.* = try entity.EntityCollection.new(&self.config, self.storage, alloc);
         self.components.* = try component.ComponentDefinitions.new(&self.config, alloc);
         self.query_tracker.* = query.QueryTracker.new(self, alloc);
 

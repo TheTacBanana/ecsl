@@ -265,6 +265,20 @@ pub enum Bytecode {
     /// Bitwise shift right on top 2 integers of the stack and push the result
     SHR_I,
 
+    // Long operations
+    /// Compare 2 longs equality and push bool to stack
+    EQ_L,
+    /// Compare 2 longs and push bool to stack
+    NEQ_L,
+    /// Compare 2 longs and push bool to stack
+    LT_L,
+    /// Compare 2 longs and push bool to stack
+    LEQ_L,
+    /// Compare 2 longs and push bool to stack
+    GT_L,
+    /// Compare 2 longs and push bool to stack
+    GEQ_L,
+
     // Float operations
     /// Compare 2 ints equality and push bool to stack
     EQ_F,
@@ -293,6 +307,7 @@ pub enum Bytecode {
     /// Negate the top integer of the stack and push the result
     NEG_I,
 
+    // Long numeric instructions
     /// Add the top 2 longs of the stack and push the result
     ADD_L,
     /// Sub the top 2 longs of the stack and push the result

@@ -261,19 +261,49 @@ pub fn shr_i(self: *ProgramThread) void {
     self.push_stack_const(u32, pair.l >> @intCast(pair.r));
 }
 
+pub fn eq_l(self: *ProgramThread) void {
+    const pair = self.pop_pair(i64);
+    self.push_stack_const(u8, @intFromBool(pair.l == pair.r));
+}
+
+pub fn neq_l(self: *ProgramThread) void {
+    const pair = self.pop_pair(i64);
+    self.push_stack_const(u8, @intFromBool(pair.l != pair.r));
+}
+
+pub fn lt_l(self: *ProgramThread) void {
+    const pair = self.pop_pair(i64);
+    self.push_stack_const(u8, @intFromBool(pair.l < pair.r));
+}
+
+pub fn leq_l(self: *ProgramThread) void {
+    const pair = self.pop_pair(i64);
+    self.push_stack_const(u8, @intFromBool(pair.l <= pair.r));
+}
+
+pub fn gt_l(self: *ProgramThread) void {
+    const pair = self.pop_pair(i64);
+    self.push_stack_const(u8, @intFromBool(pair.l > pair.r));
+}
+
+pub fn geq_l(self: *ProgramThread) void {
+    const pair = self.pop_pair(i64);
+    self.push_stack_const(u8, @intFromBool(pair.l >= pair.r));
+}
+
 pub fn add_i(self: *ProgramThread) void {
     const pair = self.pop_pair(i32);
-    self.push_stack_const(i32, pair.l + pair.r);
+    self.push_stack_const(i32, pair.l +% pair.r);
 }
 
 pub fn sub_i(self: *ProgramThread) void {
     const pair = self.pop_pair(i32);
-    self.push_stack_const(i32, pair.l - pair.r);
+    self.push_stack_const(i32, pair.l -% pair.r);
 }
 
 pub fn mul_i(self: *ProgramThread) void {
     const pair = self.pop_pair(i32);
-    self.push_stack_const(i32, pair.l * pair.r);
+    self.push_stack_const(i32, pair.l *% pair.r);
 }
 
 //TODO: Divide by zero
@@ -294,17 +324,17 @@ pub fn neg_i(self: *ProgramThread) void {
 
 pub fn add_l(self: *ProgramThread) void {
     const pair = self.pop_pair(i64);
-    self.push_stack_const(i64, pair.l + pair.r);
+    self.push_stack_const(i64, pair.l +% pair.r);
 }
 
 pub fn sub_l(self: *ProgramThread) void {
     const pair = self.pop_pair(i64);
-    self.push_stack_const(i64, pair.l - pair.r);
+    self.push_stack_const(i64, pair.l -% pair.r);
 }
 
 pub fn mul_l(self: *ProgramThread) void {
     const pair = self.pop_pair(i64);
-    self.push_stack_const(i64, pair.l * pair.r);
+    self.push_stack_const(i64, pair.l *% pair.r);
 }
 
 pub fn div_l(self: *ProgramThread) void {

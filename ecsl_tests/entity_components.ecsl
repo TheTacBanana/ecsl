@@ -1,0 +1,16 @@
+struct comp Data {
+    val: int,
+}
+
+sys main() {
+    let e = Entity {
+        Data { val: 8 },
+    };
+
+    let d = e.get::<Data>().unwrap();
+    d.val = 42;
+    assert_true(d.val == 42);
+    
+    let d2 = e.get::<Data>().unwrap();
+    assert_true(d2.val == 42);
+}

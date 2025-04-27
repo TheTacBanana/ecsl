@@ -45,10 +45,18 @@ impl FunctionBytecode {
         });
     }
 
+    // Remove if false
     pub fn retain(&mut self, f: impl Copy + Fn(&BytecodeInstruction) -> bool) {
         self.blocks
             .iter_mut()
             .for_each(|(_, block)| block.retain(f));
+    }
+
+    // Remove if true
+    pub fn remove(&mut self, f: impl Copy + Fn(&BytecodeInstruction) -> bool) {
+        self.blocks
+            .iter_mut()
+            .for_each(|(_, block)| block.retain(|i| !f(i)));
     }
 
     pub fn contains(&self, op: Opcode) -> bool {

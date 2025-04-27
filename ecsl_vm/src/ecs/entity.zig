@@ -1,10 +1,12 @@
 const std = @import("std");
 const world = @import("world.zig");
 const archetype = @import("archetype.zig");
+const storage = @import("storage.zig");
 
 pub const EntityCollection = struct {
     alloc: std.mem.Allocator,
     config: *const world.WorldConfig,
+    storage: *storage.Table,
     queue: []u32,
     queue_top: i32,
     entities: []Entity,
@@ -12,9 +14,10 @@ pub const EntityCollection = struct {
     const EntityError = error{EntityLimitReached};
 
     // Create Entity Collection
-    pub fn new(config: *const world.WorldConfig, alloc: std.mem.Allocator) !EntityCollection {
+    pub fn new(config: *const world.WorldConfig, table: *storage.Table, alloc: std.mem.Allocator) !EntityCollection {
         const collection = EntityCollection{
             .alloc = alloc,
+            .storage = table,
             .config = config,
             .queue_top = @intCast(config.entity_limit - 1),
             .queue = try alloc.alloc(u32, config.entity_limit),
@@ -68,6 +71,7 @@ pub const EntityCollection = struct {
         this.queue_top += 1;
         this.queue[@intCast(this.queue_top)] = id.id;
         this.entities[id.id].kill();
+        this.storage.bitsets[id.id].unmanaged.unsetAll();
     }
 };
 

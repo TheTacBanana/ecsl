@@ -12,7 +12,6 @@ members = [
     "ecsl_index",
     "ecsl_parse",
     "ecsl_assembler",
-    "ecsl_lexer",
     "ecsl_ty",
     "ecsl_lexer",
     "ecsl_bytecode_derive",
@@ -20,7 +19,8 @@ members = [
     "ecsl_gir",
     "ecsl_gir_pass",
     "ecsl_codegen",
-    ]
+    "ecsl_test_runner",
+]
 
 resolver = "1"
 

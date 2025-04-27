@@ -66,9 +66,6 @@ impl<'a> CodeGen<'a> {
         let mut pre_offset = -8;
         for (i, l) in pre.iter().rev() {
             let size = self.ty_ctxt.global.get_size(l.tyid).unwrap();
-            if size == 0 {
-                continue;
-            }
             pre_offset -= size as i64;
             self.offsets.insert(
                 **i,
@@ -83,7 +80,7 @@ impl<'a> CodeGen<'a> {
         let mut post_offset = 0;
         for (i, l) in post.iter() {
             let size = self.ty_ctxt.global.get_size(l.tyid).unwrap();
-            if size == 0 || l.kind == LocalKind::Temp {
+            if l.kind == LocalKind::Temp {
                 continue;
             }
             self.offsets.insert(
@@ -148,6 +145,8 @@ impl<'a> CodeGen<'a> {
                                     BinOp(OperandKind::Bool, BinOpKind::And) => ins!(AND_B),
                                     BinOp(OperandKind::Bool, BinOpKind::Or) => ins!(OR_B),
                                     BinOp(OperandKind::Bool, BinOpKind::BXor) => ins!(XOR_B),
+
+                                    BinOp(OperandKind::Entity, BinOpKind::Eq) => ins!(EQ_L),
 
                                     e => panic!("{:?}", e),
                                 });

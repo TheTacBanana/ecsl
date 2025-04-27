@@ -1423,16 +1423,19 @@ impl Visitor for TyCheck {
                 // Unify Types
                 unify!(lhs_ty, rhs_ty, TyCheckError::LHSMatchRHS(lhs_ty, rhs_ty));
 
+                let bool_ty = self.get_tyid(TyIr::Bool);
+
                 let int = self.get_tyid(TyIr::Int) == lhs_ty;
                 let float = self.get_tyid(TyIr::Float) == lhs_ty;
-                let boolean = self.get_tyid(TyIr::Bool) == lhs_ty;
+                let boolean = bool_ty == lhs_ty;
 
                 let tyid = if (op.int_operation() && int) || (op.float_operation() && float) {
                     lhs_ty
-                } else if op.comparsion() && (int || float || boolean) {
-                    self.get_tyid(TyIr::Bool)
-                } else if op.boolean_logic() && boolean {
-                    self.get_tyid(TyIr::Bool)
+                } else if (op.comparsion() && (int || float || boolean))
+                    || (op.boolean_logic() && boolean)
+                    || (*op == BinOpKind::Eq && self.get_tyid(TyIr::Entity) == lhs_ty)
+                {
+                    bool_ty
                 } else {
                     self.ty_ctxt.diag.push_error(
                         EcslError::new(
@@ -1449,6 +1452,7 @@ impl Visitor for TyCheck {
                     TyIr::Bool => OperandKind::Bool,
                     TyIr::Int => OperandKind::Int,
                     TyIr::Float => OperandKind::Float,
+                    TyIr::Entity => OperandKind::Entity,
                     _ => panic!(),
                 };
 

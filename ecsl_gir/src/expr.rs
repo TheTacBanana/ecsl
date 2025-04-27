@@ -102,6 +102,7 @@ pub enum OperandKind {
     Bool,
     Int,
     Float,
+    Entity,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

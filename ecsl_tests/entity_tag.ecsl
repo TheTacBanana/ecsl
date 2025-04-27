@@ -1,0 +1,16 @@
+struct comp Test;
+
+sys main() {
+    let e = Entity {};
+    assert_true(e == e);
+
+    assert_false(e.has::<Test>());
+
+    e.insert::<Test>(Test {});
+    
+    assert_true(e.has::<Test>());
+
+    e.destroy();
+
+    assert_false(e.has::<Test>());
+}

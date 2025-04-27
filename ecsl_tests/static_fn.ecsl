@@ -1,0 +1,17 @@
+struct Foo;
+
+impl Foo {
+    fn value() int {
+        return 42;
+    }
+
+    fn identity(i: int) int {
+        return i;
+    }
+}
+
+fn main() {
+    assert_true(Foo->value() == 42);
+    
+    assert_true(Foo->identity(42) == 42);
+}

@@ -1,0 +1,26 @@
+struct Foo {
+    i: int,
+}
+
+impl Foo {
+    fn modify_value(self) {
+        self.i = -42;
+        assert_true(self.i == -42);
+    }
+
+    fn modify_ref(&self) {
+        self.i = -42;
+        assert_true(self.i == -42);
+    }
+}
+
+fn main() {
+    let foo = Foo { i: 42 };
+    assert_true(foo.i == 42);
+
+    foo.modify_value();
+    assert_true(foo.i == 42);
+
+    foo.modify_ref();
+    assert_true(foo.i == -42);
+}
