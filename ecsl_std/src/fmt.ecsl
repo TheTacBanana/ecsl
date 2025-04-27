@@ -10,11 +10,29 @@ fn print(s: str) {
     }
 }
 
+fn print_ln(s: str) {
+    byt {
+        PBP;
+        LDR #8UB #s;
+        PRINT_S;
+        PRINT_NL;
+    }
+}
+
 fn print_int(i: int) {
     byt {
         PBP;
         LDR #4UB #i;
         PRINT_I;
+    }
+}
+
+fn print_int_ln(i: int) {
+    byt {
+        PBP;
+        LDR #4UB #i;
+        PRINT_I;
+        PRINT_NL;
     }
 }
 
@@ -26,10 +44,28 @@ fn print_float(f: float) {
     }
 }
 
+fn print_float_ln(f: float) {
+    byt {
+        PBP;
+        LDR #4UB #f;
+        PRINT_F;
+        PRINT_NL;
+    }
+}
+
 fn print_bool(b: bool) {
     byt {
         PBP;
         LDR #1UB #b;
         PRINT_B;
+    }
+}
+
+fn print_bool_ln(b: bool) {
+    byt {
+        PBP;
+        LDR #1UB #b;
+        PRINT_B;
+        PRINT_NL;
     }
 }

@@ -407,7 +407,7 @@ pub fn print_s(self: *ProgramThread) void {
     var bw = std.io.bufferedWriter(stdout);
     const writer = bw.writer();
     nosuspend {
-        writer.print("{s}" ++ "\n", .{str_pointer}) catch return;
+        writer.print("{s}", .{str_pointer}) catch return;
         bw.flush() catch return;
     }
 }
@@ -419,7 +419,7 @@ pub fn print_i(self: *ProgramThread) void {
     var bw = std.io.bufferedWriter(stdout);
     const writer = bw.writer();
     nosuspend {
-        writer.print("{}" ++ "\n", .{a.*}) catch return;
+        writer.print("{}", .{a.*}) catch return;
         bw.flush() catch return;
     }
 }
@@ -431,7 +431,7 @@ pub fn print_f(self: *ProgramThread) void {
     var bw = std.io.bufferedWriter(stdout);
     const writer = bw.writer();
     nosuspend {
-        writer.print("{d}" ++ "\n", .{a.*}) catch return;
+        writer.print("{d}", .{a.*}) catch return;
         bw.flush() catch return;
     }
 }
@@ -443,7 +443,17 @@ pub fn print_b(self: *ProgramThread) void {
     var bw = std.io.bufferedWriter(stdout);
     const writer = bw.writer();
     nosuspend {
-        writer.print("{}" ++ "\n", .{a}) catch return;
+        writer.print("{}", .{a}) catch return;
+        bw.flush() catch return;
+    }
+}
+
+pub fn print_nl(_: *ProgramThread) void {
+    const stdout = std.io.getStdOut().writer();
+    var bw = std.io.bufferedWriter(stdout);
+    const writer = bw.writer();
+    nosuspend {
+        writer.print("\n", .{}) catch return;
         bw.flush() catch return;
     }
 }
@@ -453,6 +463,7 @@ pub fn nent(self: *ProgramThread) void {
         self.state.err = ProgramThread.ProgramError.EntityLimit;
         return;
     };
+    std.log.debug("{}", .{new_id});
     self.push_stack(entity.EntityId, @constCast(&new_id));
 }
 

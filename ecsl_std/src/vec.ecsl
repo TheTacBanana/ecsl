@@ -1,4 +1,5 @@
 use num::float;
+use fmt::{print, print_ln, print_float};
 
 struct Vec3 {
     x: float,
@@ -72,5 +73,33 @@ impl Vec3 {
         return (self.x * rhs.x +
                 self.y * rhs.y +
                 self.z * rhs.z);
+    }
+
+    fn add(&self, rhs: &Vec3) {
+        self.x = self.x + rhs.x;
+        self.y = self.y + rhs.y;
+        self.z = self.z + rhs.z;
+    }
+
+    fn sub(&self, rhs: &Vec3) {
+        self.x = self.x - rhs.x;
+        self.y = self.y - rhs.y;
+        self.z = self.z - rhs.z;
+    }
+
+    fn mul_scalar(&self, rhs: float) {
+        self.x = self.x * rhs;
+        self.y = self.y * rhs;
+        self.z = self.z * rhs;
+    }
+
+    fn print(&self) {
+        print("{");
+        print_float(self.x);
+        print(", ");
+        print_float(self.y);
+        print(", ");
+        print_float(self.z);
+        print_ln("}");
     }
 }

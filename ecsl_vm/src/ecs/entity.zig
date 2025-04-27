@@ -65,8 +65,8 @@ pub const EntityCollection = struct {
     }
 
     pub fn remove_entity(this: *EntityCollection, id: EntityId) void {
-        this.queue[@intCast(this.queue_top)] = id.id;
         this.queue_top += 1;
+        this.queue[@intCast(this.queue_top)] = id.id;
         this.entities[id.id].kill();
     }
 };

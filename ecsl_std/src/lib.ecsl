@@ -4,13 +4,23 @@ use {
     std::bool::bool,
     std::char::char,
     std::string::str,
-    std::lib::{drop, exit},
-    std::fmt::{print, print_int, print_float, print_bool},
+    std::lib::{exit},
+    std::fmt::{
+        print,
+        print_ln,
+        print_int,
+        print_int_ln,
+        print_float,
+        print_float_ln,
+        print_bool,
+        print_bool_ln,
+    },
     std::panic::{panic, assert_true, assert_false},
     std::option::Option,
     std::vec::Vec3,
     std::entity::Entity,
     std::query::Query,
+    std::rand::Random,
 };
 
 [terminator]

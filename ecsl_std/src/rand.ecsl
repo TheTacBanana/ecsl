@@ -1,0 +1,34 @@
+use num::{int, float};
+
+// Linear Congruential Generator
+struct Random {
+    seed: int,
+    m: int,
+    a: int,
+    c: int,
+    x: int,
+}
+
+impl Random {
+    fn new(seed: int) Random {
+        return Random {
+            seed: seed,
+            m: int->max(),
+            a: 594156893,
+            c: 0,
+            x: seed,
+        };
+    }
+
+    // Random non negative integer
+    fn next_int(&self) int {
+        let out = self.x;
+        self.x = (self.a * self.x + self.c) % self.m;
+        return out;
+    }
+
+    // Random float between [0-1)
+    fn next_float(&self) float {
+        return (self.next_int() as float) / (self.m as float);
+    }
+}
