@@ -1,0 +1,5 @@
+[package]
+name = "bubble_sort"
+version = "1.0"
+
+[dependencies]

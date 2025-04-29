@@ -1,6 +1,5 @@
 use bool::bool;
 use panic::panic;
-use fmt::print_int;
 
 // Builtin 32 Bit Signed Integer Type
 [copy, builtin(4), allow_casing]
@@ -8,12 +7,14 @@ struct int;
 
 impl int {
     // Get minimum value for int
-    fn min() int {
+    [allow_casing]
+    fn MIN() int {
         return -2147483648;
     }
 
     // Get maximum value for int
-    fn max() int {
+    [allow_casing]
+    fn MAX() int {
         return 2147483647;
     }
 
@@ -39,6 +40,24 @@ impl int {
             return true;
         }
         return false;
+    }
+
+    // Return the maximum of the 2 values
+    fn max(lhs: int, rhs: int) int {
+        if (lhs > rhs) {
+            return lhs;
+        } else {
+            return rhs;
+        }
+    }
+
+    // Return the maximum of the 2 values
+    fn min(lhs: int, rhs: int) int {
+        if (lhs < rhs) {
+            return lhs;
+        } else {
+            return rhs;
+        }
     }
 
     // Integer pow function

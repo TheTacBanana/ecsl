@@ -13,7 +13,7 @@ impl Random {
     fn new(seed: int) Random {
         return Random {
             seed: seed,
-            m: int->max(),
+            m: int->MAX(),
             a: 594156893,
             c: 0,
             x: seed,

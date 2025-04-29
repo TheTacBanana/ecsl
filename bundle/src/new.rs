@@ -42,7 +42,7 @@ impl CommandTrait for New {
             let mut bundle_toml = root_path.clone();
             bundle_toml.push(".gitignore");
             let mut bundle_toml = std::fs::File::create_new(bundle_toml)?;
-            bundle_toml.write_all("target/".as_bytes())?;
+            bundle_toml.write_all("target/\n".as_bytes())?;
         }
 
         // Create the target directory
