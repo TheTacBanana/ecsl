@@ -1,0 +1,186 @@
+sys main_loop() Schedule {
+    // Create 100 entities
+    create_entities(100);
+
+    return Schedule [
+        [
+            Velocity->apply_velocity,
+            Position->wrap_positions,
+        ],
+        [
+            AABB->update_colliders,
+            AABBCollider->count_overlaps,
+        ],
+        [
+            Collision->resolve_collision,
+        ],
+    ];
+}
+
+fn rand_vec3(rand: &Random, scale: float) Vec3 {
+    return Vec3->new(
+        rand.next_float() * scale,
+        rand.next_float() * scale,
+        rand.next_float() * scale,
+    );
+}
+
+sys create_entities(n: int) {
+    let rand = Random->new(42);
+    for (i in 0..n) {
+        Entity {
+            Position { pos: rand_vec3(&rand, 25.0) },
+            Velocity { vel: rand_vec3(&rand, 1.0) },
+            AABB {
+                min: Vec3->new(-1.0, -1.0, -1.0),
+                max: Vec3->new(1.0, 1.0, 1.0),
+            },
+            AABBCollider {
+                min: Vec3->zero(),
+                max: Vec3->zero(),
+            }
+        };
+    }
+}
+
+struct comp Position {
+    pos: Vec3,
+}
+
+impl Position {
+    // Wrap round positions position.abs() exceeds 25
+    sys wrap_positions() {
+        let q = Query.with<Position>();
+        for (e in q) {
+            let p = e.get::<Position>().unwrap();
+
+            if (p.pos.x.abs() > 25.0) {
+                p.pos.x = -p.pos.x;
+            }
+            
+            if (p.pos.y.abs() > 25.0) {
+                p.pos.y = -p.pos.y;
+            }
+            
+            if (p.pos.z.abs() > 25.0) {
+                p.pos.z = -p.pos.z;
+            }
+        }
+    }
+}
+
+struct comp Velocity {
+    vel: Vec3,
+}
+
+impl Velocity {
+    // Apply the velocity to the position
+    sys apply_velocity() {
+        let q = Query.with<Position, Velocity>();
+        for (e in q) {
+            let p = e.get::<Position>().unwrap();
+            let v = e.get::<Velocity>().unwrap();
+            p.pos = p.pos.add(&v.vel);
+        }
+    }
+}
+
+[allow_casing]
+struct comp AABB {
+    // Relative to the Position of the Entity
+    min: Vec3,
+    max: Vec3,
+}
+
+
+impl AABB {
+    sys update_colliders() {
+        let q = Query.with<Position, AABB, AABBCollider>();
+        for (e in q) {
+            let p = e.get::<Position>().unwrap();
+            let v = e.get::<AABB>().unwrap();
+            let c = e.get::<AABBCollider>().unwrap();
+
+            c.min = p.pos.add(&v.min);
+            c.max = p.pos.add(&v.max);
+        }
+    }
+}
+
+[allow_casing]
+struct comp AABBCollider {
+    // Worldspace coordinates
+    min: Vec3,
+    max: Vec3,
+}
+
+impl AABBCollider {
+    // Count the collider overlaps
+    sys count_overlaps() {
+        let overlaps = 0;
+        let q = Query.with<Position, Velocity, AABBCollider>();
+        for (e1 in q) {
+            for (e2 in q) {
+                if (e1 == e2) {
+                    continue;
+                }
+
+                let e1_collider = e1.get::<AABBCollider>().unwrap();
+                let e2_collider = e2.get::<AABBCollider>().unwrap();
+                
+                if (AABBCollider->overlaps(e1_collider, e2_collider)) {
+                    e1.insert::<Collision>(
+                        Collision {
+                            other_pos: e2.get::<Position>().unwrap().pos,
+                            other_vel: e2.get::<Velocity>().unwrap().vel,
+                        }
+                    );
+                    overlaps = overlaps + 1;
+                }
+            }
+        }
+        print("Overlaps: ");
+        print_int_ln(overlaps);
+    }
+
+
+    fn overlaps(
+        lhs: &AABBCollider,
+        rhs: &AABBCollider,
+    ) bool {
+        return lhs.min.x <= rhs.max.x && lhs.max.x >= rhs.min.x &&
+               lhs.min.y <= rhs.max.y && lhs.max.y >= rhs.min.y &&
+               lhs.min.z <= rhs.max.z && lhs.max.z >= rhs.min.z;
+    }
+}
+
+struct comp Collision {
+    other_pos: Vec3,
+    other_vel: Vec3,
+}
+
+impl Collision {
+    sys resolve_collision() {
+        let collisions = 0;
+        let q = Query.with<Position, Velocity, Collision>();
+        for (e in q) {
+            let p = e.get::<Position>().unwrap();
+            let v = e.get::<Velocity>().unwrap();
+            let c = e.get::<Collision>().unwrap();
+
+            let n = v.vel.sub(&c.other_pos);
+            n.normalise();
+    
+            let rel_vel = v.vel.sub(&c.other_vel);
+    
+            let dot = n.mul_scalar(rel_vel.dot(&n));
+
+            v.vel = v.vel.sub(&dot);
+
+            e.remove::<Collision>();
+            collisions = collisions + 1;
+        }
+        print("Collisions: ");
+        print_int_ln(collisions);
+    }
+}

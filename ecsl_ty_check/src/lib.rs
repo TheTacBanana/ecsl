@@ -1758,7 +1758,7 @@ impl Visitor for TyCheck {
                 let get_struct_tyir = |s: &TyCheck, tyid: TyID, tyir: TyIr| -> Option<ADTDef> {
                     match tyir {
                         TyIr::ADT(adt) if adt.is_struct() => Some(adt),
-                        TyIr::Entity => todo!("Entity Fields"),
+                        // TyIr::Entity => todo!("Entity Fields"),
                         _ => {
                             s.ty_ctxt.diag.push_error(
                                 EcslError::new(

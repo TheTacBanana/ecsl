@@ -32,7 +32,7 @@ impl Board {
         // Check forward diagonal (left)
         for (i in 1..=8) {
             let p = pos - 9 * i;
-            if (p < 0 || (p % 8) > (pos % 8)) {
+            if (p < 0 || (p % 8) > col) {
                 break;
             }
             if (self.board[p]) {
@@ -44,7 +44,7 @@ impl Board {
         // Check backwards diagonal (right)
         for (i in 1..=8) {
             let p = pos - 7 * i;
-            if (p < 0 || (p % 8) < (pos % 8)) {
+            if (p < 0 || (p % 8) < col) {
                 break;
             }
             if (self.board[p]) {
