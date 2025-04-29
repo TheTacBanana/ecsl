@@ -1,0 +1,104 @@
+struct Board {
+    board: [bool: 64],
+    solutions: int,
+}
+
+impl Board {
+    fn new() Board {
+        return Board {
+            board: [false; 64],
+            solutions: 0,
+        };
+    }
+
+    fn is_safe(&self, pos: int) bool {
+        let row = pos / 8;
+        let col = pos % 8;
+
+        // Check down column
+        for (i in 0..row) {
+            if (self.board[col + i * 8]) {
+                return false;
+            }
+        }
+
+        // Check across row
+        for (i in 0..col) {
+            if (self.board[i + row * 8]) {
+                return false;
+            }
+        }
+
+        // Check forward diagonal (left)
+        for (i in 1..=8) {
+            let p = pos - 9 * i;
+
+            if (p < 0 || (p % 8) > (pos % 8)) {
+                break;
+            }
+
+            if (self.board[p]) {
+                return false;
+            }
+
+        }
+
+        // Check backwards diagonal (right)
+        for (i in 1..=8) {
+            let p = pos - 7 * i;
+
+            if (p < 0 || (p % 8) < (pos % 8)) {
+                break;
+            }
+
+            if (self.board[p]) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    fn search(&self) int {
+        self.search_inner(0, 0);
+        return self.solutions;
+    }
+
+    fn search_inner(&self, start: int, n: int) {
+        if (n == 8) {
+            // self.print();
+            self.solutions = self.solutions + 1;
+            return;
+        }
+
+        for (pos in start..64) {
+            if (self.is_safe(pos)) {
+                self.board[pos] = true;
+                self.search_inner(pos + 1, n + 1);
+                self.board[pos] = false;
+            }
+        }
+    }
+
+    fn print(&self) {
+        for (col in 0..8) {
+            for (row in 0..8) {
+                if (self.board[row + (col * 8)]) {
+                    print("♕");
+                } else {
+                    print("_");
+                }
+            }
+            print("\n");
+        }
+        print("\n");
+    }
+}
+
+fn main() {
+    let board = Board->new();
+    let solutions = board.search();
+    print("Solutions: ");
+    print_int(solutions);
+}
+
