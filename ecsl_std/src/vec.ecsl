@@ -62,7 +62,7 @@ impl Vec3 {
                 self.z * self.z).sqrt();
     }
 
-    fn normalize(&self) {
+    fn normalise(&self) {
         let l = self.length();
         self.x = self.x / l;
         self.y = self.y / l;
@@ -75,22 +75,28 @@ impl Vec3 {
                 self.z * rhs.z);
     }
 
-    fn add(&self, rhs: &Vec3) {
-        self.x = self.x + rhs.x;
-        self.y = self.y + rhs.y;
-        self.z = self.z + rhs.z;
+    fn add(&self, rhs: &Vec3) Vec3 {
+        return Vec3 {
+            x: self.x + rhs.x,
+            y: self.y + rhs.y,
+            z: self.z + rhs.z,
+        };
     }
 
-    fn sub(&self, rhs: &Vec3) {
-        self.x = self.x - rhs.x;
-        self.y = self.y - rhs.y;
-        self.z = self.z - rhs.z;
+    fn sub(&self, rhs: &Vec3) Vec3{
+        return Vec3 {
+            x: self.x - rhs.x,
+            y: self.y - rhs.y,
+            z: self.z - rhs.z,
+        };
     }
 
-    fn mul_scalar(&self, rhs: float) {
-        self.x = self.x * rhs;
-        self.y = self.y * rhs;
-        self.z = self.z * rhs;
+    fn mul_scalar(&self, rhs: float) Vec3 {
+        return Vec3 {
+            x: self.x * rhs,
+            y: self.y * rhs,
+            z: self.z * rhs,
+        };
     }
 
     fn print(&self) {

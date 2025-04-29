@@ -1,4 +1,5 @@
 use num::{int, float};
+use bool::bool;
 
 // Linear Congruential Generator
 struct Random {
@@ -30,5 +31,10 @@ impl Random {
     // Random float between [0-1)
     fn next_float(&self) float {
         return (self.next_int() as float) / (self.m as float);
+    }
+
+    // Random bool
+    fn next_bool(&self) bool {
+        return self.next_int() > (int->MAX() / 2);
     }
 }
