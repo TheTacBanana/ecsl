@@ -222,6 +222,8 @@ pub enum Bytecode {
     JMPR(i64),
     /// Jump if true
     JMPT(u64),
+    /// Jump if false
+    JMPF(u64),
     /// Relative jump if true
     JMPTR(i64),
 

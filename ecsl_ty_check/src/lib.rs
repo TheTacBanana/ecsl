@@ -27,7 +27,7 @@ use ecsl_ty::local::LocalTyCtxt;
 use ecsl_ty::{ADTDef, FieldDef, FnParent, GenericsScope, TyIr};
 use ext::IntoTyID;
 use for_loop::ForLoopKind;
-use log::debug;
+use log::{debug, error};
 use lrpar::Span;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
@@ -579,8 +579,6 @@ impl Visitor for TyCheck {
                 for if_stmt in &stmts {
                     match if_stmt {
                         IfStmt::If(expr, block) | IfStmt::ElseIf(expr, block) => {
-                            let cur_block = self.cur_block();
-
                             // Visit expression
                             self.visit_expr(expr)?;
 
@@ -602,16 +600,23 @@ impl Visitor for TyCheck {
                             blocks_to_terminate.push(end_of_block);
 
                             // TODO: Check soundness of terminating if statements
-                            let to_next = self.new_block_without_stack();
-                            self.block_mut(cur_block).terminate(Terminator {
-                                kind: TerminatorKind::Switch(
-                                    cond_op,
-                                    vec![
-                                        SwitchCase::Value(Immediate::Bool(true), start_of_block),
-                                        SwitchCase::Default(to_next),
-                                    ],
-                                ),
-                            });
+                            let to_next = self.terminate_with_new_block(
+                                TerminationKind::Equal,
+                                |block, to_next| {
+                                    block.terminate(Terminator {
+                                        kind: TerminatorKind::Switch(
+                                            cond_op,
+                                            vec![
+                                                SwitchCase::Value(
+                                                    Immediate::Bool(true),
+                                                    start_of_block,
+                                                ),
+                                                SwitchCase::Default(to_next),
+                                            ],
+                                        ),
+                                    });
+                                },
+                            );
                             self.block_stack.push(to_next);
                         }
                         IfStmt::Else(block) => {
@@ -1416,13 +1421,6 @@ impl Visitor for TyCheck {
                 self.visit_expr(lhs)?;
                 let (lhs_ty, lhs_op) = self.pop();
 
-                // Visit RHS
-                self.visit_expr(rhs)?;
-                let (rhs_ty, rhs_op) = self.pop();
-
-                // Unify Types
-                unify!(lhs_ty, rhs_ty, TyCheckError::LHSMatchRHS(lhs_ty, rhs_ty));
-
                 let bool_ty = self.get_tyid(TyIr::Bool);
 
                 let int = self.get_tyid(TyIr::Int) == lhs_ty;
@@ -1437,15 +1435,7 @@ impl Visitor for TyCheck {
                 {
                     bool_ty
                 } else {
-                    self.ty_ctxt.diag.push_error(
-                        EcslError::new(
-                            ErrorLevel::Error,
-                            TyCheckError::InvalidBinOp(*op, lhs_ty, rhs_ty),
-                        )
-                        .with_span(|_| e.span),
-                    );
-
-                    return VisitorCF::Break;
+                    err!(TyCheckError::InvalidBinOp(*op, lhs_ty), span);
                 };
 
                 let op_kind = match self.get_tyir(lhs_ty) {
@@ -1459,17 +1449,84 @@ impl Visitor for TyCheck {
                 let local_id =
                     self.new_local(Local::new(e.span, Mutable::Imm, tyid, LocalKind::Internal));
 
-                // Create Assignment Stmt
-                self.push_stmt_to_cur_block(gir::Stmt {
-                    span,
-                    kind: gir::StmtKind::Assign(
-                        Place::from_local(local_id, span),
-                        gir::Expr {
-                            span,
-                            kind: gir::ExprKind::BinOp(BinOp(op_kind, *op), lhs_op, rhs_op),
+                if *op == BinOpKind::And || *op == BinOpKind::Or {
+                    let out_block = self.new_block_without_stack();
+
+                    // If && then to true
+                    // If || then to false
+                    let switch_value = Immediate::Bool(*op == BinOpKind::And);
+
+                    // Create first block
+                    // Assign value and then switch else
+                    self.push_stmt_to_cur_block(gir::Stmt {
+                        span,
+                        kind: gir::StmtKind::Assign(
+                            Place::from_local(local_id, span),
+                            gir::Expr {
+                                span,
+                                kind: gir::ExprKind::Value(lhs_op),
+                            },
+                        ),
+                    });
+                    self.terminate_with_new_block(TerminationKind::Equal, |block, next| {
+                        block.terminate(Terminator {
+                            kind: TerminatorKind::Switch(
+                                Operand::Copy(Place::from_local(local_id, span)),
+                                vec![
+                                    SwitchCase::Value(switch_value, next),
+                                    SwitchCase::Default(out_block),
+                                ],
+                            ),
+                        })
+                    });
+
+                    // Visit RHS
+                    self.visit_expr(rhs)?;
+                    let (rhs_ty, rhs_op) = self.pop();
+                    // Unify Types
+                    unify!(lhs_ty, rhs_ty, TyCheckError::LHSMatchRHS(lhs_ty, rhs_ty));
+
+                    // Create first block
+                    // Assign value and then switch else
+                    self.push_stmt_to_cur_block(gir::Stmt {
+                        span,
+                        kind: gir::StmtKind::Assign(
+                            Place::from_local(local_id, span),
+                            gir::Expr {
+                                span,
+                                kind: gir::ExprKind::Value(rhs_op),
+                            },
+                        ),
+                    });
+                    self.terminate_with_existing_block(
+                        TerminationKind::Equal,
+                        out_block,
+                        |block, next| {
+                            block.terminate(Terminator {
+                                kind: TerminatorKind::Jump(next),
+                            })
                         },
-                    ),
-                });
+                    );
+                } else {
+                    // Visit RHS
+                    self.visit_expr(rhs)?;
+                    let (rhs_ty, rhs_op) = self.pop();
+
+                    // Unify Types
+                    unify!(lhs_ty, rhs_ty, TyCheckError::LHSMatchRHS(lhs_ty, rhs_ty));
+
+                    // Create Assignment Stmt
+                    self.push_stmt_to_cur_block(gir::Stmt {
+                        span,
+                        kind: gir::StmtKind::Assign(
+                            Place::from_local(local_id, span),
+                            gir::Expr {
+                                span,
+                                kind: gir::ExprKind::BinOp(BinOp(op_kind, *op), lhs_op, rhs_op),
+                            },
+                        ),
+                    });
+                }
 
                 Some((tyid, Operand::Move(Place::from_local(local_id, span))))
             }
@@ -2188,7 +2245,7 @@ impl Visitor for TyCheck {
                         let local_id = self.new_local(Local::new(
                             span,
                             Mutable::Imm,
-                            element,
+                            index_ty,
                             LocalKind::Internal,
                         ));
 
@@ -2252,7 +2309,7 @@ pub enum TyCheckError {
     ExpectedBoolean(TyID),
 
     InvalidUnOp(UnOpKind, TyID),
-    InvalidBinOp(BinOpKind, TyID, TyID),
+    InvalidBinOp(BinOpKind, TyID),
 
     InvalidCast {
         from: TyID,
@@ -2335,10 +2392,7 @@ impl std::fmt::Display for TyCheckError {
             InvalidUnOp(op, tyid) => {
                 &format!("Operation '{}' is not valid for Type '{}'", op, tyid)
             }
-            InvalidBinOp(op, lhs, rhs) => &format!(
-                "Operation '{}' is not valid for Type '{}' and Type '{}'",
-                op, lhs, rhs
-            ),
+            InvalidBinOp(op, lhs) => &format!("Operation '{}' is not valid for Type '{}'", op, lhs),
             FunctionReturnType { from, to } => {
                 &format!("Cannot return Type '{}' from function Type '{}'", from, to)
             }

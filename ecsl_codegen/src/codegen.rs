@@ -268,8 +268,12 @@ impl<'a> CodeGen<'a> {
                                     self.load_operand(operand, &mut instrs);
 
                                     instrs.extend(match value {
-                                        Immediate::Bool(_) => {
-                                            vec![ins!(JMPT, Immediate::LabelOf(*block_id))]
+                                        Immediate::Bool(b) => {
+                                            vec![if *b {
+                                                ins!(JMPT, Immediate::LabelOf(*block_id))
+                                            } else {
+                                                ins!(JMPF, Immediate::LabelOf(*block_id))
+                                            }]
                                         }
                                         Immediate::Int(_) => vec![
                                             ins!(PSHI, *value),

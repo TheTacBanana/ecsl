@@ -170,6 +170,12 @@ pub fn jmpt(self: *ProgramThread, addr: u64) void {
     }
 }
 
+pub fn jmpf(self: *ProgramThread, addr: u64) void {
+    if ((self.pop_stack(u8)).* == 0) {
+        self.pc = addr;
+    }
+}
+
 pub fn jmptr(self: *ProgramThread, rel_addr: i64) void {
     if ((self.pop_stack(u8)).* > 0) {
         self.pc = u64_plus_i64(self.pc, rel_addr);
@@ -188,12 +194,12 @@ pub fn neq_b(self: *ProgramThread) void {
 
 pub fn and_b(self: *ProgramThread) void {
     const pair = self.pop_pair(u8);
-    self.push_stack_const(u8, pair.l & pair.r);
+    self.push_stack_const(u8, 1 & (pair.l & pair.r));
 }
 
 pub fn or_b(self: *ProgramThread) void {
     const pair = self.pop_pair(u8);
-    self.push_stack_const(u8, pair.l | pair.r);
+    self.push_stack_const(u8, 1 & (pair.l | pair.r));
 }
 
 pub fn xor_b(self: *ProgramThread) void {
@@ -306,7 +312,6 @@ pub fn mul_i(self: *ProgramThread) void {
     self.push_stack_const(i32, pair.l *% pair.r);
 }
 
-//TODO: Divide by zero
 pub fn div_i(self: *ProgramThread) void {
     const pair = self.pop_pair(i32);
     self.push_stack_const(i32, @divTrunc(pair.l, pair.r));
@@ -397,7 +402,6 @@ pub fn mul_f(self: *ProgramThread) void {
     self.push_stack_const(f32, pair.l * pair.r);
 }
 
-//TODO: Divide by zero
 pub fn div_f(self: *ProgramThread) void {
     const pair = self.pop_pair(f32);
     self.push_stack_const(f32, pair.l / pair.r);
@@ -493,7 +497,6 @@ pub fn nent(self: *ProgramThread) void {
         self.state.err = ProgramThread.ProgramError.EntityLimit;
         return;
     };
-    std.log.debug("{}", .{new_id});
     self.push_stack(entity.EntityId, @constCast(&new_id));
 }
 
