@@ -2,7 +2,7 @@ use anyhow::Result;
 use ecsl_assembler::Assembler;
 use ecsl_ast_pass::*;
 use ecsl_codegen::{
-    bp_promotion::BpPromotion,
+    bp_promotion::{BpPromotion, NoPopPromotion},
     codegen::CodeGen,
     inline::{CanInline, Inline, InlineableFunctions},
     noop::NoOp,
@@ -316,6 +316,7 @@ impl Driver {
                     let mut bytecode =
                         CodeGen::apply_pass(gir, (local_ctxt.clone(), comp_defs.clone(), consts));
                     BpPromotion::apply_pass(&mut bytecode, ());
+                    NoPopPromotion::apply_pass(&mut bytecode, ());
                     NoOp::apply_pass(&mut bytecode, ());
                     CanInline::apply_pass(&mut bytecode, &inlineable);
 

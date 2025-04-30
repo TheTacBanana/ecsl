@@ -185,6 +185,9 @@ pub enum Bytecode {
     STR(u8, i64),
     /// STR but always relative to the BP
     BPSTR(u8, i64),
+    /// STR but always relative to the BP, does not pop from the stack
+    BPSTRNP(u8, i64),
+
     /// Pop the address from the top of the stack and push [address + offset]
     /// to the top of the stack
     /// Aka: Create a reference

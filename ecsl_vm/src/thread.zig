@@ -172,10 +172,50 @@ pub const ProgramThread = struct {
         self.sp = new_sp;
     }
 
-    pub fn pop_pair(self: *ProgramThread, comptime T: type) struct { l: T, r: T } {
-        const r = self.pop_stack(T);
-        const l = self.pop_stack(T);
-        return .{ .l = l.*, .r = r.* };
+    pub fn pop_pair(self: *ProgramThread, comptime T: type) struct { l: *align(1) const T, r: *align(1) const T } {
+        // Check for type larger than stack
+        if ((2 * @sizeOf(T)) > self.sp) {
+            self.state.err = ProgramError.StackOverflow;
+            return .{
+                .l = @ptrCast(&self.stack[0]),
+                .r = @ptrCast(&self.stack[0]),
+            }; // Return junk value
+        }
+
+        // Decrement Stack
+        self.sp -= @sizeOf(T) * 2;
+
+        return .{
+            .l = @ptrCast(&self.stack[self.sp]),
+            .r = @ptrCast(&self.stack[self.sp + @sizeOf(T)]),
+        };
+    }
+
+    pub fn pop_pair_half(self: *ProgramThread, comptime T: type) struct { l: *align(1) T, r: *align(1) const T } {
+        // Check for type larger than stack
+        if ((2 * @sizeOf(T)) > self.sp) {
+            self.state.err = ProgramError.StackOverflow;
+            return .{
+                .l = @ptrCast(&self.stack[0]),
+                .r = @ptrCast(&self.stack[0]),
+            }; // Return junk value
+        }
+
+        // Decrement Stack
+        self.sp -= @sizeOf(T);
+
+        return .{
+            .l = @ptrCast(&self.stack[self.sp - @sizeOf(T)]),
+            .r = @ptrCast(&self.stack[self.sp]),
+        };
+    }
+
+    pub fn peek_stack(self: *ProgramThread, comptime T: type) *align(1) T {
+        if (@sizeOf(T) > self.sp) {
+            self.state.err = ProgramError.StackOverflow;
+            return @ptrCast(&self.stack[0]); // Return junk value
+        }
+        return @ptrCast(&self.stack[self.sp - @sizeOf(T)]);
     }
 
     // Pop type of comptime size from stack
