@@ -514,6 +514,12 @@ UsePath -> Result<UsePath, ()>:
             table.definition($1.map_err(|_| ())?.span(), SymbolKind::ImportItem),
         ))
     }
+    | 'RESOURCE' {
+        Ok(UsePath::Item(
+            $span,
+            table.definition($1.map_err(|_| ())?.span(), SymbolKind::ImportItem),
+        ))
+    }
     | 'SUPER' 'PATH' UsePath {
         Ok(UsePath::Super(
             $1.map_err(|_| ())?.span(),
@@ -565,6 +571,9 @@ Ty -> Result<Ty, ()>:
     }
     | 'SCHEDULE' {
         Ok(Ty::new($span, TyKind::Schedule, ConcreteGenerics::empty($span)))
+    }
+    | 'RESOURCE' {
+        Ok(Ty::new($span, TyKind::Resource(table.create_entry("Resource".to_string())), ConcreteGenerics::empty($span)))
     }
     ;
 

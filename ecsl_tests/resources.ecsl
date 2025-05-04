@@ -1,0 +1,12 @@
+struct comp Empty;
+
+sys main() {
+    assert_false(Resource->exists::<Empty>());
+
+    Resource->insert::<Empty>(Empty {});
+    assert_true(Resource->get::<Empty>().is_some());
+
+    assert_true(Resource->remove::<Empty>().is_some());
+
+    assert_false(Resource->exists::<Empty>());
+}

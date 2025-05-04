@@ -268,6 +268,7 @@ impl LocalTyCtxt {
             TyKind::Schedule => from_tyir!(TyIr::Schedule),
             TyKind::Array(ty, span) => from_tyir!(TyIr::Array(self.get_tyid(ty, scope)?, *span)),
             TyKind::Query(_) => from_tyir!(TyIr::Query),
+            TyKind::Resource(_) => from_tyir!(TyIr::Resource),
             TyKind::ArrayRef(_, _) => todo!(),
         }
     }
@@ -374,7 +375,8 @@ impl LocalTyCtxt {
                 | TyIr::Entity
                 | TyIr::Bottom
                 | TyIr::Query
-                | TyIr::Schedule => Some(id),
+                | TyIr::Schedule
+                | TyIr::Resource => Some(id),
                 TyIr::Unknown => None,
                 TyIr::Range(_, _) => todo!(),
                 TyIr::Ptr(_, _) => todo!(),

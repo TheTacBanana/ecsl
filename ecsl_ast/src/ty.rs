@@ -22,9 +22,10 @@ impl Ty {
 
     pub fn into_scope(&self) -> Option<SymbolID> {
         match &self.kind {
-            TyKind::Ident(symbol_id) | TyKind::Entity(symbol_id, _) | TyKind::Query(symbol_id) => {
-                Some(*symbol_id)
-            }
+            TyKind::Ident(symbol_id)
+            | TyKind::Entity(symbol_id, _)
+            | TyKind::Query(symbol_id)
+            | TyKind::Resource(symbol_id) => Some(*symbol_id),
             _ => None,
         }
     }
@@ -66,6 +67,8 @@ pub enum TyKind {
     /// Query Type
     /// `Query`
     Query(SymbolID),
+
+    Resource(SymbolID),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

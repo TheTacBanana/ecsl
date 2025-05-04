@@ -24,10 +24,13 @@ pub const EntityCollection = struct {
             .entities = try alloc.alloc(Entity, config.entity_limit),
         };
 
-        for (0..config.entity_limit) |i| {
-            collection.queue[i] = @intCast(i);
-            collection.entities[i] = Entity.DEAD;
+        for (0..config.entity_limit - 1) |i| {
+            collection.queue[i + 1] = @intCast(i);
+            collection.entities[i + 1] = Entity.DEAD;
         }
+
+        // Create resource entity
+        collection.entities[0] = Entity{ .id = EntityId{ .id = 0, .gen = 0 } };
 
         return collection;
     }
@@ -82,10 +85,9 @@ pub const Entity = struct {
         .id = EntityId.DEAD,
     };
 
-    pub fn new(id: EntityId, arch: archetype.ArchetypeId) Entity {
+    pub fn new(id: EntityId) Entity {
         return Entity{
             .id = id,
-            .arch = arch,
         };
     }
 

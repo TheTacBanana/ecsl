@@ -4,7 +4,7 @@ use {
     std::bool::bool,
     std::char::char,
     std::string::str,
-    std::lib::{exit},
+    std::lib::exit,
     std::fmt::{
         print,
         print_ln,
@@ -20,6 +20,7 @@ use {
     std::vec::Vec3,
     std::entity::Entity,
     std::query::Query,
+    std::resource::Resource,
     std::rand::Random,
 };
 

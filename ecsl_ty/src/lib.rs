@@ -53,6 +53,7 @@ pub enum TyIr {
     ArrayRef(Mutable, FieldDef),
     /// Query Type
     Query,
+    Resource,
 }
 
 impl From<Literal> for TyIr {
@@ -109,6 +110,7 @@ impl TyIr {
             TyIr::Entity => "Entity",
             TyIr::Schedule => "Schedule",
             TyIr::Query => "Query",
+            TyIr::Resource => "Resource",
         };
         s.to_string()
     }

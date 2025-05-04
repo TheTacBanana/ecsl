@@ -490,6 +490,7 @@ pub fn generate_definition_tyir(ty_ctxt: Arc<LocalTyCtxt>) {
                         );
                         return;
                     }
+                    TyIr::Resource => {}
                     TyIr::Entity
                     | TyIr::Query
                     | TyIr::Bool

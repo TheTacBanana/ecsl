@@ -27,7 +27,7 @@ use ecsl_ty::local::LocalTyCtxt;
 use ecsl_ty::{ADTDef, FieldDef, FnParent, GenericsScope, TyIr};
 use ext::IntoTyID;
 use for_loop::ForLoopKind;
-use log::{debug, error};
+use log::debug;
 use lrpar::Span;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;

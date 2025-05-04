@@ -1,0 +1,44 @@
+use option::Option;
+use bool::bool;
+
+impl Resource {
+    [require_comp_generics]
+    sys insert<T>(t: T) {
+        byt {
+            BPLDR #size.T #t;
+            PSHI_L #0UL;
+            INCOMP #cid.T;
+            RET;
+        }
+    }
+
+    [require_comp_generics]
+    sys get<T>() Option<&T> {
+        byt {
+            PSHI_L #0UL;
+            GECOMP #cid.T;
+            BPSTR #9UB #return;
+            RET;
+        }
+    }
+    
+    [require_comp_generics]
+    sys exists<T>() bool {
+        byt {
+            PSHI_L #0UL;
+            HACOMP #cid.T;
+            BPSTR #1UB #return;
+            RET;
+        }
+    }
+
+    [require_comp_generics]
+    sys remove<T>() Option<T> {
+        byt {
+            PSHI_L #0UL;
+            RECOMP #cid.T;
+            BPSTR #size_add_1.T #return;
+            RET;
+        }
+    }
+}

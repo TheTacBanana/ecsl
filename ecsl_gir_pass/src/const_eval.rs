@@ -1,7 +1,7 @@
 use crate::{comp_ids::ComponentDefinitions, GIRPass};
 use ecsl_assembler::{Assembler, ConstData};
 use ecsl_bytecode::Immediate;
-use ecsl_diagnostics::{DiagConn, Diagnostics};
+use ecsl_diagnostics::DiagConn;
 use ecsl_error::{ext::EcslErrorExt, EcslError, ErrorLevel};
 use ecsl_gir::{
     cons::{Constant, Literal},
