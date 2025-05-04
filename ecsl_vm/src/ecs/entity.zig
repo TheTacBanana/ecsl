@@ -19,14 +19,14 @@ pub const EntityCollection = struct {
             .alloc = alloc,
             .storage = table,
             .config = config,
-            .queue_top = @intCast(config.entity_limit - 1),
-            .queue = try alloc.alloc(u32, config.entity_limit),
+            .queue_top = @intCast(config.entity_limit - 2),
+            .queue = try alloc.alloc(u32, config.entity_limit - 1),
             .entities = try alloc.alloc(Entity, config.entity_limit),
         };
 
-        for (0..config.entity_limit - 1) |i| {
-            collection.queue[i + 1] = @intCast(i);
-            collection.entities[i + 1] = Entity.DEAD;
+        for (1..config.entity_limit) |i| {
+            collection.queue[i - 1] = @intCast(i - 1);
+            collection.entities[i - 1] = Entity.DEAD;
         }
 
         // Create resource entity

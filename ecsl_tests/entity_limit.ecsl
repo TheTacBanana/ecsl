@@ -1,0 +1,6 @@
+sys main() {
+    // Default Entity Cap 999 + 1
+    for (i in 0..999) {
+        Entity {};
+    }
+}
